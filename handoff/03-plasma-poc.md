@@ -1,36 +1,33 @@
 # Independent task: safe minimal Plasma/KWin proof of concept
 
-This brief is self-contained. Read `AGENTS.md` before work. This lane prepares and, only after explicit readiness from the user, validates the smallest Quickshell panel/dock under Plasma Wayland.
+This brief is self-contained. Read `AGENTS.md` before work. This lane maintains and validates the smallest isolated Quickshell panel/dock under the user's active Plasma Wayland session.
 
 ## User/session state
 
-The target is latest upstream Plasma 6 Wayland with KWin. The user is in a Hyprland session now. They will enable `services.desktopManager.plasma6.enable` in their host configuration themselves and will notify us once they enter a standard Plasma session. **Do not change that configuration, switch sessions, install packages, run an installer, disable plasmashell or edit autostart.**
+The user is now in a verified Plasma/KWin `6.8.2` Wayland session with Qt `6.12.0`. **Do not change host configuration, switch sessions, install packages, run an installer, disable plasmashell or edit autostart.**
 
-Workspace is `MacShell-KWin`; current HEAD is `bcadc79` (`docs(agents): add Git commit and validation rules`). The initial source-audit baseline was `51db0bab6997da310d2aacfaa7084740ec44ad4a` and is historical. The existing full MacShell shell imports Hyprland APIs and cannot be used as proof that MacShell works under KWin. No KWin runtime test has been performed.
+Workspace is `MacShell-KWin`; current committed HEAD is `f9037d5` (`docs(handoff): refresh repository state references`). The initial source-audit baseline was `51db0bab6997da310d2aacfaa7084740ec44ad4a` and is historical; POC work is uncommitted. The existing full MacShell shell imports Hyprland APIs and cannot be used as proof that MacShell works under KWin.
 
-Nix development baseline added in `flake.nix`/`flake.lock` packages only the current Hyprland configuration. It pins Quickshell 0.3.2 through Nixpkgs unstable; `nix flake check --no-build --all-systems` passed. Do not treat it as KWin support.
+The user visually verified `poc/kwin-basics/shell.qml` in the active KWin session: the temporary top bar and inert dock appeared on `eDP-1` as expected, disappeared after exit, and did not shift application work areas. Earlier runs logged `eDP-1 1920x1080` and `Configuration Loaded`; the bounded process exits through `timeout` (124), as expected. This acceptance covers only this isolated layer-shell fixture—not Klassy, full MacShell, or the separate backend status fixture. Quickshell logs a non-fatal portal warning because `org.quickshell` app info is unavailable in the development environment.
 
-## Task before the session is ready
+The development flake pins Quickshell `0.3.2` and declares KWayland `6.8.2` plus build tools for a separate backend probe. `XDG_CACHE_HOME=/tmp nix flake check path:. --no-build --all-systems` passed after the latest flake edits. The full packaged Hyprland shell is not KWin support.
 
-Prepare a short, non-invasive test runbook. It must separate preparation from user-authorized execution and include:
+## Current POC and session findings
 
-- how to verify active session/compositor, installed KWin/Plasma/Quickshell versions and advertised Wayland globals;
-- how to launch an isolated minimal Quickshell layer-shell panel under KWin without importing MacShell's Hyprland modules;
-- how to leave plasmashell running and avoid overlapping the native Plasma panel/Global Menu;
-- how to test KWin decorations/Klassy remain intact, layer placement/keyboard interaction, scaling, output changes, restart/rollback and relevant logs;
-- how to test a minimal dock surface without app/window enumeration until a supported backend exists;
-- battery/GPU precautions (no live capture, no forced NVIDIA device selection).
+- `poc/kwin-basics/shell.qml` uses only `PanelWindow` and the Quickshell Wayland layer-shell API. It does not import MacShell's Hyprland modules, enumerate windows, capture frames, or create persistent configuration. The user has visually accepted its placement and cleanup on `eDP-1`, including no change to application work areas.
+- The active Plasma panel is on `DP-2`; the inspected layout has no panel on `eDP-1`. KScreen enumeration and Quickshell's screen list have different order on this machine, so the fixture selects output by name (`eDP-1`) and hides both surfaces if it is absent.
+- The top panel and inert dock use the `Top` layer, `ExclusionMode.Ignore`, and no keyboard focus. The user visually confirmed the surfaces appeared as expected on `eDP-1`, disappeared after exit, and did not shift application work areas. Pointer/keyboard behavior and display hotplug remain unconfirmed.
+- Initial test code used Quickshell screen index 1 and selected `DP-2`; the 12-second run ended automatically. The code was corrected to select by output name before the successful `eDP-1` log.
+- KWin currently uses Breeze (`org.kde.breeze`), not Klassy. Do not change the user's decoration setting. Klassy compatibility cannot be accepted until Klassy is installed and selected by the user.
 
-Do not run GUI/session commands while the user remains in Hyprland. If creating a PoC source file, keep it isolated (suggested `poc/kwin-basics/`) and make no autostart or host-config changes; first confirm the target Quickshell QML API from the pinned package.
+## Next checks
 
-## Task after user's readiness signal
-
-Ask the user to confirm the Plasma Wayland session is active, then run only the reversible/manual checks they authorize. Keep the original Plasma desktop as recovery path. Record actual versions, protocol globals, test commands and observed behavior. Do not advance to replacing plasmashell.
+The basic panel/dock visual check is accepted. Keep plasmashell running and use the documented foreground command in `poc/kwin-basics/README.md` only for repeatable manual inspection; `Ctrl+C` stops the fixture. A separate status fixture at `poc/kwin-backend-probe/shell.qml` loaded under Quickshell for 30 seconds and was stopped by timeout; the user has not separately confirmed that panel's rendered status text. Next verify a real exported application menu and keep testing decorations separately. The current decoration is Breeze, so Klassy is not tested. Do not enable autostart or replace any Plasma component.
 
 ## Acceptance for this lane
 
-- A minimal panel renders under KWin on the correct layer without suppressing or duplicating KDE services.
-- A basic dock surface renders without pretending to enumerate windows.
-- Existing KWin decorations, including Klassy, remain intact.
+- A minimal panel and inert dock are visually confirmed by the user under KWin on the intended output; they disappear at exit and do not shift work areas.
+- The backend-status panel is only startup/runtime-validated; its visual state has not been independently accepted, and it is not a production shell.
+- Existing KWin decorations remain intact; Klassy-specific behavior remains unverified until Klassy is selected.
 - Rollback is a manual process termination/relogin, not an installer or configuration rollback requiring root.
 - Unsupported windows/workspace/capture features are listed explicitly.
