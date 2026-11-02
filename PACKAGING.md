@@ -14,7 +14,25 @@ nix build .#macshell-hyprland
 nix develop
 ```
 
-`nix develop` provides Quickshell, Qt QML tooling and ShellCheck. The runtime package supplies Quickshell; the existing shell's other external programs and compositor APIs still need to be available in the user session.
+`nix develop` provides Quickshell, Qt QML tooling, ShellCheck, CMake, pkg-config, KWayland and Wayland client development files. The runtime package supplies Quickshell; the existing shell's other external programs and compositor APIs still need to be available in the user session.
+
+A separate, deliberately limited KWin protocol diagnostic is available during development:
+
+```sh
+nix run .#kwin-backend-probe
+nix run .#kwin-backend-probe -- --menu-check
+nix build .#kwin-backend-probe
+```
+
+It checks access to KWin's privileged Plasma Window Management protocol in the live session and reports a compact summary (protocol version, window count, active-window presence, AppMenu registration-global availability, active AppMenu-address presence, and workspace-read availability). The optional `--menu-check` mode makes one read-only D-BusMenu `GetLayout` request for the active window's registered address and reports success/root-item count without menu labels. `--menu-watch` streams the real active menu tree (including labels) to the isolated Quickshell POC and accepts its validated menu-event commands; never run it with raw output exposed or outside that fixture. These are not supported public APIs or a production backend; see `poc/kwin-backend-probe/README.md` and `poc/global-menu/README.md` before running them. The optional `--watch` mode emits sensitive window metadata as NDJSON and is intended only for the local QML bridge fixture.
+
+To launch the real-data renderer POC:
+
+```sh
+nix develop --command qs --verbose --path ./poc/global-menu/shell.qml
+```
+
+See `poc/global-menu/README.md` for its trust boundary, current feature gaps and the untracked-source workaround.
 
 ## Conventional installer
 

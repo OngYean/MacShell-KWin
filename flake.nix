@@ -39,10 +39,31 @@
               platforms = systems;
             };
           };
+
+          kwin-backend-probe = pkgs.stdenv.mkDerivation {
+            pname = "macshell-kwin-backend-probe";
+            version = "0.2.0";
+            src = ./poc/kwin-backend-probe;
+            nativeBuildInputs = [
+              pkgs.cmake
+              pkgs.pkg-config
+              pkgs.qt6.wrapQtAppsHook
+            ];
+            buildInputs = [
+              pkgs.kdePackages.kwayland
+              pkgs.qt6.qtbase
+              pkgs.wayland
+            ];
+            meta = {
+              description = "KWin Plasma Window Management diagnostic and isolated AppMenu bridge";
+              mainProgram = "macshell-kwin-backend-probe";
+              platforms = systems;
+            };
+          };
         in
         {
           default = macshell-hyprland;
-          inherit macshell-hyprland;
+          inherit macshell-hyprland kwin-backend-probe;
         }
       );
 
@@ -50,15 +71,22 @@
         system:
         let
           package = self.packages.${system}.macshell-hyprland;
+          probe = self.packages.${system}.kwin-backend-probe;
           app = {
             type = "app";
             program = "${package}/bin/macshell-hyprland";
             meta = package.meta;
           };
+          probeApp = {
+            type = "app";
+            program = "${probe}/bin/macshell-kwin-backend-probe";
+            meta = probe.meta;
+          };
         in
         {
           default = app;
           macshell-hyprland = app;
+          kwin-backend-probe = probeApp;
         }
       );
 
@@ -73,6 +101,11 @@
               pkgs.quickshell
               pkgs.qt6.qtdeclarative
               pkgs.shellcheck
+              pkgs.cmake
+              pkgs.pkg-config
+              pkgs.kdePackages.kwayland
+              pkgs.wayland
+              self.packages.${system}.kwin-backend-probe
             ];
           };
         }
