@@ -11,11 +11,11 @@ The current runtime is Hyprland. The user will enable `services.desktopManager.p
 ## Repository and current state
 
 - Project root: `MacShell-KWin/`.
-- Current HEAD: `51db0bab6997da310d2aacfaa7084740ec44ad4a` (`Update MacShell files`, 2026-11-02).
+- Current HEAD: `bcadc79` (`docs(agents): add Git commit and validation rules`). The initial source-audit baseline was `51db0bab6997da310d2aacfaa7084740ec44ad4a` (`Update MacShell files`, 2026-11-02); that commit is historical, not current HEAD.
 - Main content: `MacShell/`, `MacLock/`, `MacInstaller/`, `hypr-macshell/`, `install.sh`, `README.md`, `LICENSE`.
 - `MacShell/` is the checked-out upstream-derived Quickshell project. README identifies upstream as `0-ss/MacShell`; no separate KWin fork or upstream remote has been verified.
 - There was no NixOS/Home Manager repository or flake in this workspace. The user now requests that this repository itself carry the development flake.
-- User-provided `AGENTS.md` is currently untracked. Never overwrite, move or delete it.
+- User-provided `AGENTS.md` is tracked. Never overwrite, move or delete it.
 - New packaging baseline: `flake.nix`, `flake.lock`, `PACKAGING.md`. The flake uses `nixos-unstable`, locked to Nixpkgs revision `0bb2eedc20e4739f29e8045034f2828ad7054f8f` dated 2026-11-01; Quickshell in that revision evaluates to `0.3.2`. Evaluation-only check passed for x86_64-linux and aarch64-linux. The package was not built or run.
 - No source port, Global Menu renderer, backend, or KWin runtime verification has been done.
 

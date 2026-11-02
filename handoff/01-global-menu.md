@@ -6,7 +6,7 @@ This brief is self-contained. Read the repository `AGENTS.md` before work; it is
 
 The project is MacShell, an upstream-derived Quickshell shell currently coupled to Hyprland. The target is the latest upstream Plasma 6 Wayland/KWin, retaining KWin, Klassy and KDE services. The user is still in Hyprland and will enable Plasma in their host configuration themselves; they will notify us when the target session is active. Do not alter the host, change sessions, install packages or run installers.
 
-Current repo baseline: HEAD `51db0bab6997da310d2aacfaa7084740ec44ad4a`. No global-menu code has been changed. A development flake exists but does not solve Global Menu. Use upstream `master` only for discovery; pin actual source to target KWin/Plasma/Quickshell revisions once known.
+Current repo HEAD is `bcadc79` (`docs(agents): add Git commit and validation rules`); the source-audit baseline was `51db0bab6997da310d2aacfaa7084740ec44ad4a` and is historical. No global-menu code has been changed. A development flake exists but does not solve Global Menu. Use upstream `master` only for discovery; pin actual source to target KWin/Plasma/Quickshell revisions once known.
 
 ## Verified source-level observations
 

@@ -10,7 +10,7 @@ Use latest upstream versions as the development target. The user plans to enable
 
 There is no external NixOS/Home Manager configuration repository in this workspace. The user requested that the MacShell source repository itself be usable during development.
 
-Current repo HEAD: `51db0bab6997da310d2aacfaa7084740ec44ad4a`. Added baseline files:
+Current repo HEAD is `bcadc79` (`docs(agents): add Git commit and validation rules`). The initial source-audit baseline was `51db0bab6997da310d2aacfaa7084740ec44ad4a` and is historical. Packaging baseline files added since then:
 
 - `flake.nix`: packages `MacShell/` and wraps `pkgs.quickshell` as `macshell-hyprland`; provides app outputs and a development shell.
 - `flake.lock`: pins `nixos-unstable` at `0bb2eedc20e4739f29e8045034f2828ad7054f8f` (2026-11-01); Quickshell is `0.3.2` at that revision.
