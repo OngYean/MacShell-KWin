@@ -85,6 +85,11 @@ Scope {
 
     // shared helpers from shell.qml (window geometry poller, wallpaper lookup)
     property var hub: null
+    // the compositor (backends/compositor/Compositor.qml): Hyprland or KWin. Without a hub this is the original Hyprland shell.
+    readonly property var comp: hub ? hub.compositor : null
+    readonly property bool onHyprland: !comp || comp.isHyprland
+    readonly property bool canCapture: !comp || comp.can("screenCapture")             // grim / wf-recorder / tone measuring
+    readonly property bool canWindowCapture: !comp || comp.can("windowCapture")       // live windows behind the glass
     // true while a screen recording / screen share runs: the glass's live window captures sit out (see shell.qml: hub.captureQuiet)
     readonly property bool captureQuiet: hub ? hub.captureQuiet : recording
     // windows opening / closing: the glass's live captures pause (it keeps its last frame; the source stays attached) - see shell.qml: hub.glassHold
@@ -170,6 +175,7 @@ Scope {
     onInputSigChanged: if (settingsReady) inputApplyT.restart()
     Timer { id: inputApplyT; interval: 150; onTriggered: root.applyInput() }
     function applyInput() {
+        if (comp && !comp.can("inputConfig")) return;      // KWin: KDE owns input settings (System Settings → Input Devices)
         function b(v) { return v ? "true" : "false"; }
         Quickshell.execDetached(["hyprctl", "eval", "hl.config({ input = { repeat_rate = " + Math.round(kbRepeatRate) + ", repeat_delay = " + Math.round(kbRepeatDelay)
             + ", sensitivity = " + mouseSens.toFixed(2) + ", natural_scroll = " + b(mouseNatural)
@@ -244,7 +250,7 @@ Scope {
     // measure a screen rect (logical coords, in a screen scr); inner (optional) = the panel's own rect, left out of the measurement.
     function measureTone(sx, sy, sw, sh) { measureArea(null, Qt.rect(sx, sy, sw, sh), null, true); }
     function measureArea(scr, rect, inner, fresh) {
-        if (!autoContrast) return;
+        if (!autoContrast || !canCapture) return;       // grim; KWin offers no capture: the Light / Dark setting decides
         var x = rect.x, y = rect.y, w = rect.width, h = rect.height;
         if (scr) {                                           // clamp to the screen (grim refuses areas outside the outputs)
             var x1 = Math.max(scr.x, x), y1 = Math.max(scr.y, y), x2 = Math.min(scr.x + scr.width, x + w), y2 = Math.min(scr.y + scr.height, y + h);
@@ -528,18 +534,11 @@ Scope {
     readonly property int popRoom: 900
 
     function sh(cmd) { Quickshell.execDetached(["sh", "-c", cmd]); }
-    // Log out of Hyprland. 0.55+ (Lua) takes a Lua expression; UWSM sessions are stopped through uwsm so the session ends cleanly.
-    // Lock Screen: starts MacLock via IPC helper; does nothing if already locked
-    function lockScreen() {
-        sh('sh ~/.config/quickshell/MacLock/lock-via-ipc.sh');
-    }
-    function sleepMachine() {
-        sh('sh ~/.config/quickshell/MacLock/lock-via-ipc.sh; sleep 0.5; systemctl suspend');
-    }
-    function logOut() {
-        sh('if command -v uwsm >/dev/null 2>&1 && uwsm check is-active >/dev/null 2>&1; then uwsm stop; '
-           + 'else hyprctl dispatch "hl.dsp.exit()" || hyprctl dispatch exit; fi');
-    }
+    // Lock / sleep / log out / restart / shut down: the compositor backend knows how (Hyprland: MacLock, uwsm or hyprctl exit;
+    // KWin: KDE's own screen locker and org.kde.Shutdown, so the session is saved and nothing replaces KDE's lock screen)
+    function lockScreen() { if (comp) comp.lock(); }
+    function sleepMachine() { if (comp) comp.sleep(); }
+    function logOut() { if (comp) comp.logout(); }
 
     // ═════════════ PALETTE ═════════════
     // Auto contrast: see "AUTO CONTRAST" above. panelTone: what is behind the open panel (1 bright, -1 dark, 0 not measured).
@@ -1947,7 +1946,7 @@ Scope {
         if (!e && DesktopEntries.heuristicLookup) e = DesktopEntries.heuristicLookup(appId);
         return e;
     }
-    readonly property var activeTl: ToplevelManager.activeToplevel
+    readonly property var activeTl: comp ? comp.activeToplevel : null
     readonly property string activeAppId: activeTl ? (activeTl.appId || "") : ""
     readonly property string appName: {
         if (activeAppId === "") return I18n.tr("Desktop");
@@ -1957,21 +1956,11 @@ Scope {
         var e = lookup(activeAppId);
         return e ? e.name : activeAppId;
     }
-    // Hyprland's view of the focused window (floating / fullscreen / pinned / pid ...), refreshed when a menu opens
-    property var activeWin: null
-    function refreshActive() { if (!awProc.running) awProc.running = true; }
+    // the focused window as `hyprctl -j activewindow` describes it (floating / fullscreen / pinned / pid ...), from the backend;
+    // Hyprland refreshes it when a menu opens, KWin pushes it
+    readonly property var activeWin: comp ? comp.activeWindow : null
+    function refreshActive() { if (comp) comp.refreshActiveWindow(); }
     onActiveTlChanged: { refreshActive(); swTrack(); }      // swTrack = window-switcher recent-app order
-    Process {
-        id: awProc
-        command: ["hyprctl", "-j", "activewindow"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var o = null;
-                try { o = JSON.parse(text); } catch (err) { o = null; }
-                root.activeWin = (o && o.address) ? o : null;
-            }
-        }
-    }
     readonly property var menuTitles: [
         { id: "apple", label: "" },
         { id: "app", label: appName, bold: true },
@@ -2533,10 +2522,25 @@ Scope {
         "turkish": "TR", "tr": "TR",
         "greek": "EL", "gr": "EL"
     })
-    function refreshKeyboardLayout() { if (!kbdProc.running) kbdProc.running = true; }
+    function refreshKeyboardLayout() {
+        if (!root.onHyprland) { root.kbFromCompositor(); return; }
+        if (!kbdProc.running) kbdProc.running = true;
+    }
+    // KWin: KDE's keyboard layouts arrive through the compositor backend whenever they change (no polling)
+    function kbFromCompositor() {
+        var L = comp ? comp.keyboardLayouts : [], list = [];
+        for (var i = 0; i < L.length; i++) list.push({ code: L[i].code, name: root.kbNames[L[i].code] || L[i].name || L[i].code.toUpperCase() });
+        kbLayouts = list;
+        if (comp && comp.keyboardIndex >= 0) kbSetActive("", comp.keyboardIndex);
+    }
+    Connections {
+        target: root.onHyprland ? null : root.comp
+        function onKeyboardLayoutsChanged() { root.kbFromCompositor(); }
+        function onKeyboardIndexChanged() { root.kbFromCompositor(); }
+    }
     Timer {
         interval: 1600; repeat: true
-        running: root.barEnabled && root.barWidgetEnabled("keyboard") && root.kbLayouts.length > 1
+        running: root.onHyprland && root.barEnabled && root.barWidgetEnabled("keyboard") && root.kbLayouts.length > 1
         onTriggered: root.refreshKeyboardLayout()
     }
     Timer { id: kbEventRefresh; interval: 120; onTriggered: root.refreshKeyboardLayout() }
@@ -2604,12 +2608,13 @@ Scope {
         if (n < 2) return;
         i = ((i % n) + n) % n;
         kbIndex = i; keyboardLayout = kbLayouts[i].code.substring(0, 2).toUpperCase();    // show it right away, the event confirms it
-        Quickshell.execDetached(["hyprctl", "switchxkblayout", "all", String(i)]);
+        if (root.onHyprland) Quickshell.execDetached(["hyprctl", "switchxkblayout", "all", String(i)]);
+        else comp.setKeyboardLayout(i);
         kbEventRefresh.restart();
     }
     function cycleKeyboardLayout(step) { switchKeyboardLayout(kbIndex + (step === undefined ? 1 : step)); }
     Connections {
-        target: Hyprland
+        target: root.onHyprland ? Hyprland : null
         function onRawEvent(event) {
             if (event.name === "activelayout") {
                 var d = String(event.data), c = d.indexOf(",");
@@ -2691,7 +2696,7 @@ Scope {
             '# --pdeathsig: if the shell dies, the recorder is told to finish (and close the file) instead of running on',
             'if command -v setpriv >/dev/null 2>&1; then exec setpriv --pdeathsig INT wf-recorder "$@"; fi',
             'exec wf-recorder "$@"'
-        ].join("\n"), "sh", root.recordFile, Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""]
+        ].join("\n"), "sh", root.recordFile, root.comp ? root.comp.focusedScreenName : ""]
         running: root.recRun
         onExited: (code, status) => {
             root.recRun = false;
@@ -2704,6 +2709,8 @@ Scope {
     function toggleRecording() {
         if (Date.now() < recGuardUntil) return;          // a double click must not start two recorders
         recGuardUntil = Date.now() + 1500;
+        // KWin hands screen capture to KDE's own tools only (wf-recorder needs wlr-screencopy): Spectacle records instead
+        if (!recording && !canCapture) { Quickshell.execDetached(["spectacle", "--record", "region"]); return; }
         if (!recording) {
             recordFile = Quickshell.env("HOME") + "/Videos/Screen-Recording-" + Qt.formatDateTime(new Date(), "yyyyMMdd-HHmmss") + ".mp4";
             recSecs = 0;
@@ -2788,7 +2795,7 @@ Scope {
         else sh("dunstctl set-paused false 2>/dev/null || makoctl mode -r do-not-disturb 2>/dev/null || swaync-client -df 2>/dev/null");
     }
     property bool nightOn: false
-    Process { id: nightProc; command: ["hyprsunset", "-t", String(root.nightTemp)]; running: root.nightOn }
+    Process { id: nightProc; command: ["hyprsunset", "-t", String(root.nightTemp)]; running: root.nightOn && (!root.comp || root.comp.can("nightShift")) }
     property bool keepAwake: false
     Process {
         id: awakeProc
@@ -2804,6 +2811,22 @@ Scope {
     // Hyprland 0.55+ is configured and driven in Lua: `hyprctl dispatch` takes a Lua expression (the old "killactive" style strings fail).
     function hlx(expr) { Quickshell.execDetached(["hyprctl", "dispatch", expr]); }
     function disp(expr) { return function () { root.hlx(expr); }; }
+    // a window action: the Hyprland dispatch on Hyprland, the backend call elsewhere (KWin)
+    function wdo(expr, other) { return onHyprland ? disp(expr) : other; }
+    // macOS "Hide": every window of the active app goes away (KWin: minimised)
+    function hideActiveApp() {
+        var tls = comp ? comp.toplevels : [];
+        for (var i = 0; i < tls.length; i++) if (tls[i].appId === activeAppId) tls[i].setMinimized(true);
+    }
+    function showAllWindows() {
+        var tls = comp ? comp.toplevels : [];
+        for (var i = 0; i < tls.length; i++) if (tls[i].minimized) tls[i].setMinimized(false);
+    }
+    function moveActiveToWorkspace(step) {
+        var ids = comp ? comp.workspaceIds : [], at = ids.indexOf(comp ? comp.activeWorkspaceId : -1);
+        if (ids.length < 2 || at < 0) return;
+        comp.moveWindowToWorkspace("", ids[(at + step + ids.length) % ids.length]);
+    }
     // Menu shortcuts are sent to the focused window with Hyprland's sendshortcut (no extra tool needed).
     // If some app ignores them, set this to true to type them with wtype instead.
     function keys(mods, k) {
@@ -2838,6 +2861,11 @@ Scope {
             var fullScript = focusCmd + 'if command -v wtype >/dev/null 2>&1; then ' + wtypeCmd + '; '
                            + 'elif command -v ydotool >/dev/null 2>&1; then ydotool key ' + (mods.length ? mods.join("+") + "+" : "") + kNorm + '; '
                            + 'else hyprctl dispatch sendshortcut "' + sendArg + '" 2>/dev/null || hyprctl dispatch sendshortcut "' + (hyprMods ? hyprMods + ", " : "") + kNorm + ', activewindow" 2>/dev/null || true; fi';
+            // KWin: no hyprctl, and wtype needs the virtual-keyboard protocol KWin does not offer, so it falls through to
+            // ydotool (uinput). The key goes to the focused window: the bar never takes keyboard focus.
+            if (!root.onHyprland)
+                fullScript = 'sleep 0.03; { command -v wtype >/dev/null 2>&1 && ' + wtypeCmd + ' 2>/dev/null; } || '
+                           + '{ command -v ydotool >/dev/null 2>&1 && ydotool key ' + (mods.length ? mods.join("+") + "+" : "") + kNorm + '; } || true';
 
             Quickshell.execDetached(["sh", "-c", fullScript]);
         };
@@ -2886,7 +2914,7 @@ Scope {
         sh("for c in emote bemoji smile rofimoji wofi-emoji; do command -v $c >/dev/null 2>&1 && exec $c; done");
     }
     function quitActive() {
-        var tls = ToplevelManager.toplevels.values, mine = [];
+        var tls = comp ? comp.toplevels : [], mine = [];
         for (var i = 0; i < tls.length; i++) if (tls[i].appId === activeAppId) mine.push(tls[i]);
         var go = function () { for (var j = 0; j < mine.length; j++) { try { if (mine[j]) mine[j].close(); } catch (err) { } } };
         if (hub && hub.closeQuietly) hub.closeQuietly(go); else go();     // live captures pause for a moment first
@@ -3347,6 +3375,15 @@ Scope {
     }
     function windowItems(q) {
         var out=[], s=(q||"").trim().toLowerCase(); if(!s)return out;
+        if(!root.onHyprland){
+            var tl=root.comp?root.comp.toplevels:[];
+            for(var n=0;n<tl.length&&out.length<4;n++){
+                var w=tl[n], ap=root.lookup(w.appId), lb=w.title||ap&&ap.name||w.appId;
+                if((lb+" "+w.appId+" "+(ap?ap.name:" ")).toLowerCase().indexOf(s)<0)continue;
+                (function(win,name,icon){out.push({title:name,sub:I18n.tr("Open Window"),icon:icon||"",glyph:"layers",run:function(){win.activate();}});})(w,lb,ap?root.iconSrc(ap.icon):"");
+            }
+            return out;
+        }
         var ts=Hyprland.toplevels.values;
         for(var i=0;i<ts.length&&out.length<4;i++){
             var t=ts[i], o=t.lastIpcObject||{}, title=String(o.title||t.title||""), cls=String(o["class"]||t.appId||""), app=root.lookup(cls), label=title||app&&app.name||cls;
@@ -3405,8 +3442,8 @@ Scope {
             m.push(ico(mi("System Settings\u2026", "", function () { root.openSettings(); }), "gear"));
             m.push(msep());
             m.push(ico(mi("Sleep", "", function () { root.sleepMachine(); }), "moon"));
-            m.push(ico(mc("Restart\u2026", function () { sh("systemctl reboot"); }), "m_restart"));
-            m.push(ico(mc("Shut Down\u2026", function () { sh("systemctl poweroff"); }), "m_power"));
+            m.push(ico(mc("Restart\u2026", function () { if (root.comp) root.comp.reboot(); }), "m_restart"));
+            m.push(ico(mc("Shut Down\u2026", function () { if (root.comp) root.comp.shutdown(); }), "m_power"));
             m.push(msep());
             m.push(ico(mi("Lock Screen", "", function () { root.lockScreen(); }), "m_lock"));
             m.push(ico(mc("Log Out\u2026", function () { root.logOut(); }), "m_logout"));
@@ -3430,8 +3467,9 @@ Scope {
                         m.push(mi("Preferences\u2026", "Ctrl+,", keys(["ctrl"], "comma")));
                     }
                     m.push(msep());
-                    m.push(mi(I18n.tr("Hide ") + n, "", disp('hl.dsp.window.move({ workspace = "special:hidden", follow = false })')));
-                    m.push(mi("Show Hidden Windows", "", disp('hl.dsp.workspace.toggle_special("hidden")')));
+                    m.push(mi(I18n.tr("Hide ") + n, "", wdo('hl.dsp.window.move({ workspace = "special:hidden", follow = false })', function () { root.hideActiveApp(); })));
+                    if (root.onHyprland) m.push(mi("Show Hidden Windows", "", disp('hl.dsp.workspace.toggle_special("hidden")')));
+                    else m.push(mi("Show All", "", function () { root.showAllWindows(); }));
                     m.push(msep());
                     m.push(mi(I18n.tr("Quit ") + n, "Ctrl+Q", function () { root.quitActive(); }));
                     m.push(mc("Force Quit " + n, function () { root.forceQuitActive(aw); }));
@@ -3459,14 +3497,14 @@ Scope {
                     m.push(msep());
                     if (browser || files || editor) m.push(mi("Close Tab", "Ctrl+W", keys(["ctrl"], "w")));
                     if (term) m.push(mi("Close Tab", "Ctrl+Shift+W", keys(["ctrl", "shift"], "w")));
-                    m.push(mi("Close Window", "", function () { var go = disp('hl.dsp.window.close()'); if (hub && hub.closeQuietly) hub.closeQuietly(go); else go(); }));
+                    m.push(mi("Close Window", "", function () { var go = wdo('hl.dsp.window.close()', function () { root.comp.closeWindow(""); }); if (hub && hub.closeQuietly) hub.closeQuietly(go); else go(); }));
                 }
                 m.push(msep());
                 if (aw) m.push(mi("Screenshot Window", "", function () { root.shotWindow(aw); }));
                 m.push(mi("Screenshot Selection\u2026", "", function () { root.shot("sel"); }));
                 m.push(mi("Screenshot Screen", "", function () { root.shot(""); }));
                 m.push(mi(root.recording ? "Stop Screen Recording" : "Start Screen Recording", "", function () { root.toggleRecording(); }));
-                m.push(mi("Pick Color", "", function () { root.pickColor(); }));
+                if (!root.comp || root.comp.can("colorPicker")) m.push(mi("Pick Color", "", function () { root.pickColor(); }));
             } else if (name === "edit") {
                 if (has && term) {
                     m.push(mi("Copy", "Ctrl+Shift+C", keys(["ctrl", "shift"], "c")));
@@ -3488,12 +3526,14 @@ Scope {
                 m.push(mi("Emoji & Symbols", "", function () { root.spotOpen("emoji"); }));
             } else if (name === "view") {
                 if (has) {
-                    m.push(mi(fsMode === 2 ? "Exit Full Screen" : "Enter Full Screen", "", disp('hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })')));
-                    m.push(msep());
-                    m.push(mchk("Floating", "", floating, disp('hl.dsp.window.float({ action = "toggle" })')));
-                    m.push(dis(mchk("Pin to All Workspaces", "", aw && aw.pinned === true, disp('hl.dsp.window.pin({ action = "toggle" })')), !floating));
-                    m.push(dis(mi("Center Window", "", disp('hl.dsp.window.center()')), !floating));
-                    m.push(dis(mi("Toggle Split Direction", "", disp('hl.dsp.layout("togglesplit")')), floating));
+                    m.push(mi(fsMode === 2 ? "Exit Full Screen" : "Enter Full Screen", "", wdo('hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })', function () { root.comp.toggleFullscreen(""); })));
+                    if (root.onHyprland) {          // tiling layout controls (KWin windows float; KWin's own menu has the rest)
+                        m.push(msep());
+                        m.push(mchk("Floating", "", floating, disp('hl.dsp.window.float({ action = "toggle" })')));
+                        m.push(dis(mchk("Pin to All Workspaces", "", aw && aw.pinned === true, disp('hl.dsp.window.pin({ action = "toggle" })')), !floating));
+                        m.push(dis(mi("Center Window", "", disp('hl.dsp.window.center()')), !floating));
+                        m.push(dis(mi("Toggle Split Direction", "", disp('hl.dsp.layout("togglesplit")')), floating));
+                    }
                     if (!term) {
                         m.push(msep());
                         m.push(mi("Actual Size", "Ctrl+0", keys(["ctrl"], "0")));
@@ -3512,7 +3552,16 @@ Scope {
                 }
                 m.push(mchk("Dark Mode", "", root.darkMode, function () { root.setAppearance(root.darkMode ? "light" : "dark"); }));
             } else if (name === "window") {
-                if (has) {
+                if (has && !root.onHyprland) {
+                    m.push(mi("Minimize", "", function () { root.comp.minimizeWindow(""); }));
+                    m.push(mchk("Zoom", "", fsMode === 1, function () { root.comp.toggleMaximize(""); }));
+                    if (root.comp.workspaceIds.length > 1) {
+                        m.push(msep());
+                        m.push(mi("Move to Next Workspace", "", function () { root.moveActiveToWorkspace(1); }));
+                        m.push(mi("Move to Previous Workspace", "", function () { root.moveActiveToWorkspace(-1); }));
+                    }
+                }
+                if (has && root.onHyprland) {
                     m.push(mi("Minimize", "", disp('hl.dsp.window.move({ workspace = "special:minimized", follow = false })')));
                     m.push(mchk("Zoom", "", fsMode === 1, disp('hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })')));
                     m.push(mi(floating ? "Tile Window" : "Float Window", "", disp('hl.dsp.window.float({ action = "toggle" })')));
@@ -3526,9 +3575,11 @@ Scope {
                     m.push(mi("Move to Previous Workspace", "", disp('hl.dsp.window.move({ workspace = "-1" })')));
                     m.push(msep());
                 }
-                m.push(mi("Show Hidden Windows", "", disp('hl.dsp.workspace.toggle_special("hidden")')));
-                m.push(mi("Show Minimized Windows", "", disp('hl.dsp.workspace.toggle_special("minimized")')));
-                var tls = ToplevelManager.toplevels.values;
+                if (root.onHyprland) {
+                    m.push(mi("Show Hidden Windows", "", disp('hl.dsp.workspace.toggle_special("hidden")')));
+                    m.push(mi("Show Minimized Windows", "", disp('hl.dsp.workspace.toggle_special("minimized")')));
+                } else m.push(mi("Show All", "", function () { root.showAllWindows(); }));
+                var tls = root.comp ? root.comp.toplevels : [];
                 if (tls.length > 0) m.push(msep());
                 for (i = 0; i < tls.length && i < 8; i++) {
                     (function (w) {
@@ -3540,10 +3591,16 @@ Scope {
                 m.push(mi("Search\u2026", "", function () { root.search(); }));
                 if (has) m.push(mi(n + " Help", "", function () { root.helpFor(id, n); }));
                 m.push(msep());
-                m.push(mi("Hyprland Keybinds", "", function () { Quickshell.execDetached(["xdg-open", "https://github.com/0-ss/MacShell#hyprland-configuration-lua"]); }));
-                m.push(mi("Reload Hyprland Config", "", function () { Quickshell.execDetached(["hyprctl", "reload"]); }));
-                m.push(msep());
-                m.push(mi("Hyprland Wiki", "", function () { Quickshell.execDetached(["xdg-open", "https://wiki.hypr.land"]); }));
+                if (root.onHyprland) {
+                    m.push(mi("Hyprland Keybinds", "", function () { Quickshell.execDetached(["xdg-open", "https://github.com/0-ss/MacShell#hyprland-configuration-lua"]); }));
+                    m.push(mi("Reload Hyprland Config", "", function () { Quickshell.execDetached(["hyprctl", "reload"]); }));
+                    m.push(msep());
+                    m.push(mi("Hyprland Wiki", "", function () { Quickshell.execDetached(["xdg-open", "https://wiki.hypr.land"]); }));
+                } else {
+                    m.push(mi("Keyboard Shortcuts\u2026", "", function () { root.comp.openSystemSettings("kcm_keys"); }));
+                    m.push(msep());
+                    m.push(mi("KDE UserBase", "", function () { Quickshell.execDetached(["xdg-open", "https://userbase.kde.org"]); }));
+                }
                 m.push(mi("Quickshell Documentation", "", function () { Quickshell.execDetached(["xdg-open", "https://quickshell.org/docs"]); }));
             }
         }
@@ -3575,7 +3632,17 @@ Scope {
         "true"
     ].join("\n")
     // geom: "" = whole screen, "x,y WxH" = that area, "@" = `tmpPath` already holds the finished PNG (from the picker)
+    // KWin: Spectacle takes the picture (grim needs wlr-screencopy); the same finish script saves / copies / notifies.
+    // flag: -r region (Spectacle's own selection), -f all screens, -a the active window
+    function kdeShot(flag) {
+        if (flag !== "-r") playSound("shutter", 0.8);
+        var tmp = shotTmp + "/macshot-out-" + Date.now() + ".png";
+        var save = screenshotSave || !screenshotClipboard;
+        Quickshell.execDetached(["sh", "-c", 'spectacle -b -n ' + flag + ' -o "$5" >/dev/null 2>&1 && [ -s "$5" ] || exit 1\n' + shotFinishScript,
+                                 "sh", screenshotDir, save ? "1" : "0", screenshotClipboard ? "1" : "0", screenshotNotify ? "1" : "0", tmp, "@"]);
+    }
     function shotFinish(geom, tmpPath) {
+        if (!canCapture && geom !== "@") { kdeShot(geom === "" ? "-f" : "-a"); return; }
         playSound("shutter", 0.8);
         var tmp = tmpPath || (shotTmp + "/macshot-out-" + Date.now() + ".png");
         var save = screenshotSave || !screenshotClipboard;          // never end up with nowhere to put it
@@ -3583,6 +3650,7 @@ Scope {
                                  screenshotNotify ? "1" : "0", tmp, geom]);
     }
     function shotStart() {
+        if (!canCapture) { kdeShot("-r"); return; }
         if (shotOpen) { shotClose(); return; }
         if (shotBusy) return;
         var scr = Quickshell.screens, names = [];
@@ -3773,37 +3841,52 @@ Scope {
         stdout: StdioCollector {
             onStreamFinished: {
                 var o; try { o = JSON.parse(text); } catch (e) { return; }
-                var next = {}, fullMap = {};
-                for (var i = 0; i < o.m.length; i++) {
-                    var m = o.m[i], ws = m.activeWorkspace ? m.activeWorkspace.id : -999, mw = m.width / (m.scale || 1), mh = m.height / (m.scale || 1);
-                    var area = 0, full = false;
-                    for (var j = 0; j < o.c.length; j++) {
-                        var c = o.c[j];
-                        if (!c.mapped || c.hidden || c.monitor !== m.id || c.workspace.id !== ws) continue;
-                        if (c.fullscreen > 0 || c.fullscreen === true) { full = true; break; }
-                        if (!c.floating) area += Math.min(c.size[0], mw) * Math.min(c.size[1], mh);
-                    }
-                    next[m.name] = full || area >= mw * mh * 0.86;
-                    fullMap[m.name] = full;
-                }
-                var sameF = true;
-                for (var f in fullMap) if (fullMap[f] !== (root.screenFullscreen[f] === true)) sameF = false;
-                if (!sameF) root.screenFullscreen = fullMap;
-                var same = true;
-                for (var q in next) if (next[q] !== (root.screenCovered[q] === true)) same = false;
-                if (!same) root.screenCovered = next;
-                if (!root.videoWall) return;
-                for (var k in next) if (next[k] !== (root.wallPaused[k] === true))
-                    Quickshell.execDetached([root.wallPauseScript, k, next[k] ? "pause" : "resume"]);
-                root.wallPaused = next;
+                root.applyCover(o);
             }
         }
     }
-    Timer { id: coverDelay; interval: 300; onTriggered: if (!coverProbe.running) coverProbe.running = true }
+    // o = { m: monitors, c: clients } as hyprctl -j reports them (KWin: the compositor backend's snapshots, same shape)
+    function applyCover(o) {
+        var next = {}, fullMap = {};
+        for (var i = 0; i < o.m.length; i++) {
+            var m = o.m[i], ws = m.activeWorkspace ? m.activeWorkspace.id : -999, mw = m.width / (m.scale || 1), mh = m.height / (m.scale || 1);
+            var area = 0, full = false;
+            for (var j = 0; j < o.c.length; j++) {
+                var c = o.c[j];
+                if (!c.mapped || c.hidden || c.monitor !== m.id || c.workspace.id !== ws) continue;
+                if (c.fullscreen > 0 || c.fullscreen === true) { full = true; break; }
+                if (!c.floating) area += Math.min(c.size[0], mw) * Math.min(c.size[1], mh);
+            }
+            next[m.name] = full || area >= mw * mh * 0.86;
+            fullMap[m.name] = full;
+        }
+        var sameF = true;
+        for (var f in fullMap) if (fullMap[f] !== (root.screenFullscreen[f] === true)) sameF = false;
+        if (!sameF) root.screenFullscreen = fullMap;
+        var same = true;
+        for (var q in next) if (next[q] !== (root.screenCovered[q] === true)) same = false;
+        if (!same) root.screenCovered = next;
+        if (!root.videoWall) return;
+        for (var k in next) if (next[k] !== (root.wallPaused[k] === true))
+            Quickshell.execDetached([root.wallPauseScript, k, next[k] ? "pause" : "resume"]);
+        root.wallPaused = next;
+    }
+    Timer {
+        id: coverDelay; interval: 300
+        onTriggered: {
+            if (root.onHyprland) { if (!coverProbe.running) coverProbe.running = true; }
+            else if (root.comp) root.applyCover({ m: root.comp.monitors, c: root.comp.clients });
+        }
+    }
+    Connections {
+        target: root.onHyprland ? null : root.comp
+        function onClientsChanged() { coverDelay.restart(); }
+        function onMonitorsChanged() { coverDelay.restart(); }
+    }
     Timer { interval: 1500; running: true; onTriggered: coverDelay.restart() }      // first check after start-up
     onVideoWallChanged: { wallPaused = ({}); if (videoWall) coverDelay.restart(); }
     Connections {
-        target: Hyprland
+        target: root.onHyprland ? Hyprland : null
         function onRawEvent(event) {
             var n = event.name;
             if (n === "openwindow" || n === "closewindow" || n === "movewindowv2" || n === "workspacev2" || n === "fullscreen"
@@ -3877,12 +3960,12 @@ Scope {
         onTriggered: {
             if (!root.settingsReady || root.gaming === root.gamingApplied) return;
             root.gamingApplied = root.gaming;
-            Quickshell.execDetached([root.gamingScript, root.gaming ? "on" : "off"]);
+            if (root.onHyprland) Quickshell.execDetached([root.gamingScript, root.gaming ? "on" : "off"]);
             if (root.uiSounds) Quickshell.execDetached(["pw-play", "--volume=0.6", root.soundDir + "/tink.wav"]);
         }
     }
     // a crash while Game Mode was on leaves Hyprland without blur/animations: put them back at start
-    Timer { interval: 1500; running: true; onTriggered: { if (!root.gaming) Quickshell.execDetached([root.gamingScript, "off"]); else gamingApply.restart(); } }
+    Timer { interval: 1500; running: true; onTriggered: { if (!root.gaming) { if (root.onHyprland) Quickshell.execDetached([root.gamingScript, "off"]); } else gamingApply.restart(); } }
     // Automatic: on while the focused window is a fullscreen game
     readonly property var gameClassRe: /^(steam_app_\d+|gamescope|org\.vinegarhq\.sober|sober|robloxplayer.*|minecraft.*|com\.mojang.*|lutris|heroic|.*\.exe|osu!?|cs2|dota2|hl2_linux|factorio|terraria.*|stardew.*)$/i
     Process {
@@ -3892,14 +3975,25 @@ Scope {
             onStreamFinished: {
                 var w = {};
                 try { w = JSON.parse(text || "{}"); } catch (e) { w = {}; }
-                var cls = (w["class"] || w.initialClass || "");
-                root.gamingAutoActive = root.gamingAuto && (w.fullscreen > 0 || w.fullscreen === true) && root.gameClassRe.test(cls);
+                root.gameCheck(w);
             }
         }
     }
-    Timer { id: gameProbeDelay; interval: 250; onTriggered: if (!gameProbe.running) gameProbe.running = true }
+    function gameCheck(w) {
+        w = w || {};
+        var cls = (w["class"] || w.initialClass || "");
+        root.gamingAutoActive = root.gamingAuto && (w.fullscreen > 0 || w.fullscreen === true) && root.gameClassRe.test(cls);
+    }
+    Timer {
+        id: gameProbeDelay; interval: 250
+        onTriggered: { if (!root.onHyprland) root.gameCheck(root.activeWin); else if (!gameProbe.running) gameProbe.running = true; }
+    }
     Connections {
-        target: Hyprland
+        target: root.onHyprland ? null : root.comp
+        function onActiveWindowChanged() { gameProbeDelay.restart(); }
+    }
+    Connections {
+        target: root.onHyprland ? Hyprland : null
         function onRawEvent(event) {
             var n = event.name;
             if (n === "fullscreen" || n === "activewindowv2" || n === "closewindow" || n === "workspacev2") gameProbeDelay.restart();
@@ -4143,7 +4237,8 @@ Scope {
 
     // switched off: no daemon at all, so mako / dunst / swaync can own the D-Bus name instead
     Loader {
-        active: root.notificationsEnabled
+        // KWin: only while plasmashell (which owns org.freedesktop.Notifications) is not running, see compositor.can()
+        active: root.notificationsEnabled && (!root.comp || root.comp.can("notificationServer"))
         sourceComponent: NotificationServer {
             keepOnReload: false
             bodySupported: true
@@ -4428,6 +4523,10 @@ Scope {
     readonly property string awwwScript: [
         'p="$1"',
         root.stopVideoScript,
+        '# KDE Plasma draws the desktop while plasmashell runs: hand it the image (starting awww there would stack a second wallpaper)',
+        'if pgrep -x plasmashell >/dev/null 2>&1 && command -v plasma-apply-wallpaperimage >/dev/null 2>&1; then',
+        '  if plasma-apply-wallpaperimage "$p" >/dev/null 2>&1; then echo "applied with: plasma-apply-wallpaperimage"; exit 0; fi',
+        'fi',
         'if command -v awww >/dev/null 2>&1; then',
         '  if ! awww query >/dev/null 2>&1; then',
         '    if command -v awww-daemon >/dev/null 2>&1; then setsid awww-daemon >/dev/null 2>&1 & fi',
@@ -4577,38 +4676,18 @@ Scope {
     }
 
     // ═════════════ WORKSPACES (centre of the bar) ═════════════
-    function hlWorkspace(sel) {      // Hyprland 0.55+ (Lua) workspace switch
-        Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ workspace = \"" + sel + "\" })"]);
-    }
-    // The counter shows the workspaces Hyprland really has (0.55+ creates and destroys them on demand), nothing more.
+    // n or relative "e+1" / "e-1": the compositor backend switches (Hyprland workspace / KWin virtual desktop)
+    function hlWorkspace(sel) { if (comp) comp.switchWorkspace(sel); }
+    // The counter shows the workspaces the compositor really has (Hyprland 0.55+ creates and destroys them on demand), nothing more.
     // Set wsMin above 0 only if you want workspaces 1..wsMin to be shown even when they do not exist.
     property int wsMin: 0
-    Connections {
-        target: Hyprland
-        function onRawEvent(event) {
-            var n = event.name;
-            if (n === "createworkspacev2" || n === "destroyworkspacev2" || n === "workspacev2" || n === "moveworkspacev2" || n === "renameworkspace")
-                Hyprland.refreshWorkspaces();
-        }
-    }
     readonly property var wsIds: {
-        var ids = [], vals = Hyprland.workspaces.values;
-        for (var i = 1; i <= root.wsMin; i++) ids.push(i);
-        for (var j = 0; j < vals.length; j++) {
-            var id = vals[j].id;
-            if (id > 0 && ids.indexOf(id) < 0) ids.push(id);
-        }
-        var fw = Hyprland.focusedWorkspace;
-        if (fw && fw.id > 0 && ids.indexOf(fw.id) < 0) ids.push(fw.id);
-        if (ids.length === 0) ids.push(1);                    // never an empty counter
+        var ids = comp ? comp.workspaceIds.slice() : [1];
+        for (var i = 1; i <= root.wsMin; i++) if (ids.indexOf(i) < 0) ids.push(i);
         ids.sort(function (a, b) { return a - b; });
         return ids;
     }
-    function wsOccupied(id) {
-        var vals = Hyprland.workspaces.values;
-        for (var i = 0; i < vals.length; i++) if (vals[i].id === id) return (vals[i].toplevels ? vals[i].toplevels.values.length : 0) > 0;
-        return false;
-    }
+    function wsOccupied(id) { return comp ? comp.workspaceOccupied(id) : false; }
 
     // ═════════════ WINDOW SWITCHER (ALT + TAB) ═════════════
     // Hyprland binds (put these in hyprland.conf, and remove any existing ALT+TAB bind):
@@ -4637,7 +4716,7 @@ Scope {
         return p !== "" ? p : root.iconSrc("");
     }
     function swBuild() {
-        var vals = ToplevelManager.toplevels.values, all = [];
+        var vals = root.comp ? root.comp.toplevels : [], all = [];
         for (var i = 0; i < vals.length; i++) all.push(vals[i]);
         var order = [];
         if (root.activeTl && all.indexOf(root.activeTl) >= 0) order.push(root.activeTl);       // the app you are in comes first
@@ -4694,6 +4773,8 @@ Scope {
         var a = root.swApps[root.swIndex];
         root.swOpen = false;
         if (!a || !a.win) return;
+        // KWin: the window object activates itself (raises, switches desktop); no layer focus race to work around
+        if (!root.onHyprland) { try { a.win.activate(); } catch (e0) {} return; }
         try { Hyprland.refreshToplevels(); } catch (e) {}
         var ts = Hyprland.toplevels.values, hit = null, i;
         for (i = 0; i < ts.length; i++) if (ts[i].wayland === a.win) { hit = ts[i]; break; }
@@ -4762,9 +4843,13 @@ Scope {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
             Rectangle {
+                id: barBgFill
                 anchors.fill: parent
                 color: !barBgWin.fillOn ? "transparent" : (root.darkMode ? Qt.rgba(0.10, 0.10, 0.11, root.barBgOpacity) : Qt.rgba(1, 1, 1, root.barBgOpacity))
             }
+            // KWin blurs what is behind the strip (ext-background-effect). Attached only where it exists: elsewhere it only warns.
+            Region { id: barBgBlur; item: barBgWin.fillOn ? barBgFill : null }
+            Component.onCompleted: if (root.comp && root.comp.can("backgroundEffect")) barBgWin.BackgroundEffect.blurRegion = barBgBlur
         }
 
         PanelWindow {
@@ -4806,7 +4891,7 @@ Scope {
                 property var trayItem: null         // SystemTrayItem whose menu is open in the tray popover
                 property var trayStack: []          // submenu path (QsMenuEntry objects) inside that menu
                 Timer { interval: 1500; repeat: true; running: ui.pop === "vol"; onTriggered: root.audioTick++ }
-                readonly property bool toastScreen: Quickshell.screens.length === 1 || (Hyprland.focusedMonitor !== null && Hyprland.focusedMonitor.name === win.modelData.name)
+                readonly property bool toastScreen: Quickshell.screens.length === 1 || (root.comp !== null && root.comp.focusedScreenName === win.modelData.name)
                 // the Control Center IPC: the focused screen opens it
                 Connections {
                     target: root
@@ -4993,8 +5078,8 @@ Scope {
                 Connections {
                     target: root
                     function onSpotRequestChanged() {
-                        var fm = Hyprland.focusedMonitor;
-                        if (!(!fm || fm.name === win.modelData.name || Quickshell.screens.length === 1)) return;
+                        var fm = root.comp ? root.comp.focusedScreenName : "";
+                        if (!(fm === "" || fm === win.modelData.name || Quickshell.screens.length === 1)) return;
                         var want = root.spotWant;
                         if (ui.pop === "spot") {
                             if (want === "home" || want === ui.spMode) ui.pop = "";    // same key again closes it
@@ -5069,7 +5154,7 @@ Scope {
                     x: 0; y: 0
                     width: win.modelData.width; height: win.modelData.height
                     opacity: 0                      // only ever captured by the glass, never drawn itself
-                    captureSource: root.liquidActive && !root.captureQuiet && !glassBackdrop.item ? win.modelData : null     // fallback only
+                    captureSource: root.canCapture && root.liquidActive && !root.captureQuiet && !glassBackdrop.item ? win.modelData : null     // fallback only
                     live: false
                     paintCursor: false
                     property real takenAt: 0
@@ -5389,7 +5474,8 @@ Scope {
                             if (mon.specialWorkspace && mon.specialWorkspace.id !== 0) ws.push(mon.specialWorkspace.id);
                             var zoneBottom = bd.height;
                             var want = {};
-                            var cs = root.glassClients;
+                            // no window captures on KWin: the glass refracts the wallpaper only (no empty placeholders where windows are)
+                            var cs = root.canWindowCapture ? root.glassClients : [];
                             for (var c = 0; c < cs.length; c++) {
                                 var cl = cs[c];
                                 if (!cl.mapped || cl.hidden || cl.monitor !== mon.id || ws.indexOf(cl.workspace.id) < 0) continue;
@@ -5585,8 +5671,8 @@ Scope {
                         transformOrigin: Item.Center
                         scale: root.barWidgetScale
                         spacing: 0
-                        readonly property var mon: Hyprland.monitorFor(perScreen.modelData)
-                        readonly property int activeId: mon && mon.activeWorkspace ? mon.activeWorkspace.id : (Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1)
+                        // Hyprland: this monitor's workspace; KWin: the current virtual desktop (desktops span all outputs)
+                        readonly property int activeId: root.comp ? root.comp.workspaceForScreen(perScreen.modelData) : -1
                         Repeater {
                             model: root.wsIds
                             delegate: Item {
@@ -8027,8 +8113,9 @@ Scope {
                         CCTile {
                             id: tl
                             clickable: true
-                            on: root.nightOn
-                            onClicked: root.nightOn = !root.nightOn
+                            on: root.nightOn && (!root.comp || root.comp.can("nightShift"))
+                            // KWin: Night Light is KDE's (System Settings → Night Light), hyprsunset needs wlr-gamma-control
+                            onClicked: { if (root.comp && !root.comp.can("nightShift")) root.comp.openSystemSettings("kcm_nightlight"); else root.nightOn = !root.nightOn; }
                             t: ccPal; gx: ccg
                             CCBtn {
                                 plain: true

@@ -36,6 +36,10 @@ Scope {
 
     // shared helpers from shell.qml (window geometry poller, wallpaper lookup)
     property var hub: null
+    // the compositor (backends/compositor/Compositor.qml): Hyprland or KWin. Without a hub this is the original Hyprland Dock.
+    readonly property var comp: hub ? hub.compositor : null
+    readonly property bool onHyprland: !comp || comp.isHyprland
+    readonly property bool canWindowCapture: !comp || comp.can("windowCapture")
     property bool dockEnabled: true      // false = no Dock at all (settings window stays available)
     property bool settingsEnabled: true  // false = keep the System Settings window closed
     property bool desktopIcons: true     // show files, folders and .desktop shortcuts from the XDG Desktop directory
@@ -65,7 +69,10 @@ Scope {
         onLoaded: { try { root.displays = JSON.parse(text()); } catch (e) {} root.applySavedModes(); }
     }
     function saveDisplays() { dispFile.setText(JSON.stringify(root.displays, null, 2)); }
-    function refreshMons() { if (!monListProc.running) monListProc.running = true; }
+    function refreshMons() {
+        if (comp && !comp.can("monitorConfig")) { monList = comp.monitors; return; }      // KWin: names only (main display)
+        if (!monListProc.running) monListProc.running = true;
+    }
     Process {
         id: monListProc
         command: ["hyprctl", "-j", "monitors"]
@@ -73,6 +80,7 @@ Scope {
     }
     function modeOf(m) { return m.width + "x" + m.height + "@" + Number(m.refreshRate).toFixed(2); }
     function applyMode(out, mode) {
+        if (comp && !comp.can("monitorConfig")) return;
         var m = null;
         for (var i = 0; i < monList.length; i++) if (monList[i].name === out) m = monList[i];
         var pos = m ? (m.x + "x" + m.y) : "auto", sc = m ? m.scale : 1;
@@ -112,6 +120,8 @@ Scope {
     }
     function applySavedModes() {
         var mm = displays.modes || {};
+        // KWin: never re-apply modes saved under Hyprland; KDE's display settings are the only source of truth there
+        if (comp && !comp.can("monitorConfig")) mm = {};
         for (var k in mm) Quickshell.execDetached(["hyprctl", "eval", "hl.monitor({ output = \"" + k + "\", mode = \"" + mm[k] + "\", position = \"auto\", scale = 1 })"]);
         if (displays.primary) root.monitorPrimary = displays.primary;
         refreshMons();
@@ -761,6 +771,7 @@ Scope {
             nw = Math.max(minW, Math.round(nw)); nh = Math.max(minH, Math.round(nh));
             console.log('[macshell-settings] resize on release:', width + 'x' + height, '->', nw + 'x' + nh);
             if (nw === width && nh === height) return;
+            if (!root.onHyprland) { width = nw; height = nh; return; }   // KWin: a client resizes itself (it cannot move itself)
             var sel = 'window = "title:^(' + title + ')$"';
             // current position (left / top edges keep the opposite edge fixed by moving the window as well)
             var ox = null, oy = null, cs = root.glassClients || [];
@@ -787,6 +798,7 @@ Scope {
             interval: 60
             repeat: true
             onTriggered: {
+                if (!root.onHyprland) { stop(); return; }
                 // the compositor maps the window a moment after it becomes visible: send the dispatches a few times
                 var sel = 'window = "title:^(' + prefsWindow.title + ')$"';
                 Hyprland.dispatch('hl.dsp.window.float({ action = "enable", ' + sel + ' })');
@@ -3061,7 +3073,7 @@ Scope {
                 id: dispPane
                 spacing: 10
                 property var mons: []
-                Component.onCompleted: { monList.running = true; root.refreshMons(); }
+                Component.onCompleted: { if (root.onHyprland) monList.running = true; root.refreshMons(); }
                 Process {
                     id: monList
                     command: ["hyprctl", "-j", "monitors"]
@@ -3076,10 +3088,16 @@ Scope {
                     SRow {
                         t: pal; title: I18n.tr("Night Shift")
                         subtitle: I18n.tr("Warmer colours to reduce blue light")
-                        SSwitch { t: pal; checked: root.bar ? root.bar.nightOn : false; onToggled: v => { if (root.bar) root.bar.nightOn = v; } }
+                        SSwitch { visible: !root.comp || root.comp.can("nightShift"); t: pal; checked: root.bar ? root.bar.nightOn : false; onToggled: v => { if (root.bar) root.bar.nightOn = v; } }
+                        SButton { visible: !!root.comp && !root.comp.can("nightShift"); t: pal; text: I18n.tr("Night Light…"); onClicked: root.comp.openSystemSettings("kcm_nightlight") }
                     }
                     SRow {
-                        t: pal; title: I18n.tr("Colour Temperature"); visible: root.bar && root.bar.nightOn
+                        t: pal; title: I18n.tr("Arrangement & Resolution"); visible: !!root.comp && !root.comp.can("monitorConfig")
+                        subtitle: I18n.tr("Managed by KDE Plasma")
+                        SButton { t: pal; text: I18n.tr("Display Settings…"); onClicked: root.comp.openSystemSettings("kcm_kscreen") }
+                    }
+                    SRow {
+                        t: pal; title: I18n.tr("Colour Temperature"); visible: root.bar && root.bar.nightOn && (!root.comp || root.comp.can("nightShift"))
                         SSlider {
                             t: pal; resetValue: 0.571; leftLabel: I18n.tr("Less Warm"); rightLabel: I18n.tr("More Warm")
                             value: root.bar ? 1 - (root.bar.nightTemp - 2500) / 3500 : 0.5
@@ -3531,6 +3549,15 @@ Scope {
                 spacing: 10
                 SCard {
                     t: pal
+                    visible: !!root.comp && !root.comp.can("inputConfig")
+                    SRow {
+                        t: pal; title: I18n.tr("Keyboard"); subtitle: I18n.tr("Managed by KDE Plasma")
+                        SButton { t: pal; text: I18n.tr("Keyboard Settings…"); onClicked: root.comp.openSystemSettings("kcm_keyboard") }
+                    }
+                }
+                SCard {
+                    t: pal
+                    visible: !root.comp || root.comp.can("inputConfig")
                     SRow {
                         t: pal; title: I18n.tr("Key repeat rate")
                         SSlider { t: pal; resetValue: 35; leftLabel: I18n.tr("Slow"); rightLabel: I18n.tr("Fast"); from: 10; to: 80; value: root.bar ? root.bar.kbRepeatRate : 35; onMoved: v => { if (root.bar) root.bar.kbRepeatRate = Math.round(v); } }
@@ -3551,6 +3578,15 @@ Scope {
                 spacing: 10
                 SCard {
                     t: pal
+                    visible: !!root.comp && !root.comp.can("inputConfig")
+                    SRow {
+                        t: pal; title: I18n.tr("Mouse"); subtitle: I18n.tr("Managed by KDE Plasma")
+                        SButton { t: pal; text: I18n.tr("Mouse Settings…"); onClicked: root.comp.openSystemSettings("kcm_mouse") }
+                    }
+                }
+                SCard {
+                    t: pal
+                    visible: !root.comp || root.comp.can("inputConfig")
                     SRow {
                         t: pal; title: I18n.tr("Tracking speed")
                         SSlider { t: pal; resetValue: 0; leftLabel: I18n.tr("Slow"); rightLabel: I18n.tr("Fast"); from: -1; to: 1; value: root.bar ? root.bar.mouseSens : 0; onMoved: v => { if (root.bar) root.bar.mouseSens = v; } }
@@ -3571,6 +3607,15 @@ Scope {
                 spacing: 10
                 SCard {
                     t: pal
+                    visible: !!root.comp && !root.comp.can("inputConfig")
+                    SRow {
+                        t: pal; title: I18n.tr("Touchpad"); subtitle: I18n.tr("Managed by KDE Plasma")
+                        SButton { t: pal; text: I18n.tr("Touchpad Settings…"); onClicked: root.comp.openSystemSettings("kcm_touchpad") }
+                    }
+                }
+                SCard {
+                    t: pal
+                    visible: !root.comp || root.comp.can("inputConfig")
                     SRow {
                         t: pal; title: I18n.tr("Tap to click")
                         SSwitch { t: pal; checked: root.bar ? root.bar.tpTap : true; onToggled: v => { if (root.bar) root.bar.tpTap = v; } }
@@ -3966,7 +4011,7 @@ Scope {
                             y: 138
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
-                            text: I18n.tr("Version 0.5.1 \u2022 Hyprland \u2022 Quickshell")
+                            text: I18n.tr("Version 0.5.1 \u2022 ") + (root.onHyprland ? "Hyprland" : "KDE Plasma (KWin)") + " \u2022 Quickshell"
                             color: pal.text2
                             font.family: root.fontForWeight(Font.Normal, pal.fam)
                             font.pixelSize: 12
@@ -4374,7 +4419,7 @@ Scope {
     function appOf(tl) { return (tl.appId === "org.quickshell" && tl.title === "Clock") ? "macshell-clock" : tl.appId; }
     function windowsFor(key) {
         var out = [];
-        var tls = ToplevelManager.toplevels.values;
+        var tls = comp ? comp.toplevels : ToplevelManager.toplevels.values;
         for (var i = 0; i < tls.length; i++) {
             if (tls[i].appId && keyOf(appOf(tls[i])) === key) out.push(tls[i]);
         }
@@ -4527,7 +4572,7 @@ Scope {
     }
 
     function rebuild() {
-        var tls = ToplevelManager.toplevels.values;
+        var tls = comp ? comp.toplevels : ToplevelManager.toplevels.values;
         var running = {};
         var runOrder = [];
         for (var i = 0; i < tls.length; i++) {
@@ -4581,7 +4626,7 @@ Scope {
                 var tl = tls[w];
                 if (!tl.appId || tl.title === "macshell Settings") continue;
                 // live capture off: a preview cell is only an app icon, so a pinned app (its icon is already in the Dock) gets none; unpinned apps keep theirs
-                if (!windowCapture && seen[keyOf(appOf(tl))]) continue;
+                if (!(windowCapture && canWindowCapture) && seen[keyOf(appOf(tl))]) continue;
                 var e3 = lookup(appOf(tl));
                 var wid = winIdFor(tl);
                 liveWins.push(tl);
@@ -4756,6 +4801,7 @@ Scope {
     property bool refreshPending: false
 
     function refreshBusy() {
+        if (!onHyprland) { if (comp) { monData = comp.monitors; computeBusy(comp.clients); } return; }
         if (monProc.running || clientProc.running) { refreshPending = true; return; }
         monProc.running = true;
     }
@@ -4801,7 +4847,7 @@ Scope {
         }
     }
     Connections {
-        target: Hyprland
+        target: root.onHyprland ? Hyprland : null
         function onRawEvent(event) { busyDebounce.restart(); tickDebounce.restart(); }
     }
     Timer { id: busyDebounce; interval: 120; onTriggered: root.refreshBusy() }
@@ -4811,12 +4857,13 @@ Scope {
     // at map time, so the shell registers one itself (Hyprland 0.55+ Lua, `hyprctl eval`): no Hyprland config edit needed.
     // force = false keeps it idempotent (one rule per Hyprland session); a config reload drops it, so that re-registers it.
     function registerSettingsRule(force) {
+        if (!onHyprland) return;
         var rule = 'hl.window_rule({ name = "macshell-settings-float", match = { title = "^(macshell Settings)$" }, float = true, center = true, border_size = 0 })';
         Quickshell.execDetached(["hyprctl", "eval", force ? ('macshell_settings_rule = ' + rule) : ('macshell_settings_rule = macshell_settings_rule or ' + rule)]);
     }
     Timer { id: ruleReload; interval: 400; onTriggered: root.registerSettingsRule(true) }
     Connections {
-        target: Hyprland
+        target: root.onHyprland ? Hyprland : null
         function onRawEvent(event) { if (event.name === "configreloaded") ruleReload.restart(); }
     }
 
@@ -4841,8 +4888,13 @@ Scope {
     }
 
     Connections {
-        target: ToplevelManager.toplevels
+        target: root.onHyprland ? ToplevelManager.toplevels : null
         function onValuesChanged() { root.rebuild(); settle.restart(); tickDebounce.restart(); }
+    }
+    Connections {
+        target: root.onHyprland ? null : root.comp
+        function onToplevelsChanged() { root.rebuild(); settle.restart(); tickDebounce.restart(); }
+        function onClientsChanged() { busyDebounce.restart(); }
     }
     Connections {
         target: DesktopEntries.applications
@@ -4956,7 +5008,7 @@ Scope {
                         id: gsv
                         visible: tearGhost.isWin
                         anchors.fill: parent
-                        want: (tearGhost.isWin && tearWin.visible && ui.tearItem && ui.tearItem.tl) ? ui.tearItem.tl : null
+                        want: (root.canWindowCapture && tearGhost.isWin && tearWin.visible && ui.tearItem && ui.tearItem.tl) ? ui.tearItem.tl : null
                         wantLive: tearGhost.isWin && tearWin.visible && tearGhost.visible
                         layer.enabled: true
                         layer.effect: MultiEffect { maskEnabled: true; maskSource: gsvMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
@@ -5124,6 +5176,7 @@ Scope {
                     else ghostFade.finished.connect(function () { if (!ui.tearing) ui.tearItem = null; });
                 }
                 function hyprOf(tl) {
+                    if (!root.onHyprland) return null;
                     var v = Hyprland.toplevels.values;
                     for (var i = 0; i < v.length; i++) if (v[i].wayland === tl) return v[i];
                     return null;
@@ -5145,7 +5198,7 @@ Scope {
                         var k = Math.min(1, (sw * 0.78) / w, (sh * 0.78) / hh);
                         tearW = Math.round(w * k); tearH = Math.round(hh * k);
                         // where it is now: if that's on screen here, a still copy will stand in for it at the hand-off
-                        var mon0 = Hyprland.monitorFor(win.modelData);
+                        var mon0 = root.onHyprland ? Hyprland.monitorFor(win.modelData) : null;
                         oldSnap.shown = false; oldOut.stop();
                         oldVisible = !!(o && o.at && o.workspace && mon0 && mon0.activeWorkspace && o.workspace.id === mon0.activeWorkspace.id);
                         if (oldVisible) {
@@ -5450,7 +5503,8 @@ Scope {
                             if (mon.specialWorkspace && mon.specialWorkspace.id !== 0) ws.push(mon.specialWorkspace.id);
                             var zoneTop = bd.height - win.height;
                             var want = {};
-                            var cs = root.glassClients;
+                            // no window captures on KWin: the glass refracts the wallpaper only (no empty placeholders where windows are)
+                            var cs = root.canWindowCapture ? root.glassClients : [];
                             for (var c = 0; c < cs.length; c++) {
                                 var cl = cs[c];
                                 if (!cl.mapped || cl.hidden || cl.monitor !== mon.id || ws.indexOf(cl.workspace.id) < 0) continue;

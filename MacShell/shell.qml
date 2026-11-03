@@ -20,6 +20,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import "backends/compositor"
 import "CaptureGate.js" as CaptureGate
 
 ShellRoot {
@@ -28,11 +29,18 @@ ShellRoot {
     FontLoader { id: uiFontLoader; source: Qt.resolvedUrl("assets/fonts/OpenRunde-Regular.otf") }
     FontLoader { id: uiBoldFontLoader; source: Qt.resolvedUrl("assets/fonts/OpenRunde-Semibold.otf") }
 
+    // Hyprland or KWin (backends/compositor): the UI asks it, never the compositor directly
+    Compositor { id: facade }
+
     Scope {
         id: sharedHub
 
+        property var compositor: facade
         property var monData: []
         property var glassClients: []
+        // KWin: window + monitor geometry is pushed by the compositor backend (no polling); Hyprland fills these below
+        Binding { target: sharedHub; property: "monData"; value: facade.monitors; when: facade.isKWin }
+        Binding { target: sharedHub; property: "glassClients"; value: facade.clients; when: facade.isKWin }
         property var wallpaperMap: ({})
         readonly property string boldFontFamily: uiBoldFontLoader.status === FontLoader.Ready ? uiBoldFontLoader.name : "Open Runde Semibold"
 
@@ -73,7 +81,8 @@ ShellRoot {
         //   stage 2 (captureCut, 0.5 s later): the capture source is released. A short hold never reaches stage 2.
         // The hold starts on every openwindow / closewindow and ends 1.2 s after the last one; the previews then resume.
         // windowCapture = false (Dock Preferences, or  qs -c <config> ipc call glass captures false) switches the window previews off.
-        readonly property bool windowCapture: macDock.windowCapture      // Dock Preferences -> "Live window capture" (saved in macdock/settings.json)
+        // KWin offers no window capture to clients: the previews show the app icon there (facade.can("windowCapture"))
+        readonly property bool windowCapture: macDock.windowCapture && facade.can("windowCapture")      // Dock Preferences -> "Live window capture" (saved in macdock/settings.json)
         property bool churn: false
         readonly property bool captureHold: churn || !windowCapture || macBar.gaming
         // Liquid Glass: only stage 1, and only while windows open / close. Live capture pauses (the glass keeps its last frame, the capture
@@ -137,6 +146,7 @@ ShellRoot {
         }
         // forget admission records of windows that no longer exist (the table grew by one entry per window ever opened)
         function tlPrune() {
+            if (!facade.isHyprland) return;
             var ts = Hyprland.toplevels.values, live = {}, k;
             for (var i = 0; i < ts.length; i++) live[ts[i].address] = true;
             for (k in tlState.ready) if (!live[k]) delete tlState.ready[k];
@@ -165,7 +175,7 @@ ShellRoot {
         property string geoLast: ""
         Timer { id: geoCool; interval: 1500; onTriggered: sharedHub.geoHot = false }
         Connections {
-            target: Hyprland
+            target: facade.isHyprland ? Hyprland : null
             function onRawEvent(event) {
                 if (event.name === "openwindow" || event.name === "closewindow") { sharedHub.churn = true; churnRelease.restart(); }
                 if (event.name === "closewindow") {
@@ -212,6 +222,7 @@ ShellRoot {
         // Windows are admitted the moment Hyprland first lists them (not the first time their workspace becomes visible), so switching to a
         // workspace whose windows are already open captures them AT ONCE instead of after the 0.2 s "young window" delay.
         function tlSeed() {
+            if (!facade.isHyprland) return;
             var ts = Hyprland.toplevels.values, st = tlState, now = Date.now();
             for (var i = 0; i < ts.length; i++) {
                 var a = ts[i].address;
@@ -219,6 +230,7 @@ ShellRoot {
             }
         }
         function tlFor(addr) {
+            if (!facade.isHyprland) return null;          // live window capture is Hyprland's (toplevel export)
             var a = String(addr).replace(/^0x/, "");
             var ts = Hyprland.toplevels.values;
             for (var i = 0; i < ts.length; i++) {
@@ -240,7 +252,7 @@ ShellRoot {
         Timer {
             interval: sharedHub.geoHot ? 90 : 250
             repeat: true
-            running: (sharedHub.barWantsGeo || sharedHub.dockWantsGeo) && !sharedHub.ipcOk
+            running: facade.isHyprland && (sharedHub.barWantsGeo || sharedHub.dockWantsGeo) && !sharedHub.ipcOk
             triggeredOnStart: true
             onTriggered: if (!geoProc.running) geoProc.running = true
         }
@@ -290,6 +302,7 @@ ShellRoot {
         // Re-read monitors + windows right now (the bar changed size, so every tiled window just moved) and keep re-reading for a moment
         // while Hyprland settles, even when nothing is polling at the time. Forgets the last fingerprint so the result is always applied.
         function kickGeo() {
+            if (!facade.isHyprland) return;
             geoLast = ""; geoHot = true; geoCool.restart(); tlDebounce.restart();
             kickPass = 0; kickT.restart();
         }
@@ -307,7 +320,7 @@ ShellRoot {
             // fast (60 Hz) for 1.5 s after any window event, otherwise a relaxed 2.5 Hz check (idle CPU)
             interval: sharedHub.geoHot ? 16 : 400
             repeat: true
-            running: (sharedHub.barWantsGeo || sharedHub.dockWantsGeo) && !sharedHub.ipcBroken
+            running: facade.isHyprland && (sharedHub.barWantsGeo || sharedHub.dockWantsGeo) && !sharedHub.ipcBroken
             triggeredOnStart: true
             onTriggered: sharedHub.ipcPoll()
         }
@@ -332,6 +345,9 @@ ShellRoot {
                 + "if [ -z \"$(printf %s \"$out\" | tr -d ' \\t\\n')\" ]; then\n"
                 + "  p=$(swww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1)\n"
                 + "  [ -z \"$p\" ] && p=$(awww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1)\n"
+                // KDE Plasma: the desktop containment's org.kde.image wallpaper (Image=file:///…)
+                + "  f=\"${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc\"\n"
+                + "  [ -z \"$p\" ] && [ -f \"$f\" ] && p=$(awk '/^\\[/ { w = index($0, \"][Wallpaper][org.kde.image][General]\") > 0; next } w && /^Image=/ { sub(/^Image=(file:\\/\\/)?/, \"\"); print; exit }' \"$f\")\n"
                 + "  [ -z \"$p\" ] && p=$(hyprctl hyprpaper listactive 2>/dev/null | head -n1 | sed 's/.*= //')\n"
                 + "  if [ -z \"$p\" ]; then f=\"$HOME/.config/hypr/hyprpaper.conf\"\n"
                 + "    [ -f \"$f\" ] && p=$(grep -E '^[[:space:]]*(path|wallpaper)[[:space:]]*=' \"$f\" | head -n1 | sed -E 's/^[^=]*=[[:space:]]*//; s/^[^,\\/]*,//')\n"

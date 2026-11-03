@@ -111,6 +111,8 @@ Scope {
             interval: 60
             repeat: true
             onTriggered: {
+                // Hyprland window rules only: KWin places the frameless window itself
+                if (root.hub && root.hub.compositor && !root.hub.compositor.isHyprland) { stop(); return; }
                 // the compositor maps the window a moment after it becomes visible: send the dispatches a few times
                 var sel = 'window = "title:^(' + win.title + ')$"';
                 Hyprland.dispatch('hl.dsp.window.float({ action = "enable", ' + sel + ' })');

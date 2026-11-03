@@ -11,7 +11,6 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Hyprland
 import "I18n.js" as I18n
 import "Fonts.js" as Fonts
 
@@ -282,7 +281,7 @@ Scope {
     PanelWindow {
         id: banner
         screen: {
-            var n = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "";
+            var n = root.hub && root.hub.compositor ? root.hub.compositor.focusedScreenName : "";
             for (var i = 0; i < Quickshell.screens.length; i++) if (Quickshell.screens[i].name === n) return Quickshell.screens[i];
             return Quickshell.screens[0];
         }
