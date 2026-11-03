@@ -1961,15 +1961,90 @@ Scope {
     readonly property var activeWin: comp ? comp.activeWindow : null
     function refreshActive() { if (comp) comp.refreshActiveWindow(); }
     onActiveTlChanged: { refreshActive(); swTrack(); }      // swTrack = window-switcher recent-app order
-    readonly property var menuTitles: [
-        { id: "apple", label: "" },
-        { id: "app", label: appName, bold: true },
-        { id: "file", label: I18n.tr("File") },
-        { id: "edit", label: I18n.tr("Edit") },
-        { id: "view", label: I18n.tr("View") },
-        { id: "window", label: I18n.tr("Window") },
-        { id: "help", label: I18n.tr("Help") }
-    ]
+    // ═════════════ GLOBAL MENU (KWin) ═════════════
+    // The active app's own exported menu (com.canonical.dbusmenu, read by the compositor backend's bridge) replaces the generic
+    // File / Edit / View / Window / Help menus when the app has one; apps without one keep the generic menus. Its menus are
+    // "gm:<item id>" popovers; submenus open inside the same popover (a "‹" row goes back), as the tray menu does.
+    readonly property var gm: comp ? comp.appMenu : null
+    readonly property string activeWinId: activeTl && activeTl.address !== undefined ? String(activeTl.address) : ""
+    readonly property bool gmActive: !!gm && gm.status === "ok" && gm.items.length > 0 && gm.windowId === activeWinId
+    readonly property bool gmLoading: !!gm && gm.status === "loading" && gm.windowId === activeWinId
+    Binding { target: root.comp; property: "globalMenuWanted"; value: root.barEnabled && root.barWidgetEnabled("appMenus"); when: root.comp !== null }
+    function isGm(name) { return String(name).indexOf("gm:") === 0; }
+    function isMenuName(name) { return ["apple", "app", "file", "edit", "view", "window", "help"].indexOf(name) >= 0 || isGm(name); }
+    function gmFind(items, id) {
+        for (var i = 0; i < items.length; i++) {
+            if (items[i].id === id) return items[i];
+            var hit = gmFind(items[i].children || [], id);
+            if (hit) return hit;
+        }
+        return null;
+    }
+    // [["Control","Shift","S"]] → "Ctrl+Shift+S", the style of the generic menus
+    function gmShortcut(sc) {
+        if (!sc || sc.length === 0) return "";
+        var names = { Control: "Ctrl", Super: "Super", Alt: "Alt", Shift: "Shift", Meta: "Meta" };
+        return sc.map(function (chord) { return chord.map(function (k) { return names[k] || k; }).join("+"); }).join(", ");
+    }
+    function gmModel(id) {
+        var node = gm ? gmFind(gm.items, id) : null, m = [], lastSep = true;
+        var kids = node ? (node.children || []) : [];
+        for (var i = 0; i < kids.length; i++) {
+            var c = kids[i];
+            if (c.visible === false) continue;
+            if (c.separator) { if (!lastSep) m.push(msep()); lastSep = true; continue; }
+            lastSep = false;
+            var item = { kind: "item", label: c.label, raw: true, gmId: c.id, sub: c.submenu === true,
+                         shortcut: c.submenu === true ? "\u203A" : gmShortcut(c.shortcut) };
+            if (c.toggle === "checkmark" || c.toggle === "radio") item.checked = c.toggleState === 1;
+            if (c.enabled === false) item.disabled = true;
+            if (c.submenu !== true) item.run = (function (itemId) { return function () { root.comp.menuEvent(itemId, "clicked"); }; })(c.id);
+            m.push(item);
+        }
+        if (m.length > 0 && m[m.length - 1].kind === "sep") m.pop();
+        return m;
+    }
+    // path = submenus opened inside the popover of top menu `top`
+    function gmPathModel(path, top) {
+        var id = path.length > 0 ? path[path.length - 1] : top, m = gmModel(id);
+        if (path.length > 0) {
+            var node = gm ? gmFind(gm.items, id) : null;
+            m.unshift({ kind: "item", label: "\u2039  " + (node ? node.label : ""), raw: true, back: true }, msep());
+        }
+        return m;
+    }
+    // D-BusMenu events as KDE's own importer sends them: AboutToShow + "opened" when a menu opens, "closed" when it goes away
+    function gmOpened(id) { if (comp) { comp.menuAboutToShow(id); comp.menuEvent(id, "opened"); } }
+    function gmClosed(id) { if (comp) comp.menuEvent(id, "closed"); }
+    function gmTransition(from, to, path) {
+        if (isGm(from)) {
+            for (var i = path.length - 1; i >= 0; i--) gmClosed(path[i]);
+            gmClosed(Number(from.substring(3)));
+        }
+        if (isGm(to)) gmOpened(Number(to.substring(3)));
+    }
+    readonly property var gmTitles: {
+        var out = [];
+        if (!gmActive) return out;
+        for (var i = 0; i < gm.items.length; i++) {
+            var c = gm.items[i];
+            if (c.visible === false || c.separator || c.label === "") continue;
+            out.push({ id: "gm:" + c.id, label: c.label, raw: true });
+        }
+        return out;
+    }
+    readonly property var menuTitles: {
+        var base = [{ id: "apple", label: "" }, { id: "app", label: appName, bold: true }];
+        if (gmActive) return base.concat(gmTitles);        // the app's own menus
+        if (gmLoading) return base;                        // they are on the way: no generic menus flashing in first
+        return base.concat([
+            { id: "file", label: I18n.tr("File") },
+            { id: "edit", label: I18n.tr("Edit") },
+            { id: "view", label: I18n.tr("View") },
+            { id: "window", label: I18n.tr("Window") },
+            { id: "help", label: I18n.tr("Help") }
+        ]);
+    }
 
     // audio
     readonly property var sink: Pipewire.defaultAudioSink
@@ -3432,6 +3507,7 @@ Scope {
     }
 
     function menuModelFor(name) {
+        if (isGm(name)) return gmPathModel([], Number(name.substring(3)));
         var m = [], i;
         if (name === "apple") {
             m.push(ico(mi("About This Linux", "", function () {
@@ -4881,6 +4957,29 @@ Scope {
                 property real menuDropX: 0
                 property real trayX: 0
                 property var menuModel: []
+                property var gmPath: []              // global menu: submenus opened inside the popover (item ids)
+                property string gmPrev: ""
+                function gmEnter(id) {
+                    gmPath = gmPath.concat([id]);
+                    root.gmOpened(id);
+                    menuModel = root.gmPathModel(gmPath, Number(pop.substring(3)));
+                }
+                function gmBack() {
+                    if (gmPath.length === 0) return;
+                    root.gmClosed(gmPath[gmPath.length - 1]);
+                    gmPath = gmPath.slice(0, -1);
+                    menuModel = root.gmPathModel(gmPath, Number(pop.substring(3)));
+                }
+                // the app changed its menu (or a submenu was filled in after AboutToShow): redraw what is open
+                Connections {
+                    target: root
+                    function onGmChanged() {
+                        if (!root.isGm(ui.pop)) return;
+                        if (!root.gmActive) { ui.pop = ""; return; }
+                        var m = root.gmPathModel(ui.gmPath, Number(ui.pop.substring(3)));
+                        if (m.length === 0 && ui.gmPath.length === 0) ui.pop = ""; else ui.menuModel = m;
+                    }
+                }
                 property string armed: ""
                 property int calYear: 2026
                 property int calMonth: 0
@@ -5034,7 +5133,7 @@ Scope {
                 }
                 Connections {
                     target: root
-                    function onActiveWinChanged() { if (ui.isMenu) ui.menuModel = root.menuModelFor(ui.pop); }
+                    function onActiveWinChanged() { if (ui.isMenu && !root.isGm(ui.pop)) ui.menuModel = root.menuModelFor(ui.pop); }
                 }
                 // bounding box of all glass that is on screen right now (popovers, notification popups) + a refraction margin
                 readonly property rect glassRect: {
@@ -5047,10 +5146,13 @@ Scope {
                     }
                     return any ? Qt.rect(x0 - 64, y0 - 64, x1 - x0 + 128, y1 - y0 + 128) : Qt.rect(0, 0, 0, 0);
                 }
-                readonly property bool isMenu: ["apple", "app", "file", "edit", "view", "window", "help"].indexOf(pop) >= 0
+                readonly property bool isMenu: root.isMenuName(pop)
                 readonly property bool anyVisible: menuPop.visible || cc.visible || cal.visible || wifiPop.visible || btPop.visible || trayPop.visible || notifPop.visible || toastArea.visible || volPop.visible || kbPop.visible
                 onAnyVisibleChanged: root.popCount += (anyVisible ? 1 : -1)
                 onPopChanged: {
+                    root.gmTransition(gmPrev, pop, gmPath);
+                    gmPrev = pop;
+                    gmPath = [];
                     if (pop !== "" && pop !== "spot") toneT.restart();
                     if (pop === "spot" && ui.toastScreen) spotToneT.restart();      // measured once the open animation is over (see spotToneT)
                     armed = "";
@@ -5103,9 +5205,9 @@ Scope {
                     if (pop === name) { pop = ""; return; }
                     if (name === "spot") { spCalm = spReqCalm; spReqCalm = false; }
                     menuX = x;
-                    if (["apple", "app", "file", "edit", "view", "window", "help"].indexOf(name) >= 0) menuDropX = x;
-                    if (["apple", "app", "file", "edit", "view", "window", "help"].indexOf(name) >= 0) root.refreshActive();
-                    if (["apple", "app", "file", "edit", "view", "window", "help"].indexOf(name) >= 0) menuModel = root.menuModelFor(name);
+                    if (root.isMenuName(name)) menuDropX = x;
+                    if (root.isMenuName(name)) root.refreshActive();
+                    if (root.isMenuName(name)) menuModel = root.menuModelFor(name);
                     if (name === "cal") { var d = new Date(); calYear = d.getFullYear(); calMonth = d.getMonth(); }
                     pop = name;
                 }
@@ -5644,7 +5746,7 @@ Scope {
                                     id: tl
                                     visible: mt.modelData.id !== "apple"
                                     anchors.centerIn: parent
-                                    text: I18n.tr(mt.modelData.label)
+                                    text: mt.modelData.raw === true ? mt.modelData.label : I18n.tr(mt.modelData.label)
                                     color: bpal.fg
                                     font.family: mt.activeApp ? Fonts.forWeight((mt.activeApp ? Font.DemiBold : Font.Normal), root.boldFontFamily)
                                                               : Fonts.forWeight((mt.activeApp ? Font.DemiBold : Font.Normal), "Open Runde")
@@ -6776,7 +6878,7 @@ Scope {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: parent.width - x - 12 - (sc.visible ? sc.implicitWidth + 12 : 0)
                                     elide: Text.ElideRight
-                                    text: it.isSep ? "" : (it.armedNow ? I18n.tr("Click again to confirm") : I18n.tr(it.modelData.label))
+                                    text: it.isSep ? "" : (it.armedNow ? I18n.tr("Click again to confirm") : (it.modelData.raw === true ? it.modelData.label : I18n.tr(it.modelData.label)))
                                     color: it.hot ? "white" : (it.off ? panelPal.fg2 : panelPal.fg)
                                     font.family: Fonts.forWeight(Font.Normal, "Open Runde")
                                     font.pixelSize: 13
@@ -6804,7 +6906,10 @@ Scope {
                                             ui.armed = it.modelData.label;
                                             return;
                                         }
+                                        if (it.modelData.sub === true) { ui.gmEnter(it.modelData.gmId); return; }
+                                        if (it.modelData.back === true) { ui.gmBack(); return; }
                                         var run = it.modelData.run;
+                                        if (it.modelData.raw === true) { if (run) run(); ui.pop = ""; return; }   // clicked, then closed (as KDE does)
                                         ui.pop = "";
                                         if (run) run();
                                     }
