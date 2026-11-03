@@ -1986,6 +1986,15 @@ Scope {
         var names = { Control: "Ctrl", Super: "Super", Alt: "Alt", Shift: "Shift", Meta: "Meta" };
         return sc.map(function (chord) { return chord.map(function (k) { return names[k] || k; }).join("+"); }).join(", ");
     }
+    function gmLabel(label) {
+        var text = String(label || ""), clean = "";
+        for (var i = 0; i < text.length; i++) {
+            if (text[i] !== "_") { clean += text[i]; continue; }
+            if (text[i + 1] === "_") { clean += "_"; i++; }
+            else if (i + 1 === text.length) clean += "_";
+        }
+        return clean;
+    }
     function gmModel(id) {
         var node = gm ? gmFind(gm.items, id) : null, m = [], lastSep = true;
         var kids = node ? (node.children || []) : [];
@@ -1994,7 +2003,7 @@ Scope {
             if (c.visible === false) continue;
             if (c.separator) { if (!lastSep) m.push(msep()); lastSep = true; continue; }
             lastSep = false;
-            var item = { kind: "item", label: c.label, raw: true, gmId: c.id, sub: c.submenu === true,
+            var item = { kind: "item", label: gmLabel(c.label), raw: true, gmId: c.id, sub: c.submenu === true,
                          shortcut: c.submenu === true ? "\u203A" : gmShortcut(c.shortcut) };
             if (c.toggle === "checkmark" || c.toggle === "radio") item.checked = c.toggleState === 1;
             if (c.enabled === false) item.disabled = true;
@@ -2009,7 +2018,7 @@ Scope {
         var id = path.length > 0 ? path[path.length - 1] : top, m = gmModel(id);
         if (path.length > 0) {
             var node = gm ? gmFind(gm.items, id) : null;
-            m.unshift({ kind: "item", label: "\u2039  " + (node ? node.label : ""), raw: true, back: true }, msep());
+            m.unshift({ kind: "item", label: "\u2039  " + (node ? gmLabel(node.label) : ""), raw: true, back: true }, msep());
         }
         return m;
     }
@@ -2030,7 +2039,7 @@ Scope {
         for (var i = 0; i < gm.items.length; i++) {
             var c = gm.items[i];
             if (c.visible === false || c.separator || c.label === "") continue;
-            out.push({ id: "gm:" + c.id, label: c.label, raw: true });
+            out.push({ id: "gm:" + c.id, label: gmLabel(c.label), raw: true });
         }
         return out;
     }

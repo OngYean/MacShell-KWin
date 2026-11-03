@@ -1,6 +1,6 @@
 # KWin port: implementation state (branch `kwin-port`)
 
-This brief stands alone. `AGENTS.md` remains the authority. This file records what the `kwin-port` branch implements, the decisions behind it, and what is still unverified. The work was done on a macOS machine with no Plasma session. It has been built and smoke-tested in CI against a headless KWin, but **never run in a real Plasma session**. To test it there, follow [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md).
+This brief stands alone. `AGENTS.md` remains the authority. This file records what the `kwin-port` branch implements, the decisions behind it, and what is still unverified. Initial development was done without Plasma, then the integrated shell was tested in the user's Plasma 6 Wayland/KWin session. The shell runs, but latest user testing found the Global Menu is hidden yet clickable, contains mock/generic items rather than exported application menus, and supported apps still render their own in-window menus. Earlier reports of successful KWrite/Dolphin menu display/actions are superseded by this reproduction. See [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md).
 
 ## Validation so far
 
@@ -13,11 +13,12 @@ This brief stands alone. `AGENTS.md` remains the authority. This file records wh
 | qmllint of the compositor backends with Quickshell 0.3.2's types | CI | 0 findings |
 | Headless KWin 6.8.2 (`nix/kwin-smoke.sh`, private D-Bus and Wayland socket): the bridge binds window management, sees KWrite open and active, reads desktops and layouts | CI `kwin-smoke` | pass |
 | MacShell reaches "Configuration Loaded" under that KWin with the real bridge and with the fake one; the Hyprland IPC client never starts | CI `kwin-smoke` | pass |
+| Integrated shell casually runs; latest Global Menu live test: hidden-but-clickable UI, mock/generic items, supported apps still show in-window menus | User's Plasma 6 Wayland session | fail (user-reported; registration/import and visibility need diagnosis) |
 | The real bridge's messages match the protocol (`fake-bridge.py --validate`: hello, session, keyboard, workspaces, windows, menu) | CI `kwin-smoke` | pass |
 | QML warnings while MacShell runs 30 s under that KWin (Quickshell's `@file.qml[line:col]` format) | CI `kwin-smoke` | 1, the same with both bridges: `MacDock.qml[1198:25]` cannot open `~/.face` (no avatar on the runner) |
 | Independent code review of the branch: 7 bugs and 9 minor points, no blockers | review | bugs fixed in `d1d4cb6` and `37bf077`; the rest are listed below |
 
-Not covered anywhere yet: a real Plasma session, the global-menu D-Bus path (CI has no kded AppMenu registrar, so no app exports a menu there), anything visual, multi-monitor, Klassy, GPU behaviour, and Hyprland at runtime.
+Not covered yet: root-cause diagnosis of the live Global Menu failure; GTK, Electron, Firefox, VS Code, Xwayland menu exports; broad multi-monitor/hotplug behavior; Klassy; GPU behavior; and Hyprland at runtime.
 
 ## What changed
 
@@ -80,8 +81,8 @@ Untouched: `MacLock/`, `MacInstaller/`, `install.sh`, the POCs, and the `macshel
 
 ## Known gaps and risks (honest list)
 
-- **No real Plasma session yet.** See "Validation so far" for what CI covers.
-- Global menu: no keyboard navigation, mnemonics or icons. The indeterminate check state renders as unchecked. Submenus drill down inside the popover (the same pattern as the tray menu) instead of cascading. Apps started before a menu view existed keep their in-window menu bars until restarted. GTK, Electron, Firefox and VS Code exports are untested. Xwayland apps should work, because KWin publishes their `_KDE_NET_WM_APPMENU_*` address through the same protocol, but this is untested.
+- **Global Menu is currently failing live.** Latest user report: bar menu is hidden but clickable, it shows mock/generic items, and apps that export AppMenu still render in-window menus. Determine whether the appmenu view registration, app address discovery, D-BusMenu import, or visibility state is at fault before accepting the feature. Earlier positive display/action reports are superseded.
+- Global menu: current live behavior is broken as described above. Keyboard navigation and icons are unsupported. Production label normalization strips mnemonic markers (`_File` → `File`, `__` → `_`) and preserves a trailing underscore, but it has not been verified against real app-menu labels. Keyboard mnemonic activation/underlining is not implemented. The indeterminate check state renders as unchecked. Submenus drill down inside the popover (the same pattern as the tray menu) instead of cascading. Apps started before a menu view existed keep their in-window menu bars until restarted. GTK, Electron, Firefox and VS Code exports are untested. Xwayland apps should work, because KWin publishes their `_KDE_NET_WM_APPMENU_*` address through the same protocol, but this is untested.
 - Coexist mode overlaps if Plasma has a panel on the same edge: move/auto-hide Plasma's panel, turn off MacShell's Dock/bar on that screen, or use replace mode. MacShell's desktop icons duplicate Plasma's Folder View desktop; turn one of them off.
 - MacShell's notification bell is empty in coexist mode (plasmashell shows the notifications).
 - Hyprland behaviour is meant to be unchanged (same dispatch strings, same pollers, gated by `isHyprland`; the review found and fixed two regressions). It was not re-tested at runtime; see guide §16.

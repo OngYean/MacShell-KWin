@@ -1,6 +1,6 @@
 # KWin port: testing guide (for the agent guiding the user)
 
-You are guiding the user through the first real test of the `kwin-port` branch in their KDE Plasma 6 Wayland session. Read `AGENTS.md` (authoritative) and [`05-kwin-port.md`](05-kwin-port.md) (what was built) first. **This is the first run in a real Plasma session.** CI already builds everything and runs MacShell and the bridge against a headless KWin 6.8.2 (§2a, and "Validation so far" in 05). What remains is everything a headless run can't show: real apps' menus, visuals, multi-monitor, KDE services, GPU behaviour and Klassy. Fix what breaks as small, separate commits.
+You are continuing validation of the `kwin-port` branch in the user's KDE Plasma 6 Wayland session. Read `AGENTS.md` (authoritative) and [`05-kwin-port.md`](05-kwin-port.md) (implementation state) first. CI builds everything and runs MacShell and the bridge against a headless KWin 6.8.2 (§2a, and "Validation so far" in 05). Latest user test: the shell runs casually, but the Global Menu is hidden yet clickable, shows mock/generic items, and apps that export AppMenu still show in-window menus. Earlier success reports for KWrite/Dolphin are superseded. Diagnose menu registration/address discovery/import and presentation visibility before expanding the client matrix. Fix any failures as small, separately reviewable commits.
 
 Work through the sections in order. Each step lists the command, what the user should see, and what to record. Fill in the results table (§17) as you go.
 
@@ -144,9 +144,9 @@ For each app below, focus it and record: titles shown, submenu navigation, disab
 
 | # | App / backend | How to start | Notes |
 | --- | --- | --- | --- |
-| 1 | KWrite, native Wayland | `kwrite` | baseline; the POC saw 8 root items |
+| 1 | KWrite, native Wayland | `kwrite` | current Global Menu failure reproduced generally; app-specific details to recheck after fix |
 | 2 | KWrite, Xwayland | `QT_QPA_PLATFORM=xcb kwrite` | address comes from X properties via KWin |
-| 3 | Dolphin / Konsole (Qt) | from the launcher | Konsole has a menu bar |
+| 3 | Dolphin / Konsole (Qt) | from the launcher | current Global Menu failure reproduced generally; Konsole untested |
 | 4 | GTK 3 app | e.g. `gnome-text-editor` / `gedit` | GTK needs appmenu-gtk-module or Plasma's GMenu proxy (`plasma-gmenudbusmenuproxy.service`, X11 only); record what happens |
 | 5 | Electron | VS Code (`code`), Wayland and `--ozone-platform=x11` | Electron exports D-Bus menus mainly under X11; record |
 | 6 | Firefox | Wayland and `MOZ_ENABLE_WAYLAND=0 firefox` | Firefox normally has no global menu; generic menus expected |
@@ -161,7 +161,7 @@ Expected behaviour for apps that export a menu:
 - Switching apps swaps the titles. An app without an exported menu, and the desktop itself, show the generic File/Edit/View/Window/Help menus.
 - `MACSHELL_GLOBAL_MENU=0 nix run .#macshell` always shows the generic menus.
 
-Known limits, so don't report these as bugs: no keyboard navigation, mnemonics or icons; the indeterminate state shows as unchecked; generic-menu shortcut items need `ydotool` 1.x with its `ydotoold` socket (KWin has no virtual-keyboard protocol for `wtype`) and are greyed out without them.
+Known limits, so don't report these as bugs after actual AppMenu rendering works: no keyboard navigation or icons; mnemonic markers are normalized for display, but mnemonic underlining/activation is not implemented; the indeterminate state shows as unchecked; generic-menu shortcut items need `ydotool` 1.x with its `ydotoold` socket (KWin has no virtual-keyboard protocol for `wtype`) and are greyed out without them. The current hidden-but-clickable mock/generic menu and apps retaining their in-window menus are failures, not known limits.
 
 ## 8. Session actions
 

@@ -1,6 +1,6 @@
 # Independent task: KDE Global Menu path
 
-This brief is self-contained. Read the repository `AGENTS.md` before work; it is authoritative. The objective is a **real active-application menu**, not a hand-built/static lookalike.
+This brief records the original isolated Global Menu proof-of-concept investigation. It is superseded for current implementation by [`05-kwin-port.md`](05-kwin-port.md) and [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md): production Global Menu rendering is in `MacShell/MacBar.qml`, but latest user testing reports it currently shows mock/generic items while apps retain in-window menus. Earlier positive KWrite/Dolphin reports are superseded by that reproduction. Read `AGENTS.md` before work; it is authoritative. The objective remains a **real active-application menu**, not a hand-built/static lookalike.
 
 ## Context
 
@@ -29,9 +29,9 @@ With KWrite active (`appId=org.kde.kwrite`), KWin advertised the AppMenu registr
 | KWrite, Xwayland                | Untested                                                                    | Untested                                                                         | Untested                                                                                                                             | Open               |
 | GTK, Electron, Firefox, VS Code | Untested                                                                    | Untested                                                                         | Untested                                                                                                                             | Open               |
 
-## Next work
+## Historical next work (superseded)
 
-Continue the isolated renderer POC; do not edit `MacBar.qml` or treat the POC as production-ready.
+The following numbered tasks were for the isolated POC and are no longer the active implementation plan. Do not follow the old instruction to avoid `MacBar.qml`; use `05-kwin-port.md` and `06-kwin-testing-guide.md` for the production path and remaining validation.
 
 1. Ask the user to verify the real KWrite labels and open/close nested submenu behavior in `poc/global-menu/shell.qml`. Do not select a potentially destructive leaf item. Then safely test a known benign menu action only with user approval.
 2. Verify that the local stdin bridge delivers D-BusMenu `opened`/`closed`/`clicked` events to the expected active address, rejects stale IDs and survives active-window/menu-address changes. Add concise status diagnostics that never print labels, service/path or IDs if runtime observability is needed.
