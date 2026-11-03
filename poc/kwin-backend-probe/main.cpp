@@ -1,3 +1,5 @@
+#include "menu-label.h"
+
 #include <KWayland/Client/plasmawindowmanagement.h>
 #include <KWayland/Client/registry.h>
 
@@ -81,7 +83,7 @@ QJsonObject dbusMenuItem(const QDBusArgument &argument)
     const QVariant enabledValue = unpackDbusVariant(properties.value("enabled"));
     return {
         {"id", id},
-        {"label", unpackDbusVariant(properties.value("label")).toString()},
+        {"label", displayDbusMenuLabel(unpackDbusVariant(properties.value("label")).toString())},
         {"visible", visibleValue.isValid() ? visibleValue.toBool() : true},
         {"enabled", enabledValue.isValid() ? enabledValue.toBool() : true},
         {"separator", itemType == "separator"},

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(macshell_kwin_backend_probe VERSION 0.2.0 LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -20,3 +22,9 @@ target_link_libraries(macshell-kwin-backend-probe PRIVATE
 )
 
 install(TARGETS macshell-kwin-backend-probe RUNTIME DESTINATION bin)
+
+if(BUILD_TESTING)
+    add_executable(macshell-kwin-menu-label-test menu-label-test.cpp)
+    target_link_libraries(macshell-kwin-menu-label-test PRIVATE Qt6::Core)
+    add_test(NAME dbusmenu-label-normalization COMMAND macshell-kwin-menu-label-test)
+endif()
