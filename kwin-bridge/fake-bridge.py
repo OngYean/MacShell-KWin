@@ -7,7 +7,9 @@ layouts, the global menu with a lazily filled submenu) can be exercised without 
     MACSHELL_COMPOSITOR=kwin MACSHELL_KWIN_BRIDGE="$PWD/kwin-bridge/fake-bridge.py" qs -p ./MacShell
 
 Window actions only change the fake state; nothing happens to real windows. Commands are echoed to stderr (all data
-here is made up). `fake-bridge.py --selftest` plays a scripted session against itself and checks every message.
+here is made up). `fake-bridge.py --selftest` plays a scripted session against itself and checks every message;
+`fake-bridge.py --validate < bridge-output` checks the real bridge's messages against the same schema (CI only: real
+output contains window titles and menu labels).
 """
 import json
 import sys
@@ -244,13 +246,26 @@ def selftest():
     print("fake-bridge selftest: %d messages ok" % len(sent))
 
 
+def validate(lines):
+    counts = {}
+    for line in lines:
+        if line.strip():
+            msg = json.loads(line)
+            check(msg)
+            counts[msg["type"]] = counts.get(msg["type"], 0) + 1
+    assert counts.get("hello") == 1, counts
+    print("bridge output matches the protocol: " + " ".join("%s=%d" % kv for kv in sorted(counts.items())))
+
+
 def main(argv):
     flags = set(argv[1:])
-    if flags - {"--global-menu", "--check", "--version", "--selftest"}:
-        print("usage: fake-bridge.py [--global-menu] [--check] [--version] [--selftest]", file=sys.stderr)
+    if flags - {"--global-menu", "--check", "--version", "--selftest", "--validate"}:
+        print("usage: fake-bridge.py [--global-menu] [--check] [--version] [--selftest] [--validate]", file=sys.stderr)
         return 2
     if "--selftest" in flags:
         selftest(); return 0
+    if "--validate" in flags:
+        validate(sys.stdin); return 0
     if "--version" in flags:
         print("macshell-kwin-bridge fake (protocol 1)"); return 0
     if "--check" in flags:

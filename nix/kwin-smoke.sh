@@ -37,6 +37,10 @@ kwrite > "$out/kwrite.log" 2>&1 &
 sleep 6
 c=$(macshell-kwin-bridge --check --global-menu 2>&1 | tr '\n' ' ')
 case "$c" in *windows=[1-9]*active_window_present=true*) note "bridge --check (KWrite open)" "$c" ;; *) fail "bridge --check with KWrite" "$c" ;; esac
+# contract: every message the real bridge sends matches the protocol (kept in this private run's log dir only)
+sleep 6 | timeout 5 macshell-kwin-bridge --global-menu > "$out/bridge-output.jsonl" 2> "$out/bridge-stderr.log"
+if v=$(python3 "$here/kwin-bridge/fake-bridge.py" --validate < "$out/bridge-output.jsonl" 2>&1); then note "bridge protocol" "$v"
+else fail "bridge protocol" "$(echo "$v" | tail -n 2 | tr '\n' ' ')"; fi
 
 # MacShell itself, once with the real bridge and once with the fake one (exercises the global-menu rendering)
 run_shell() { # name, extra environment...
@@ -49,7 +53,8 @@ run_shell() { # name, extra environment...
         note "macshell ($name)" "configuration loaded"
     fi
     # QML diagnostics that point into MacShell's own files
-    grep -E 'MacShell/[A-Za-z/]+\.qml:[0-9]+' "$out/macshell-$name.log" | sed -E 's/^.*(MacShell\/)/\1/' | sort -u > "$out/qml-$name.txt"
+    # (the package keeps the config in share/macshell/, the work tree in MacShell/)
+    grep -E '(MacShell|share/macshell)/[A-Za-z/]+\.qml:[0-9]+' "$out/macshell-$name.log" | sed -E 's/^.*(MacShell|share\/macshell)\//\//' | sort -u > "$out/qml-$name.txt"
     n=$(wc -l < "$out/qml-$name.txt")
     note "macshell ($name) QML diagnostics" "$n distinct lines (first: $(head -n 3 "$out/qml-$name.txt" | tr '\n' ' '))"
     if grep -q -E 'backends/compositor/|ReferenceError|TypeError|is not a type|is not installed' "$out/qml-$name.txt"; then
