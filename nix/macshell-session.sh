@@ -9,8 +9,8 @@
 # normal Plasma session. KWin, Klassy, KDE's lock screen, kded, PowerDevil and the portals are never touched.
 set -eu
 
-unit=macshell.service
-plasma=plasma-plasmashell.service
+unit="macshell.service"
+plasma="plasma-plasmashell.service"
 
 have_unit() { systemctl --user cat "$unit" >/dev/null 2>&1; }
 

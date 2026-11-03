@@ -3,6 +3,7 @@
 # The order matters: plasmashell must be stopped before MacShell claims notifications (replace), and MacShell must be
 # gone before plasmashell starts again (restore), or plasmashell comes back without its notification name.
 #   sh nix/test-macshell-session.sh            (no Plasma, systemd or Nix needed)
+# shellcheck disable=SC2016  # the stub bodies are written literally: they expand when the stubs run
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
