@@ -46,7 +46,7 @@ else fail "bridge protocol" "$(echo "$v" | tail -n 2 | tr '\n' ' ')"; fi
 run_shell() { # name, extra environment...
     name=$1
     shift
-    env "$@" timeout 30 macshell --verbose > "$out/macshell-$name.log" 2>&1
+    env "$@" timeout 30 macshell --verbose --no-color > "$out/macshell-$name.log" 2>&1
     if ! grep -q 'Configuration Loaded' "$out/macshell-$name.log"; then
         fail "macshell ($name)" "configuration did not load: $(grep -m 3 -E 'ERROR|error|qml:' "$out/macshell-$name.log" | tr '\n' ' ')"
     else
@@ -54,7 +54,7 @@ run_shell() { # name, extra environment...
     fi
     # QML diagnostics: Quickshell logs engine warnings as "@/<file>.qml[line:col]: …" (core/generation.cpp
     # onEngineWarnings); Qt's own messages use "<url>.qml:line"; both are listed
-    grep -E '\.qml(\[[0-9]+:[0-9]+\]|:[0-9]+)' "$out/macshell-$name.log" | sed -E 's#^.*(@/|qs:@/qs/|share/macshell/|/MacShell/)##' | sort -u > "$out/qml-$name.txt"
+    grep -E '\.qml(\[[0-9]+:[0-9]+\]|:[0-9]+)' "$out/macshell-$name.log" | sed -E 's#^.* (@/?|[^ ]*qs:@/qs/|[^ ]*share/macshell/|[^ ]*/MacShell/)##' | sort -u > "$out/qml-$name.txt"
     n=$(wc -l < "$out/qml-$name.txt")
     note "macshell ($name) QML diagnostics" "$n distinct lines"
     head -n 8 "$out/qml-$name.txt" | cut -c1-600 | while IFS= read -r line; do note "QML ($name)" "$line"; done
