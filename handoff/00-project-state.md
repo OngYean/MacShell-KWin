@@ -56,6 +56,16 @@ Useful source links:
 - [Plasma Global Menu QML](https://github.com/KDE/plasma-workspace/blob/master/applets/appmenu/qml/main.qml)
 - [Quickshell D-BusMenu source](https://github.com/quickshell-mirror/quickshell/tree/master/src/dbus/dbusmenu)
 
+## Update: `kwin-port` branch (2026-11-03)
+
+The branch carries untested implementations for Milestones 3–6. They were written without a Plasma session, Nix or Qt; only syntax parsers ran. See [`05-kwin-port.md`](05-kwin-port.md) for what was built and [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) for how to test it.
+
+- **M3 compositor abstraction:** `MacShell/backends/compositor/` (facade + Hyprland and KWin backends). All UI compositor access goes through `hub.compositor`; Hyprland-only features are gated by `can(...)`.
+- **M3 KWin backend:** `kwin-bridge/` (`macshell-kwin-bridge`), promoted from the POC. It is event-driven, validates its input, and keeps titles and labels in the pipe. Plasma Window Management stays isolated in this helper, with the decision record and version/fallback policy in its README; this closes the trust/access review the earlier briefs asked for.
+- **M4 global menu:** a real D-BusMenu renderer in `MacBar.qml`, falling back to the generic menus. The bridge registers `org.kde.kappmenuview` so the registrar survives without Plasma's applet.
+- **M5 integration:** dock, menu bar, session actions (KDE locker, `org.kde.Shutdown`), workspaces, keyboard layouts, Spectacle for screenshots/recording, KDE settings modules for displays/input/Night Light, no live capture on KWin, and notifications only in an explicit replace mode.
+- **M6 Nix:** `packages.macshell`, `packages.macshell-kwin-bridge`, `apps.macshell-session` (per-login `replace` / `restore`), `homeManagerModules.macshell` (autostart off by default; plasmashell never disabled).
+
 ## Milestones and status
 
 1. **Architecture audit:** source-level audit identified major Hyprland couplings and Global Menu transport. Installed versions are confirmed as Plasma/KWin `6.8.2`, Qt `6.12.0`, and Quickshell `0.3.2` from the dev flake.

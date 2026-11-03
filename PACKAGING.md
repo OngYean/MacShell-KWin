@@ -16,6 +16,20 @@ nix develop
 
 `nix develop` provides Quickshell, Qt QML tooling, ShellCheck, CMake, pkg-config, KWayland and Wayland client development files. The runtime package supplies Quickshell; the existing shell's other external programs and compositor APIs still need to be available in the user session.
 
+## KDE Plasma (KWin) build: `kwin-port` branch, untested
+
+```sh
+nix run .#macshell                         # MacShell with the backend detected at start (KWin under Plasma, Hyprland under Hyprland)
+nix run .#macshell -- ipc call spotlight toggle   # talk to the running instance (wrapper passes -p <store path>)
+nix run .#kwin-bridge -- --check           # sanitized KWin bridge summary (counts only)
+nix run .#macshell-session -- status       # status | start | stop | replace | restore (per login, nothing persistent)
+nix develop --command qs -p ./MacShell     # development: run straight from the work tree, bridge on PATH
+```
+
+- `packages.macshell` contains the configuration in the store, Quickshell, the `macshell-kwin-bridge` helper (see `kwin-bridge/README.md`), QtMultimedia on the QML path (`LiveWall.qml` needs it), and the `macshell-session` switcher.
+- `homeManagerModules.macshell` (`programs.macshell.enable`, `.autostart`, `.package`): installs the package and defines `macshell.service`, wanted by `plasma-workspace.target` only when `autostart = true`. It never disables plasmashell or any KDE service.
+- Nothing in these outputs has been built or run yet; follow `handoff/06-kwin-testing-guide.md`.
+
 A separate, deliberately limited KWin protocol diagnostic is available during development:
 
 ```sh

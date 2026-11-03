@@ -15,8 +15,14 @@ These handoffs let an agent start from the repository without access to the orig
 - [`02-kwin-backend.md`](02-kwin-backend.md) — window, workspace, output and capture backend research.
 - [`03-plasma-poc.md`](03-plasma-poc.md) — safe minimal top-panel/dock test plan and current Plasma session results.
 - [`04-nix-and-install.md`](04-nix-and-install.md) — current Nix baseline and future KWin-aware deployment work.
+- [`05-kwin-port.md`](05-kwin-port.md) — what the `kwin-port` branch implements (compositor facade, KWin bridge, global menu, Nix), decisions and known gaps.
+- [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) — **start here to test the port**: step-by-step runbook with approval gates and the acceptance-criteria results table.
 
-## Current coordination state (2026-11-02)
+## Current state (2026-11-03, branch `kwin-port`)
+
+The `kwin-port` branch (local; not pushed) implements Milestones 3–6 as untested `wip` commits. It adds the compositor facade (`MacShell/backends/compositor/`), the event-driven `macshell-kwin-bridge`, the real global-menu renderer in `MacBar.qml`, KDE session/service integration, and the Nix packaging (`macshell`, `macshell-kwin-bridge`, `macshell-session`, `homeManagerModules.macshell`). It was written on a machine without Plasma, Nix or Qt and was only syntax-checked. **Nothing has been compiled or run.** The next agent tests it in the Plasma session with [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md). The section below is the state before that branch.
+
+## Coordination state before `kwin-port` (2026-11-02)
 
 - Repository: `MacShell-KWin`; current committed HEAD is `f9037d5` (`docs(handoff): refresh repository state references`). The source-audit baseline was `51db0bab6997da310d2aacfaa7084740ec44ad4a` (`Update MacShell files`); it is historical. Current POC and session-status edits are uncommitted.
 - Workspace source is an upstream-derived MacShell checkout, not yet a KWin port. README identifies `0-ss/MacShell` as upstream. No separate, verified KWin fork or external Nix/Home Manager repository is present here.
