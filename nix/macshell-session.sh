@@ -53,7 +53,7 @@ case "${1:-status}" in
     status)
         printf 'plasmashell: %s\n' "$(systemctl --user is-active "$plasma" 2>/dev/null || true)"
         if have_unit; then printf 'macshell.service: %s\n' "$(systemctl --user is-active "$unit" 2>/dev/null || true)"; fi
-        printf 'macshell instances: %s\n' "$(macshell list 2>/dev/null | grep -c . || true)"
+        printf 'macshell instances: %s\n' "$(macshell list --json 2>/dev/null | grep -c '"pid"' || true)"
         printf 'MACSHELL_KDE_MODE (user manager): %s\n' "$(systemctl --user show-environment 2>/dev/null | sed -n 's/^MACSHELL_KDE_MODE=//p' | grep . || echo coexist)"
         macshell-kwin-bridge --check --global-menu 2>&1 || true
         ;;

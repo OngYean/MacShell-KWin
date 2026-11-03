@@ -85,7 +85,7 @@ Scope {
 
     // shared helpers from shell.qml (window geometry poller, wallpaper lookup)
     property var hub: null
-    // the compositor (backends/compositor/Compositor.qml): Hyprland or KWin. Without a hub this is the original Hyprland shell.
+    // the compositor (backends/compositor/Compositor.qml): Hyprland or KWin. shell.qml always provides it through the hub.
     readonly property var comp: hub ? hub.compositor : null
     readonly property bool onHyprland: !comp || comp.isHyprland
     readonly property bool canCapture: !comp || comp.can("screenCapture")             // grim / wf-recorder / tone measuring
@@ -1998,7 +1998,7 @@ Scope {
                          shortcut: c.submenu === true ? "\u203A" : gmShortcut(c.shortcut) };
             if (c.toggle === "checkmark" || c.toggle === "radio") item.checked = c.toggleState === 1;
             if (c.enabled === false) item.disabled = true;
-            if (c.submenu !== true) item.run = (function (itemId) { return function () { root.comp.menuEvent(itemId, "clicked"); }; })(c.id);
+            if (c.submenu !== true) item.run = (function (itemId, win) { return function () { root.comp.menuEvent(itemId, "clicked", win); }; })(c.id, gm.windowId);
             m.push(item);
         }
         if (m.length > 0 && m[m.length - 1].kind === "sep") m.pop();
@@ -2014,14 +2014,15 @@ Scope {
         return m;
     }
     // D-BusMenu events as KDE's own importer sends them: AboutToShow + "opened" when a menu opens, "closed" when it goes away
-    function gmOpened(id) { if (comp) { comp.menuAboutToShow(id); comp.menuEvent(id, "opened"); } }
-    function gmClosed(id) { if (comp) comp.menuEvent(id, "closed"); }
-    function gmTransition(from, to, path) {
+    // win: the window the popover was opened for (the bridge drops events meant for any other window)
+    function gmOpened(id, win) { if (comp) { comp.menuAboutToShow(id, win); comp.menuEvent(id, "opened", win); } }
+    function gmClosed(id, win) { if (comp) comp.menuEvent(id, "closed", win); }
+    function gmTransition(from, to, path, fromWin, toWin) {
         if (isGm(from)) {
-            for (var i = path.length - 1; i >= 0; i--) gmClosed(path[i]);
-            gmClosed(Number(from.substring(3)));
+            for (var i = path.length - 1; i >= 0; i--) gmClosed(path[i], fromWin);
+            gmClosed(Number(from.substring(3)), fromWin);
         }
-        if (isGm(to)) gmOpened(Number(to.substring(3)));
+        if (isGm(to)) gmOpened(Number(to.substring(3)), toWin);
     }
     readonly property var gmTitles: {
         var out = [];
@@ -2879,7 +2880,11 @@ Scope {
     }
 
     // ═════════════ MENUS ═════════════
-    function mi(label, shortcut, run) { return { kind: "item", label: label, shortcut: shortcut || "", run: run }; }
+    function mi(label, shortcut, run) {
+        var item = { kind: "item", label: label, shortcut: shortcut || "", run: run };
+        if (run && run.needsKeys === true && !canSendKeys) item.disabled = true;      // nothing could type the shortcut
+        return item;
+    }
     function mc(label, run) { return { kind: "item", label: label, shortcut: "", run: run, confirm: true }; }
     function msep() { return { kind: "sep" }; }
     function ico(item, g) { item.glyph = g; return item; }
@@ -2904,8 +2909,31 @@ Scope {
     }
     // Menu shortcuts are sent to the focused window with Hyprland's sendshortcut (no extra tool needed).
     // If some app ignores them, set this to true to type them with wtype instead.
+    // KWin: KDE has no virtual-keyboard protocol for wtype and no hyprctl; only ydotool (uinput, needs its ydotoold
+    // daemon) can type into the focused window. Shortcut items are greyed out when it is not available.
+    property bool hasYdotool: false
+    readonly property bool canSendKeys: onHyprland || hasYdotool
+    Process {
+        running: !root.onHyprland
+        command: ["sh", "-c", "command -v ydotool >/dev/null 2>&1 && { [ -S \"${YDOTOOL_SOCKET:-${XDG_RUNTIME_DIR:-/tmp}/.ydotool_socket}\" ] || [ -S /tmp/.ydotool_socket ]; }"]
+        onExited: (code, status) => root.hasYdotool = code === 0
+    }
+    // evdev key codes: ydotool 1.x takes `code:state` pairs, not key names
+    function evdevCode(k) {
+        var named = { ctrl: 29, control: 29, shift: 42, alt: 56, super: 125, win: 125, cmd: 125,
+                      minus: 12, equal: 13, comma: 51, period: 52, F11: 87, F12: 88 };
+        if (named[k] !== undefined) return named[k];
+        var c = String(k).toLowerCase(), rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"], starts = [16, 30, 44];
+        if (c.length === 1) {
+            for (var r = 0; r < rows.length; r++) if (rows[r].indexOf(c) >= 0) return starts[r] + rows[r].indexOf(c);
+            if (c >= "1" && c <= "9") return Number(c) + 1;
+            if (c === "0") return 11;
+        }
+        var f = /^F([1-9]|10)$/.exec(String(k));
+        return f ? 58 + Number(f[1]) : -1;
+    }
     function keys(mods, k) {
-        return function () {
+        var send = function () {
             var targetAddr = root.activeWin ? (root.activeWin.address || "") : "";
             var modMap = {
                 "ctrl": "ctrl", "control": "ctrl",
@@ -2936,14 +2964,18 @@ Scope {
             var fullScript = focusCmd + 'if command -v wtype >/dev/null 2>&1; then ' + wtypeCmd + '; '
                            + 'elif command -v ydotool >/dev/null 2>&1; then ydotool key ' + (mods.length ? mods.join("+") + "+" : "") + kNorm + '; '
                            + 'else hyprctl dispatch sendshortcut "' + sendArg + '" 2>/dev/null || hyprctl dispatch sendshortcut "' + (hyprMods ? hyprMods + ", " : "") + kNorm + ', activewindow" 2>/dev/null || true; fi';
-            // KWin: no hyprctl, and wtype needs the virtual-keyboard protocol KWin does not offer, so it falls through to
-            // ydotool (uinput). The key goes to the focused window: the bar never takes keyboard focus.
-            if (!root.onHyprland)
-                fullScript = 'sleep 0.03; { command -v wtype >/dev/null 2>&1 && ' + wtypeCmd + ' 2>/dev/null; } || '
-                           + '{ command -v ydotool >/dev/null 2>&1 && ydotool key ' + (mods.length ? mods.join("+") + "+" : "") + kNorm + '; } || true';
+            // KWin: ydotool 1.x (see canSendKeys). The key goes to the focused window: the bar never takes keyboard focus.
+            if (!root.onHyprland) {
+                var codes = mods.map(function (m) { return root.evdevCode(m.toLowerCase()); }).concat([root.evdevCode(k)]);
+                if (codes.indexOf(-1) >= 0) return;
+                var seq = codes.map(function (c) { return c + ":1"; }).concat(codes.slice().reverse().map(function (c) { return c + ":0"; }));
+                fullScript = 'sleep 0.03; ydotool key ' + seq.join(" ");
+            }
 
             Quickshell.execDetached(["sh", "-c", fullScript]);
         };
+        send.needsKeys = true;
+        return send;
     }
     function mchk(label, shortcut, checked, run) { return { kind: "item", label: label, shortcut: shortcut || "", run: run, checked: checked === true }; }
     function dis(item, off) { if (off) item.disabled = true; return item; }
@@ -4959,14 +4991,15 @@ Scope {
                 property var menuModel: []
                 property var gmPath: []              // global menu: submenus opened inside the popover (item ids)
                 property string gmPrev: ""
+                property string gmWin: ""            // the window whose menu this popover shows
                 function gmEnter(id) {
                     gmPath = gmPath.concat([id]);
-                    root.gmOpened(id);
+                    root.gmOpened(id, gmWin);
                     menuModel = root.gmPathModel(gmPath, Number(pop.substring(3)));
                 }
                 function gmBack() {
                     if (gmPath.length === 0) return;
-                    root.gmClosed(gmPath[gmPath.length - 1]);
+                    root.gmClosed(gmPath[gmPath.length - 1], gmWin);
                     gmPath = gmPath.slice(0, -1);
                     menuModel = root.gmPathModel(gmPath, Number(pop.substring(3)));
                 }
@@ -4975,7 +5008,7 @@ Scope {
                     target: root
                     function onGmChanged() {
                         if (!root.isGm(ui.pop)) return;
-                        if (!root.gmActive) { ui.pop = ""; return; }
+                        if (!root.gmActive || root.gm.windowId !== ui.gmWin) { ui.pop = ""; return; }
                         var m = root.gmPathModel(ui.gmPath, Number(ui.pop.substring(3)));
                         if (m.length === 0 && ui.gmPath.length === 0) ui.pop = ""; else ui.menuModel = m;
                     }
@@ -5150,9 +5183,11 @@ Scope {
                 readonly property bool anyVisible: menuPop.visible || cc.visible || cal.visible || wifiPop.visible || btPop.visible || trayPop.visible || notifPop.visible || toastArea.visible || volPop.visible || kbPop.visible
                 onAnyVisibleChanged: root.popCount += (anyVisible ? 1 : -1)
                 onPopChanged: {
-                    root.gmTransition(gmPrev, pop, gmPath);
+                    var gw = root.isGm(pop) && root.gm ? root.gm.windowId : "";
+                    root.gmTransition(gmPrev, pop, gmPath, gmWin, gw);
                     gmPrev = pop;
                     gmPath = [];
+                    gmWin = gw;
                     if (pop !== "" && pop !== "spot") toneT.restart();
                     if (pop === "spot" && ui.toastScreen) spotToneT.restart();      // measured once the open animation is over (see spotToneT)
                     armed = "";

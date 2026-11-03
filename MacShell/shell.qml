@@ -347,7 +347,7 @@ ShellRoot {
                 + "  [ -z \"$p\" ] && p=$(awww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1)\n"
                 // KDE Plasma: the desktop containment's org.kde.image wallpaper (Image=file:///…)
                 + "  f=\"${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc\"\n"
-                + "  [ -z \"$p\" ] && [ -f \"$f\" ] && p=$(awk '/^\\[/ { w = index($0, \"][Wallpaper][org.kde.image][General]\") > 0; next } w && /^Image=/ { sub(/^Image=(file:\\/\\/)?/, \"\"); print; exit }' \"$f\")\n"
+                + "  [ -z \"$p\" ] && [ -f \"$f\" ] && printf %s \":${XDG_CURRENT_DESKTOP:-}:\" | grep -q :KDE: && p=$(awk '/^\\[/ { w = index($0, \"][Wallpaper][org.kde.image][General]\") > 0; next } w && /^Image=/ { sub(/^Image=(file:\\/\\/)?/, \"\"); print; exit }' \"$f\")\n"
                 + "  [ -z \"$p\" ] && p=$(hyprctl hyprpaper listactive 2>/dev/null | head -n1 | sed 's/.*= //')\n"
                 + "  if [ -z \"$p\" ]; then f=\"$HOME/.config/hypr/hyprpaper.conf\"\n"
                 + "    [ -f \"$f\" ] && p=$(grep -E '^[[:space:]]*(path|wallpaper)[[:space:]]*=' \"$f\" | head -n1 | sed -E 's/^[^=]*=[[:space:]]*//; s/^[^,\\/]*,//')\n"

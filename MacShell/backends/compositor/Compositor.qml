@@ -76,8 +76,9 @@ Scope {
     // { status: ok | loading | none | error | unsupported, windowId, appId, revision, items: [{ id, label, enabled, visible,
     //   separator, submenu, toggle: "" | checkmark | radio, toggleState, icon, shortcut: [["Control","S"]], children }] }
     readonly property var appMenu: backend ? backend.appMenu : ({ status: "unsupported", windowId: "", appId: "", revision: 0, items: [] })
-    function menuEvent(itemId, event) { if (backend) backend.menuEvent(itemId, event); }        // clicked | opened | closed
-    function menuAboutToShow(itemId) { if (backend) backend.menuAboutToShow(itemId); }
+    // event: clicked | opened | closed; windowId: the appMenu.windowId the menu was opened for (events for another are dropped)
+    function menuEvent(itemId, event, windowId) { if (backend) backend.menuEvent(itemId, event, windowId); }
+    function menuAboutToShow(itemId, windowId) { if (backend) backend.menuAboutToShow(itemId, windowId); }
 
     // ── session ──
     function lock() { if (backend) backend.lock(); }

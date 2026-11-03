@@ -138,10 +138,17 @@ Scope {
         for (var i = 0; i < windowList.length; i++) if (windowList[i].id === activeId) return clientFor(windowList[i]);
         return null;
     }
+    // KWin activates a layer surface that takes the keyboard (Spotlight, the switcher), so for a moment no client window
+    // is active: keep the screen of the last active window then, instead of falling back to the first screen
+    property string lastFocusedScreen: ""
+    onActiveWindowChanged: if (activeWindow && activeWindow.monitor >= 0 && activeWindow.monitor < Quickshell.screens.length)
+                               lastFocusedScreen = Quickshell.screens[activeWindow.monitor].name
     readonly property string focusedScreenName: {
         var s = Quickshell.screens, w = activeWindow;
         if (s.length === 0) return "";
-        return w && w.monitor >= 0 ? s[w.monitor].name : s[0].name;
+        if (w && w.monitor >= 0) return s[w.monitor].name;
+        for (var i = 0; i < s.length; i++) if (s[i].name === lastFocusedScreen) return lastFocusedScreen;
+        return s[0].name;
     }
     readonly property var monitors: {
         var s = Quickshell.screens, out = [];
@@ -199,8 +206,9 @@ Scope {
     // input / display / Night Light settings belong to KDE: open its settings module instead of writing kwinrc
     function openSystemSettings(module) { Quickshell.execDetached(module ? ["systemsettings", module] : ["systemsettings"]); }
     function showDesktop(on) { send({ cmd: "showDesktop", on: on === true }); }
-    function menuEvent(itemId, event) { send({ cmd: "menuEvent", windowId: appMenu.windowId, id: itemId, event: event }); }
-    function menuAboutToShow(itemId) { send({ cmd: "menuAboutToShow", windowId: appMenu.windowId, id: itemId }); }
+    // windowId: the window whose menu was opened (the bridge drops events for any other), default the current one
+    function menuEvent(itemId, event, windowId) { send({ cmd: "menuEvent", windowId: windowId !== undefined ? windowId : appMenu.windowId, id: itemId, event: event }); }
+    function menuAboutToShow(itemId, windowId) { send({ cmd: "menuAboutToShow", windowId: windowId !== undefined ? windowId : appMenu.windowId, id: itemId }); }
 
     // ── the bridge process ──
     function consume(line) {
@@ -241,6 +249,8 @@ Scope {
         running: root.active
         stdinEnabled: true
         stdout: SplitParser { splitMarker: "\n"; onRead: data => root.consume(data) }
+        // status codes only (never titles or labels); without a reader Quickshell closes the pipe and they are lost
+        stderr: SplitParser { splitMarker: "\n"; onRead: data => console.warn("[kwin-bridge]", data) }
         onExited: (exitCode, exitStatus) => {
             root.ready = false;
             root.status = "bridge-exited-" + exitCode;

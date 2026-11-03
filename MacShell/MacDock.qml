@@ -3141,7 +3141,8 @@ Scope {
                     }
                 }
                 Repeater {
-                    model: root.monList
+                    // per-display modes: Hyprland only (on KWin they are KDE's, see "Arrangement & Resolution")
+                    model: (!root.comp || root.comp.can("monitorConfig")) ? root.monList : []
                     delegate: SCard {
                         id: monCard
                         required property var modelData
@@ -4011,7 +4012,7 @@ Scope {
                             y: 138
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
-                            text: I18n.tr("Version 0.5.1 \u2022 ") + (root.onHyprland ? "Hyprland" : "KDE Plasma (KWin)") + " \u2022 Quickshell"
+                            text: root.onHyprland ? I18n.tr("Version 0.5.1 \u2022 Hyprland \u2022 Quickshell") : "Version 0.5.1 \u2022 KDE Plasma (KWin) \u2022 Quickshell"
                             color: pal.text2
                             font.family: root.fontForWeight(Font.Normal, pal.fam)
                             font.pixelSize: 12

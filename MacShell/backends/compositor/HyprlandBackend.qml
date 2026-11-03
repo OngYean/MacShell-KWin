@@ -117,8 +117,8 @@ Scope {
     readonly property int keyboardIndex: -1
     function setKeyboardLayout(i) { }
     readonly property var appMenu: ({ status: "unsupported", windowId: "", appId: "", revision: 0, items: [] })
-    function menuEvent(itemId, event) { }
-    function menuAboutToShow(itemId) { }
+    function menuEvent(itemId, event, windowId) { }
+    function menuAboutToShow(itemId, windowId) { }
     readonly property bool plasmaShellRunning: false
     readonly property string notificationsOwner: "none"
     function openSystemSettings(module) { }
