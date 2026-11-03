@@ -105,14 +105,12 @@ QJsonArray decodeShortcut(const QVariant &raw)
     const QVariant value = unpackVariant(raw);
     if (value.metaType() == QMetaType::fromType<QDBusArgument>()) {
         const QDBusArgument argument = value.value<QDBusArgument>();
-        if (argument.currentType() != QDBusArgument::ArrayType) {
+        // the exact signature, not just "an array": Qt's demarshaller trusts the element types it is asked for
+        if (argument.currentSignature() != QLatin1String("aas")) {
             return chords;
         }
         argument.beginArray();
         while (!argument.atEnd() && chords.size() < 4) {
-            if (argument.currentType() != QDBusArgument::ArrayType) {
-                break;
-            }
             QStringList keys;
             argument >> keys;
             if (!keys.isEmpty() && keys.size() <= 6) {
@@ -137,10 +135,11 @@ struct MenuItemInfo {
     bool submenu = false; // may receive "opened" / "closed" / AboutToShow
 };
 
-// one (ia{sv}av) node; returns an empty object for anything malformed
-QJsonObject decodeMenuItem(const QDBusArgument &argument, int depth, QHash<int, MenuItemInfo> &index)
+// one (ia{sv}av) node; returns an empty object for anything malformed. The full signature is checked first: QtDBus
+// demarshals by the type it is asked for, and a mismatched element (an app's bug) can crash libdbus, not just fail.
+QJsonObject decodeMenuItem(const QDBusArgument &argument, int depth, int &nodes, QHash<int, MenuItemInfo> &index)
 {
-    if (depth > kMaxMenuDepth || index.size() >= kMaxMenuItems || argument.currentType() != QDBusArgument::StructureType) {
+    if (depth > kMaxMenuDepth || ++nodes > kMaxMenuItems || argument.currentSignature() != QLatin1String("(ia{sv}av)")) {
         return {};
     }
 
@@ -152,14 +151,14 @@ QJsonObject decodeMenuItem(const QDBusArgument &argument, int depth, QHash<int, 
     if (argument.currentType() == QDBusArgument::MapType) {
         argument >> properties;
     }
-    if (argument.currentType() == QDBusArgument::ArrayType) {
+    if (argument.currentType() == QDBusArgument::ArrayType) {     // av (guaranteed by the signature check)
         argument.beginArray();
         while (!argument.atEnd()) {
             QDBusVariant childVariant;
             argument >> childVariant;
             const QVariant child = childVariant.variant();
             if (child.metaType() == QMetaType::fromType<QDBusArgument>()) {
-                const QJsonObject parsed = decodeMenuItem(child.value<QDBusArgument>(), depth + 1, index);
+                const QJsonObject parsed = decodeMenuItem(child.value<QDBusArgument>(), depth + 1, nodes, index);
                 if (!parsed.isEmpty()) {
                     children.append(parsed);
                 }
@@ -515,7 +514,9 @@ private:
 
     void activeWindowChanged()
     {
-        scheduleWindows();
+        // sent at once, not debounced: the menu that follows must never meet the previous active window in the UI
+        m_windowsTimer.stop();
+        emitWindows();
         retargetMenu();
     }
 
@@ -623,12 +624,9 @@ private:
             const QVariant raw = unpackVariant(properties.value(QStringLiteral("desktops")));
             if (raw.metaType() == QMetaType::fromType<QDBusArgument>()) {
                 const QDBusArgument argument = raw.value<QDBusArgument>();
-                if (argument.currentType() == QDBusArgument::ArrayType) {
+                if (argument.currentSignature() == QLatin1String("a(uss)")) {
                     argument.beginArray();
                     while (!argument.atEnd() && desktops.size() < 64) {
-                        if (argument.currentType() != QDBusArgument::StructureType) {
-                            break;
-                        }
                         uint position = 0;
                         QString id;
                         QString name;
@@ -687,12 +685,9 @@ private:
                 && reply.arguments().constFirst().metaType() == QMetaType::fromType<QDBusArgument>()) {
                 // a(sss): short name, display name, long name (KWin keyboard_layout.h LayoutNames)
                 const QDBusArgument argument = reply.arguments().constFirst().value<QDBusArgument>();
-                if (argument.currentType() == QDBusArgument::ArrayType) {
+                if (argument.currentSignature() == QLatin1String("a(sss)")) {
                     argument.beginArray();
                     while (!argument.atEnd() && layouts.size() < 32) {
-                        if (argument.currentType() != QDBusArgument::StructureType) {
-                            break;
-                        }
                         QString shortName;
                         QString displayName;
                         QString longName;
@@ -813,15 +808,16 @@ private:
                 return; // the active window changed while this was in flight
             }
             const QDBusMessage reply = self->reply();
-            if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().size() != 2
-                || reply.arguments().at(1).metaType() != QMetaType::fromType<QDBusArgument>()) {
+            if (reply.type() != QDBusMessage::ReplyMessage || reply.signature() != QLatin1String("u(ia{sv}av)")
+                || reply.arguments().size() != 2 || reply.arguments().at(1).metaType() != QMetaType::fromType<QDBusArgument>()) {
                 m_menuItems = {};
                 m_menuIndex.clear();
                 emitMenu(QStringLiteral("error"));
                 return;
             }
             QHash<int, MenuItemInfo> index;
-            const QJsonObject root = decodeMenuItem(reply.arguments().at(1).value<QDBusArgument>(), 0, index);
+            int nodes = 0;
+            const QJsonObject root = decodeMenuItem(reply.arguments().at(1).value<QDBusArgument>(), 0, nodes, index);
             m_menuItems = root.value(QStringLiteral("children")).toArray();
             m_menuIndex = index;
             m_menuIndex.insert(0, MenuItemInfo{false, true});
