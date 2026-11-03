@@ -181,6 +181,7 @@
               pkgs.quickshell
               pkgs.qt6.qtdeclarative
               pkgs.qt6.qtmultimedia
+              pkgs.python3 # kwin-bridge/fake-bridge.py
               pkgs.shellcheck
               pkgs.cmake
               pkgs.pkg-config

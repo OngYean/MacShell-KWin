@@ -236,7 +236,8 @@ Scope {
     property int restartDelay: 1000
     Process {
         id: bridge
-        command: ["macshell-kwin-bridge"].concat(root.globalMenu ? ["--global-menu"] : [])
+        // MACSHELL_KWIN_BRIDGE: another bridge, e.g. kwin-bridge/fake-bridge.py to exercise this UI without KWin
+        command: [String(Quickshell.env("MACSHELL_KWIN_BRIDGE") || "macshell-kwin-bridge")].concat(root.globalMenu ? ["--global-menu"] : [])
         running: root.active
         stdinEnabled: true
         stdout: SplitParser { splitMarker: "\n"; onRead: data => root.consume(data) }
