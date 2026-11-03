@@ -91,7 +91,8 @@ jobs:
           code=$?
           grep -E '^::(notice|error|warning)' smoke-outer.log
           # the job log needs a token to read: surface the tail of everything else as an annotation
-          echo "::notice title=smoke exit $code::$(grep -v -E '^::' smoke-outer.log | tail -n 12 | tr '\n' ' ' | cut -c1-1800)"
+          grep -v -E '^::|^copying path|^these [0-9]+ paths|^this path|^ +/nix/store/' smoke-outer.log | tail -n 8 | cut -c1-900 |
+            while IFS= read -r line; do echo "::notice title=smoke exit $code::$line"; done
           exit $code
       - name: Keep the logs
         if: always()
