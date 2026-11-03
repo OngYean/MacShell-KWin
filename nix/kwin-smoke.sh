@@ -52,9 +52,9 @@ run_shell() { # name, extra environment...
     else
         note "macshell ($name)" "configuration loaded"
     fi
-    # QML diagnostics: Quickshell names config files qs:@/qs/<file>.qml (the package keeps them in share/macshell/,
-    # a work-tree run in MacShell/); anything at a .qml:<line> location is listed, Qt's own included
-    grep -E '\.qml:[0-9]+' "$out/macshell-$name.log" | sed -E 's#^.*(qs:@/qs/|share/macshell/|/MacShell/)##' | sort -u > "$out/qml-$name.txt"
+    # QML diagnostics: Quickshell logs engine warnings as "@/<file>.qml[line:col]: …" (core/generation.cpp
+    # onEngineWarnings); Qt's own messages use "<url>.qml:line"; both are listed
+    grep -E '\.qml(\[[0-9]+:[0-9]+\]|:[0-9]+)' "$out/macshell-$name.log" | sed -E 's#^.*(@/|qs:@/qs/|share/macshell/|/MacShell/)##' | sort -u > "$out/qml-$name.txt"
     n=$(wc -l < "$out/qml-$name.txt")
     note "macshell ($name) QML diagnostics" "$n distinct lines"
     head -n 8 "$out/qml-$name.txt" | cut -c1-600 | while IFS= read -r line; do note "QML ($name)" "$line"; done
