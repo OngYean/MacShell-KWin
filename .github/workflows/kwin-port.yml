@@ -1,0 +1,91 @@
+# Checks for the KWin port: what can be verified without a real Plasma session.
+# Results that matter are emitted as annotations (visible on the run page and through the public checks API).
+name: kwin-port
+
+on:
+  push:
+    branches: [kwin-port]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: cachix/install-nix-action@v31.11.1
+
+      - name: Evaluate the flake
+        run: nix flake check --no-build --all-systems
+
+      - name: Build the bridge and both shell packages
+        run: nix build -L --no-link .#macshell-kwin-bridge .#macshell .#macshell-hyprland
+
+      - name: The bridge starts, and fails cleanly without Wayland
+        run: |
+          nix run .#kwin-bridge -- --version
+          set +e
+          nix run .#kwin-bridge -- --check; code=$?
+          set -e
+          [ "$code" = 2 ] || { echo "::error title=bridge::--check without Wayland exited $code, expected 2"; exit 1; }
+
+      - name: Shell scripts and test helpers
+        run: |
+          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh
+          sh nix/test-macshell-session.sh
+          python3 kwin-bridge/fake-bridge.py --selftest
+
+      - name: The Home Manager module evaluates
+        run: |
+          nix eval --impure --raw --expr '
+            let
+              self = builtins.getFlake (toString ./.);
+              hm = builtins.getFlake "github:nix-community/home-manager";
+              home = hm.lib.homeManagerConfiguration {
+                pkgs = self.inputs.nixpkgs.legacyPackages.x86_64-linux;
+                modules = [
+                  self.homeManagerModules.macshell
+                  {
+                    home.username = "ci";
+                    home.homeDirectory = "/home/ci";
+                    home.stateVersion = "25.11";
+                    programs.macshell.enable = true;
+                    programs.macshell.autostart = true;
+                  }
+                ];
+              };
+              unit = home.config.systemd.user.services.macshell;
+            in
+            "ExecStart=${unit.Service.ExecStart} WantedBy=${toString unit.Install.WantedBy} drv=${home.activationPackage.drvPath}"
+          ' | tee hm.txt
+          echo "::notice title=home-manager::$(cat hm.txt)"
+
+      - name: qmllint (informational)
+        continue-on-error: true
+        run: |
+          qs=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#quickshell)
+          nix develop --command qmllint -I "$qs/lib/qt-6/qml" -I MacShell/backends/compositor \
+            MacShell/backends/compositor/*.qml > qmllint.txt 2>&1 || true
+          echo "::notice title=qmllint (backends)::$(grep -c -E '^(Warning|Error)' qmllint.txt) findings; first: $(grep -m 5 -E '^(Warning|Error)' qmllint.txt | tr '\n' ' ')"
+
+  kwin-smoke:
+    runs-on: ubuntu-latest
+    needs: build
+    # reporting only until the headless setup is known to work on the runners
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: cachix/install-nix-action@v31.11.1
+      - name: Headless KWin, the bridge and MacShell
+        run: |
+          nix shell --inputs-from . nixpkgs#kdePackages.kwin nixpkgs#kdePackages.kate nixpkgs#dbus .#macshell \
+            --command dbus-run-session -- bash nix/kwin-smoke.sh
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: kwin-smoke-logs
+          path: smoke/
