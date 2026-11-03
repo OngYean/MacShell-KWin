@@ -21,6 +21,7 @@
   <a href="#screenshots">Screenshots</a> ·
   <a href="#requirements">Requirements</a> ·
   <a href="#install">Install</a> ·
+  <a href="#nixos-plasma-6-kwin">NixOS (Plasma 6 / KWin)</a> ·
   <a href="#updating">Updating</a> ·
   <a href="#hyprland-configuration-lua">Hyprland config</a> ·
   <a href="#maclock">MacLock</a> ·
@@ -189,7 +190,61 @@ This shell **replaces** your bar, dock and notification daemon. Stop anything th
 
 ## Install
 
+### NixOS (Plasma 6 / KWin)
+
+The KWin port is experimental. It keeps KWin and `plasmashell` running and starts MacShell alongside Plasma; the Home Manager module does not replace the Plasma session or disable KDE services. Enable Plasma 6 in your host configuration yourself before enabling MacShell:
+
+```nix
+services.desktopManager.plasma6.enable = true;
+```
+
+Add this repository as an input to the **system flake** and pass `inputs` to Home Manager. Replace `your-user` and `your-host` with your actual names. This assumes your system flake already has the `nixpkgs` and `home-manager` inputs:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+    macshell = {
+      url = "github:OngYean/MacShell-KWin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = inputs@{ nixpkgs, home-manager, ... }: {
+    nixosConfigurations.your-host = nixpkgs.lib.nixosSystem {
+      specialArgs = { inherit inputs; };
+      modules = [
+        ./configuration.nix
+        home-manager.nixosModules.home-manager
+        {
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+          home-manager.extraSpecialArgs = { inherit inputs; };
+          home-manager.users.your-user = { inputs, ... }: {
+            imports = [ inputs.macshell.homeManagerModules.macshell ];
+            programs.macshell = {
+              enable = true;
+              autostart = true;
+            };
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+The module installs the `macshell` package and its KWin bridge. With `autostart = true`, a user service starts MacShell for Plasma sessions while `plasmashell` remains active. You can leave autostart off and start it manually during testing. Keep the native Plasma panel/Global Menu available as a fallback until the KWin port's remaining issues are resolved. After changing the input, run `nix flake lock` and rebuild your host configuration using your usual NixOS workflow.
+
+> **Current KWin limitations:** the live Global Menu has a known registration/rendering failure, and menu-bar text may be invisible when the bar background is shown. See [Known issues](#known-issues); do not treat this port as feature-complete.
+
+### Arch and other distributions (Hyprland)
+
 1. Install the requirements above. On Arch, for example:
+
    ```sh
     sudo pacman -Syu
     
@@ -465,6 +520,19 @@ does not answer that frame, the shell then destroys it, and the compositor drops
 **Live window capture**.
 
 Reproduced on Hyprland 0.56.2 / Quickshell 0.3.2.
+
+### Plasma 6 / KWin port (experimental)
+
+- **Global Menu is not yet reliable.** The current live test shows a hidden-but-clickable menu with generic/mock entries while apps keep their own in-window menus. The appmenu view registration, active-window menu discovery, and menu presentation need further validation.
+- **Menu bar text can disappear when the bar background is visible.** Until fixed, use the hidden/transparent bar-background setting as a workaround.
+- **Wallpaper synchronization needs work.** MacShell's wallpaper must stay in sync with Plasma's configured wallpaper; otherwise the Xray/refraction effect samples a different image and looks incorrect.
+- **Blur ownership:** Xray/refraction is MacShell's own shader effect. Any non-Xray blur should use KWin's compositor blur effect (for example, the stock effect or BetterBlur), rather than introducing another shell-side blur implementation.
+
+Keep KWin and Plasma services running, and retain the native Plasma Global Menu widget as a fallback while testing this port.
+
+### Arch packaging TODO
+
+> **TODO:** Add a `PKGBUILD` for distributing MacShell through the Arch User Repository (AUR).
 
 ## Credits
 
