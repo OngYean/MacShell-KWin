@@ -28,8 +28,11 @@
               runHook preInstall
               mkdir -p "$out/bin" "$out/share/quickshell/MacShell"
               cp -R ${./MacShell}/. "$out/share/quickshell/MacShell/"
+              # -p takes a path (-c takes a config *name*); LiveWall.qml imports QtMultimedia, which Quickshell's wrapper lacks
               makeWrapper ${pkgs.quickshell}/bin/qs "$out/bin/macshell-hyprland" \
-                --add-flags "-c $out/share/quickshell/MacShell"
+                --add-flags "-p $out/share/quickshell/MacShell" \
+                --prefix QML_IMPORT_PATH : "${pkgs.qt6.qtmultimedia}/${pkgs.qt6.qtbase.qtQmlPrefix}" \
+                --prefix QT_PLUGIN_PATH : "${pkgs.qt6.qtmultimedia}/${pkgs.qt6.qtbase.qtPluginPrefix}"
               runHook postInstall
             '';
 
