@@ -1,8 +1,16 @@
 # KWin port: testing guide (for the agent guiding the user)
 
-You are guiding the user through the first real test of the `kwin-port` branch in their KDE Plasma 6 Wayland session. Read `AGENTS.md` (authoritative) and [`05-kwin-port.md`](05-kwin-port.md) (what was built) first. **Nothing on this branch has been compiled or run yet**: it was written on a machine without Qt, Nix or Plasma, and checked only with syntax parsers. Expect build errors in §2 and fix them as small, separate commits.
+You are guiding the user through the first real test of the `kwin-port` branch in their KDE Plasma 6 Wayland session. Read `AGENTS.md` (authoritative) and [`05-kwin-port.md`](05-kwin-port.md) (what was built) first. **This is the first run in a real Plasma session.** CI already builds everything and runs MacShell and the bridge against a headless KWin 6.8.2 (§2a, and "Validation so far" in 05). What remains is everything a headless run can't show: real apps' menus, visuals, multi-monitor, KDE services, GPU behaviour and Klassy. Fix what breaks as small, separate commits.
 
 Work through the sections in order. Each step lists the command, what the user should see, and what to record. Fill in the results table (§17) as you go.
+
+## First 30 minutes
+
+1. `git fetch && git switch kwin-port && git pull`, then open the branch's latest **kwin-port** run in GitHub Actions. Its `build` job and `kwin-smoke` annotations tell you what already works without Plasma (see §2a).
+2. §1 preflight, recording every value.
+3. `nix build .#macshell-kwin-bridge .#macshell -L`, then `nix run .#kwin-bridge -- --check` (§3).
+4. Optional UI-only run with the fake bridge, which needs no working bridge (§3a).
+5. §4: MacShell in coexist mode, foreground, `Ctrl+C` to stop. Ask the user what they see.
 
 ## 0. Ground rules
 
@@ -26,6 +34,13 @@ for d in /sys/bus/pci/devices/*; do [ "$(cat "$d/vendor")" = 0x10de ] && echo "$
 
 Record each value. Note where Plasma's panels are: the bar and Dock reserve the top and bottom edges of every screen, so a Plasma panel on the same edge will overlap (see §3).
 
+## 2a. What was already checked off the Plasma host
+
+- `kwin-bridge/main.cpp` compiles (`clang++ -fsyntax-only -Wall -Wextra`, moc output included) against the real Qt 6.12 and KWayland 6.8.2 headers. It was not linked there.
+- `sh nix/test-macshell-session.sh` checks the order of `macshell-session replace` and `restore` with stand-in commands.
+- `python3 kwin-bridge/fake-bridge.py --selftest` checks the fake bridge against the protocol's key sets.
+- CI (`.github/workflows/kwin-port.yml`) runs all of these plus the Nix builds, a Home Manager evaluation, qmllint, and `nix/kwin-smoke.sh`: a private headless KWin running the bridge's `--check` and MacShell with the real and the fake bridge. Read the run's annotations before starting; run `nix/kwin-smoke.sh` locally (command in its header) when you change something it covers. Last known result: everything passes, and the only QML warning is a missing `~/.face` avatar. The global-menu D-Bus path is not covered there: CI has no kded AppMenu registrar.
+
 ## 2. Build and static checks
 
 ```sh
@@ -36,7 +51,7 @@ nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh
 nix develop --command qmllint MacShell/backends/compositor/*.qml   # report syntax errors; "module not found" for Quickshell imports is expected
 ```
 
-- Bridge compile errors are most likely small Qt or KWayland signature mismatches. Fix them in `kwin-bridge/main.cpp` and re-run, keeping the behaviour described in `kwin-bridge/README.md`. Commit the fix on its own (`fix(kwin-bridge): …` once it builds and §3 passes, `wip(…)` before then; see AGENTS.md §12).
+- CI builds the same outputs, so a local failure points to a difference between machines (a different checkout or lock file). Bridge compile errors would most likely be small Qt or KWayland signature mismatches. Fix them in `kwin-bridge/main.cpp` and re-run, keeping the behaviour described in `kwin-bridge/README.md`. Commit the fix on its own (`fix(kwin-bridge): …` once it builds and §3 passes, `wip(…)` before then; see AGENTS.md §12).
 - If `nix build .#macshell` fails on `qt6.qtmultimedia` / `qtQmlPrefix` / `qtPluginPrefix`, check those attribute names at the locked nixpkgs revision.
 
 ## 3. Bridge diagnostics (counts only)
@@ -55,6 +70,16 @@ sleep 5; nix run .#kwin-bridge -- --check --global-menu
 ```
 
 Expected second line: `menu_status=ok menu_root_items=8 menu_items=…`. The POC recorded 8 root and 132 total items for native-Wayland KWrite. If the status is `loading`, re-run it; the fetch is asynchronous with a 1.5 s window. `none` means the app exported no menu (see §7).
+
+## 3a. Fake bridge (UI only, optional)
+
+`kwin-bridge/fake-bridge.py` speaks the bridge's protocol with made-up windows, three desktops, two layouts, KWrite and Dolphin menus (with a lazily filled "Open Recent", toggles and a radio group), and a Konsole with no menu. Use it to separate UI bugs from bridge bugs. The Dock and switcher then show the fake windows, and actions on them change only the fake state:
+
+```sh
+nix develop --command env MACSHELL_KWIN_BRIDGE="$PWD/kwin-bridge/fake-bridge.py" qs -p ./MacShell   # Ctrl+C to stop
+```
+
+The commands MacShell sends appear on the terminal as `fake-bridge: {...}`. All of that data is made up, so it is safe to paste.
 
 ## 4. Run MacShell next to plasmashell ("coexist")
 
@@ -136,7 +161,7 @@ Expected behaviour for apps that export a menu:
 - Switching apps swaps the titles. An app without an exported menu, and the desktop itself, show the generic File/Edit/View/Window/Help menus.
 - `MACSHELL_GLOBAL_MENU=0 nix run .#macshell` always shows the generic menus.
 
-Known limits, so don't report these as bugs: no keyboard navigation, mnemonics or icons; the indeterminate state shows as unchecked; generic-menu shortcut items need `ydotool` (KWin has no virtual-keyboard protocol for `wtype`).
+Known limits, so don't report these as bugs: no keyboard navigation, mnemonics or icons; the indeterminate state shows as unchecked; generic-menu shortcut items need `ydotool` 1.x with its `ydotoold` socket (KWin has no virtual-keyboard protocol for `wtype`) and are greyed out without them.
 
 ## 8. Session actions
 

@@ -1,6 +1,23 @@
 # KWin port: implementation state (branch `kwin-port`)
 
-This brief stands alone. `AGENTS.md` remains the authority. This file records what the `kwin-port` branch implements, the decisions behind it, and what is still unverified. Every item below was written and **statically checked only**: the work was done on a macOS machine with no Plasma session, no Nix and no Qt. To test it, follow [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md).
+This brief stands alone. `AGENTS.md` remains the authority. This file records what the `kwin-port` branch implements, the decisions behind it, and what is still unverified. The work was done on a macOS machine with no Plasma session. It has been built and smoke-tested in CI against a headless KWin, but **never run in a real Plasma session**. To test it there, follow [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md).
+
+## Validation so far
+
+| Check | Where | Result |
+| --- | --- | --- |
+| Bridge compiles (`clang++ -fsyntax-only -Wall -Wextra`, moc output included) against the real Qt 6.12.0 and KWayland 6.8.2 headers | macOS | clean |
+| Flake evaluation (all systems), builds of `macshell-kwin-bridge`, `macshell` and `macshell-hyprland`; bridge `--version`, and exit 2 without Wayland | CI `build` job | pass |
+| ShellCheck, `nix/test-macshell-session.sh` (order of replace/restore), `fake-bridge.py --selftest` | CI and macOS | pass |
+| `homeManagerModules.macshell` evaluates in a minimal Home Manager configuration (`ExecStart`, `WantedBy=plasma-workspace.target`) | CI | pass |
+| qmllint of the compositor backends with Quickshell 0.3.2's types | CI | 0 findings |
+| Headless KWin 6.8.2 (`nix/kwin-smoke.sh`, private D-Bus and Wayland socket): the bridge binds window management, sees KWrite open and active, reads desktops and layouts | CI `kwin-smoke` | pass |
+| MacShell reaches "Configuration Loaded" under that KWin with the real bridge and with the fake one; the Hyprland IPC client never starts | CI `kwin-smoke` | pass |
+| The real bridge's messages match the protocol (`fake-bridge.py --validate`: hello, session, keyboard, workspaces, windows, menu) | CI `kwin-smoke` | pass |
+| QML warnings while MacShell runs 30 s under that KWin (Quickshell's `@file.qml[line:col]` format) | CI `kwin-smoke` | 1, the same with both bridges: `MacDock.qml[1198:25]` cannot open `~/.face` (no avatar on the runner) |
+| Independent code review of the branch: 7 bugs and 9 minor points, no blockers | review | bugs fixed in `d1d4cb6` and `37bf077`; the rest are listed below |
+
+Not covered anywhere yet: a real Plasma session, the global-menu D-Bus path (CI has no kded AppMenu registrar, so no app exports a menu there), anything visual, multi-monitor, Klassy, GPU behaviour, and Hyprland at runtime.
 
 ## What changed
 
@@ -14,7 +31,9 @@ This brief stands alone. `AGENTS.md` remains the authority. This file records wh
 | `MacShell/MacBar.qml`                            | Active app, menus, session actions, workspaces, switcher, keyboard layouts and Game Mode go through the facade. Adds the **global menu renderer**. Spectacle handles screenshots/recording on KWin; capture-dependent features are gated; the bar strip blurs via `BackgroundEffect`. |
 | `MacShell/MacDock.qml`                           | Window list and actions through the facade. Smart-hide uses backend snapshots. Previews and tear-off are capture-gated. Displays/Keyboard/Mouse/Trackpad panes open KDE settings on KWin. |
 | `MacShell/AboutApp.qml`, `MacShell/ClockApp.qml` | Hyprland window rules only on Hyprland; focused screen from the facade.                                                                    |
-| `flake.nix`, `nix/`                              | New packages `macshell` and `macshell-kwin-bridge`; apps `macshell`, `macshell-session`, `kwin-bridge`; `homeManagerModules.macshell`; dev shell with the bridge and QtMultimedia. |
+| `flake.nix`, `nix/`                              | New packages `macshell` and `macshell-kwin-bridge`; apps `macshell`, `macshell-session`, `kwin-bridge`; `homeManagerModules.macshell`; dev shell with the bridge, QtMultimedia and python3. The `macshell-hyprland` launcher now uses `-p` and has QtMultimedia. |
+| `kwin-bridge/fake-bridge.py`                     | A stand-in bridge with made-up windows, desktops, layouts and menus (`MACSHELL_KWIN_BRIDGE=…`), with `--selftest` and `--validate` against the protocol. |
+| `nix/test-macshell-session.sh`, `nix/kwin-smoke.sh`, `.github/workflows/kwin-port.yml` | The session-switcher order test, the headless-KWin smoke test, and CI that runs them with the builds. |
 
 Untouched: `MacLock/`, `MacInstaller/`, `install.sh`, the POCs, and the `macshell-hyprland` package. `WindowBar.qml`, `WindowDecor.qml` and `MinimizeFx.qml` are not instantiated anywhere in this upstream revision, so they need no gate.
 
@@ -61,11 +80,13 @@ Untouched: `MacLock/`, `MacInstaller/`, `install.sh`, the POCs, and the `macshel
 
 ## Known gaps and risks (honest list)
 
-- **Nothing here has run.** The bridge has not been compiled; tree-sitter parse checks are syntax only. The first test step is `nix build .#macshell-kwin-bridge`.
+- **No real Plasma session yet.** See "Validation so far" for what CI covers.
 - Global menu: no keyboard navigation, mnemonics or icons. The indeterminate check state renders as unchecked. Submenus drill down inside the popover (the same pattern as the tray menu) instead of cascading. Apps started before a menu view existed keep their in-window menu bars until restarted. GTK, Electron, Firefox and VS Code exports are untested. Xwayland apps should work, because KWin publishes their `_KDE_NET_WM_APPMENU_*` address through the same protocol, but this is untested.
 - Coexist mode overlaps if Plasma has a panel on the same edge: move/auto-hide Plasma's panel, turn off MacShell's Dock/bar on that screen, or use replace mode. MacShell's desktop icons duplicate Plasma's Folder View desktop; turn one of them off.
 - MacShell's notification bell is empty in coexist mode (plasmashell shows the notifications).
-- Hyprland behaviour is meant to be unchanged (same dispatch strings, same pollers, gated by `isHyprland`). It was not re-tested either; see guide §12.
+- Hyprland behaviour is meant to be unchanged (same dispatch strings, same pollers, gated by `isHyprland`; the review found and fixed two regressions). It was not re-tested at runtime; see guide §16.
 - The Settings, About and Clock windows draw their own frame (frameless, client-side). KWin does not add a Klassy titlebar to them.
-- The existing `macshell-hyprland` package still passes a store path to `qs -c`; that only works by accident of Quickshell's path joining. It also lacks QtMultimedia on the QML path. The new `macshell` package uses `-p` and adds QtMultimedia.
+- Generic-menu shortcut items need `ydotool` 1.x and its `ydotoold` socket on KWin, which has no virtual-keyboard protocol for `wtype`. Without them the items are greyed out.
+- Other wlroots compositors (Sway, niri, river) now get the `none` backend: no window list, MacLock or notification server there, although `ToplevelManager` used to work. Upstream targeted Hyprland only; a thin generic backend on `ToplevelManager` would restore it.
+- KWin per-output virtual desktops (off by default) are not reflected: every screen shows the global current desktop.
 - In-app "update MacShell" (upstream's self-update) cannot write into the Nix store.

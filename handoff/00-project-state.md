@@ -58,7 +58,7 @@ Useful source links:
 
 ## Update: `kwin-port` branch (2026-11-03)
 
-The branch carries untested implementations for Milestones 3–6. They were written without a Plasma session, Nix or Qt; only syntax parsers ran. See [`05-kwin-port.md`](05-kwin-port.md) for what was built and [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) for how to test it.
+The branch carries implementations for Milestones 3–6. They were written without a Plasma session. CI builds them, evaluates the Home Manager module, and runs the bridge and MacShell against a headless KWin 6.8.2. Nothing has run in a real Plasma session yet. See [`05-kwin-port.md`](05-kwin-port.md) for what was built and [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) for how to test it.
 
 - **M3 compositor abstraction:** `MacShell/backends/compositor/` (facade + Hyprland and KWin backends). All UI compositor access goes through `hub.compositor`; Hyprland-only features are gated by `can(...)`.
 - **M3 KWin backend:** `kwin-bridge/` (`macshell-kwin-bridge`), promoted from the POC. It is event-driven, validates its input, and keeps titles and labels in the pipe. Plasma Window Management stays isolated in this helper, with the decision record and version/fallback policy in its README; this closes the trust/access review the earlier briefs asked for.

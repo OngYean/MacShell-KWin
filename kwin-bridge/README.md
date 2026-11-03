@@ -83,4 +83,8 @@ Exit codes: `0` when the parent went away, `2` for usage errors or no Wayland co
 
 ## Status
 
-Not built or run yet: it was written and parse-checked on a machine without Qt, Nix or a Plasma session. Its predecessor, `poc/kwin-backend-probe`, was built and run in Plasma/KWin 6.8.2, using the same protocol binding, D-Bus reads and `GetLayout` decoding. See `handoff/06-kwin-testing-guide.md`.
+- **Compile:** clean (`-Wall -Wextra`) against the real Qt 6.12 and KWayland 6.8.2 headers, and built by CI on Linux.
+- **Smoke test** (CI, `nix/kwin-smoke.sh`): against a headless KWin 6.8.2, `--check` reports window management, desktops and layouts, and sees KWrite open and active. The real bridge's messages are checked against the protocol with `fake-bridge.py --validate`.
+- **Not run yet:** a real Plasma session. In particular the D-BusMenu path is untested: CI has no kded AppMenu registrar, so no app exports a menu there. See `handoff/06-kwin-testing-guide.md`.
+
+`fake-bridge.py` speaks the same protocol with made-up data, for testing MacShell's UI without KWin (see its header).

@@ -28,7 +28,7 @@ nix develop --command qs -p ./MacShell     # development: run straight from the 
 
 - `packages.macshell` contains the configuration in the store, Quickshell, the `macshell-kwin-bridge` helper (see `kwin-bridge/README.md`), QtMultimedia on the QML path (`LiveWall.qml` needs it), and the `macshell-session` switcher.
 - `homeManagerModules.macshell` (`programs.macshell.enable`, `.autostart`, `.package`): installs the package and defines `macshell.service`, wanted by `plasma-workspace.target` only when `autostart = true`. It never disables plasmashell or any KDE service.
-- Nothing in these outputs has been built or run yet; follow `handoff/06-kwin-testing-guide.md`.
+- CI (`.github/workflows/kwin-port.yml`) builds these outputs, evaluates the Home Manager module, and runs the bridge and MacShell against a headless KWin (`nix/kwin-smoke.sh`). Nothing has run in a real Plasma session yet; follow `handoff/06-kwin-testing-guide.md`.
 
 A separate, deliberately limited KWin protocol diagnostic is available during development:
 
