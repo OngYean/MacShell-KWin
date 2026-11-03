@@ -190,7 +190,7 @@
               pkgs.pkg-config
               pkgs.kdePackages.kwayland
               pkgs.wayland
-              self.packages.${system}.kwin-backend-probe
+              # The optional legacy probe remains available as `nix run .#kwin-backend-probe`; it is not needed to run the shell.
               self.packages.${system}.macshell-kwin-bridge
             ];
             # `qs -p ./MacShell` straight from the work tree (LiveWall.qml needs QtMultimedia)
