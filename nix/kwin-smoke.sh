@@ -4,6 +4,7 @@
 # Needs kwin_wayland, kwrite, macshell, macshell-kwin-bridge and python3 on PATH; CI runs it (.github/workflows):
 #   nix shell --inputs-from . nixpkgs#kdePackages.kwin nixpkgs#kdePackages.kate nixpkgs#dbus .#macshell .#macshell-kwin-bridge \
 #     --command dbus-run-session -- bash nix/kwin-smoke.sh
+#   (outside NixOS add --config-file=<nixpkgs dbus>/share/dbus-1/session.conf to dbus-run-session, as CI does)
 # Results are printed as GitHub annotations (::notice / ::error) and the exit status is the number of failed checks.
 set -u
 here=$(cd "$(dirname "$0")/.." && pwd)
