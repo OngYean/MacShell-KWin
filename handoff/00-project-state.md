@@ -8,7 +8,36 @@ Port the existing macOS Tahoe-inspired MacShell Quickshell presentation to **KDE
 
 The user is now in a standard Plasma 6 Wayland session. Local verification reports KWin and plasmashell `6.8.2`, Qt `6.12.0`, `XDG_SESSION_TYPE=wayland`, and `XDG_CURRENT_DESKTOP=KDE`. Do not alter host configuration, change sessions, run `install.sh`, install software, disable plasmashell, or use privileged commands.
 
-## Repository and current state
+## Current state (2026-11-04)
+
+This section supersedes older status lines further down where they disagree. The older lines are kept for history.
+
+- **Repository:** `github.com/OngYean/MacShell-KWin`, a public fork of `0-ss/MacShell` based on `51db0ba`. Its `LICENSE` credits both the original author and the port.
+- **Branches:**
+  - `main` (`d53665e`) already contains `kwin-port`.
+  - `kwin-plasma-fixes` (`701c526`) is based on `main`.
+  - `fork-credits-readme` (`e4ac899`) is based on `kwin-plasma-fixes`. It is the newest branch and holds all the work.
+  - Every branch is pushed, and CI passes on each head.
+- **Global Menu:** the user reports that the AppMenu export problem is fixed in their Plasma 6.8.2 session: real application menus now reach MacShell's bar. The "hidden yet clickable, mock items" failure described below is therefore out of date.
+- **Bugs reported after that fix:** six (bar background, force blur, brightness, notifications without a Plasma tray, wallpaper sync, menu icons). Each has a `wip` fix on `kwin-plasma-fixes`, none tested in Plasma. See [`08-plasma-fixes-tests.md`](08-plasma-fixes-tests.md).
+- **Fork housekeeping on `fork-credits-readme`:**
+  - licence and credit notices, and a README written for installing on Plasma;
+  - the update check now uses this fork;
+  - the Apple logo trademark notice;
+  - removal of leftover upstream files.
+
+  See [`09-fork-credits-readme.md`](09-fork-credits-readme.md). `README.md` is now the user-facing install guide, and `AGENTS.md` §11 rule 15 requires its list of changes from upstream to stay current.
+- **Nix (M6):** `packages.macshell`, `packages.macshell-kwin-bridge`, `apps.macshell-session` and `homeManagerModules.macshell` all exist. The Home Manager module's autostart is off by default, and it never disables plasmashell. They build and evaluate in CI. The user runs MacShell from this flake, but the README's Home Manager steps have not been followed on a real machine.
+- **Still unverified:**
+  - Klassy (KWin was set to Breeze);
+  - GTK, Electron, Firefox and VS Code menus, and menus of Xwayland apps;
+  - multi-monitor use and display hotplug;
+  - sleep and resume;
+  - GPU wakeups;
+  - Hyprland at runtime.
+- **Dev machine:** macOS without Nix, Qt or Plasma. All runtime testing happens on the user's NixOS Plasma host.
+
+## Repository and earlier state
 
 - Project root: `MacShell-KWin/`.
 - Current committed HEAD: `f9037d5` (`docs(handoff): refresh repository state references`). The initial source-audit baseline was `51db0bab6997da310d2aacfaa7084740ec44ad4a` (`Update MacShell files`, 2026-11-02); that commit is historical. The current POC and session updates are uncommitted.
@@ -71,9 +100,9 @@ The branch carries implementations for Milestones 3–6. CI builds them, evaluat
 1. **Architecture audit:** source-level audit identified major Hyprland couplings and Global Menu transport. Installed versions are confirmed as Plasma/KWin `6.8.2`, Qt `6.12.0`, and Quickshell `0.3.2` from the dev flake.
 2. **Minimal KWin proof of concept:** the isolated layer-shell top bar and inert dock in `poc/kwin-basics/` were visually confirmed by the user on `eDP-1`; they disappear on exit and do not change application work areas. Keyboard behavior, hotplug/scaling and Klassy behavior remain unverified. Native plasmashell remains running. KWin is configured for Breeze, not Klassy.
 3. **Compositor abstraction:** implemented in `MacShell/backends/compositor/` with `kwin-bridge/`; see `05-kwin-port.md`. KWin window/workspace interactions have passed headless smoke checks, with broader live-system coverage still in progress.
-4. **Global Menu:** production implementation exists in `MacShell/MacBar.qml`, but latest live test fails: its menu presentation is invisible yet clickable and contains mock/generic items, while apps with AppMenu support still show in-window menus. Investigate registration/import and visibility before claiming this milestone validated. Mnemonic marker cleanup is implemented but real-label behavior remains unverified. GTK/Electron/Firefox/VS Code and Xwayland remain untested.
+4. **Global Menu:** production implementation exists in `MacShell/MacBar.qml`. **2026-11-04:** the user reports the export problem below is fixed. Menu item icons have an untested fix on `kwin-plasma-fixes`. Earlier, the live test failed: its menu presentation is invisible yet clickable and contains mock/generic items, while apps with AppMenu support still show in-window menus. Investigate registration/import and visibility before claiming this milestone validated. Mnemonic marker cleanup is implemented but real-label behavior remains unverified. GTK/Electron/Firefox/VS Code and Xwayland remain untested.
 5. **Full integration:** implemented to the extent documented in `05-kwin-port.md`; continue preserving KDE services, native locking and Klassy.
-6. **Nix deployment:** only a development packaging baseline exists; no KWin deployment/autostart, system module, or session switching has been implemented.
+6. **Nix deployment:** `packages.macshell`, `apps.macshell-session` (per-login replace/restore) and `homeManagerModules.macshell` (opt-in autostart) are implemented and evaluated in CI. `README.md` documents the install. The Home Manager install has not been verified on a real machine. No NixOS system module exists, and none is planned.
 
 ## Non-negotiable safety and design constraints
 

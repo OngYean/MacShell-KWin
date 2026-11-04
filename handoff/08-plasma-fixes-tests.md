@@ -6,6 +6,8 @@ CI ([run 41752886675](https://github.com/OngYean/MacShell-KWin/actions/runs/4175
 
 ## Setup
 
+Branch `fork-credits-readme` contains these fixes as well (see [`09-fork-credits-readme.md`](09-fork-credits-readme.md)). If you're testing both, switch to that branch instead.
+
 ```sh
 git fetch && git switch kwin-plasma-fixes && git pull
 nix build .#macshell-kwin-bridge .#macshell -L      # the bridge changed (menu icons): this is its first local build

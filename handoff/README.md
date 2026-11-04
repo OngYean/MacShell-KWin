@@ -19,6 +19,20 @@ These handoffs let an agent start from the repository without access to the orig
 - [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) — **start here to test the port**: step-by-step runbook with approval gates and the acceptance-criteria results table.
 - [`07-kickoff-prompt.md`](07-kickoff-prompt.md) — ready-to-paste first message for the agent on the Plasma host.
 - [`08-plasma-fixes-tests.md`](08-plasma-fixes-tests.md) — what to test for the six fixes on branch `kwin-plasma-fixes` (bar background, force blur, brightness, notifications, wallpaper sync, menu icons).
+- [`09-fork-credits-readme.md`](09-fork-credits-readme.md) — branch `fork-credits-readme`: licence and credits, the Plasma-focused README, the update check, the branch layout and open licensing items.
+
+## Update (2026-11-04, branch `fork-credits-readme`)
+
+Branches: `main` (`d53665e`, with `kwin-port` merged) ← `kwin-plasma-fixes` (`701c526`) ← `fork-credits-readme` (`e4ac899`). All are pushed, and nothing has been merged into `main` since. `fork-credits-readme` is the newest branch and contains everything:
+
+- the six untested Plasma fixes ([`08`](08-plasma-fixes-tests.md));
+- the fork's licence and credits;
+- the Plasma-focused `README.md`, whose list of changes from the original is now required by `AGENTS.md` §11 rule 15;
+- the Software Update check pointing at `OngYean/MacShell-KWin`;
+- the Apple logo trademark notice;
+- the removal of leftover upstream files.
+
+CI passes on `e4ac899`. None of it has run in Plasma. On the Plasma host, test from `fork-credits-readme` using [`08`](08-plasma-fixes-tests.md), then [`09`](09-fork-credits-readme.md).
 
 ## Update (2026-11-04, branch `kwin-plasma-fixes`)
 
