@@ -34,8 +34,9 @@ jobs:
 
       - name: Shell scripts and test helpers
         run: |
-          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh
+          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh nix/test-brightness.sh MacShell/assets/brightness.sh
           sh nix/test-macshell-session.sh
+          sh nix/test-brightness.sh
           python3 kwin-bridge/fake-bridge.py --selftest
 
       - name: The Home Manager module evaluates
