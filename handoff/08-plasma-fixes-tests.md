@@ -2,6 +2,8 @@
 
 `AGENTS.md` remains the authority, and [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) still has the general runbook, ground rules and rollback. This file covers only the six bugs the user reported on 2026-11-04 in their Plasma 6.8.2 Wayland session, after the AppMenu export problem was fixed. The fixes were written on macOS without Nix, Quickshell or Plasma. Static checks and CI are listed under each fix. **None of the fixes has been run in Plasma.**
 
+CI ([run 41752886675](https://github.com/OngYean/MacShell-KWin/actions/runs/41752886675), commit `9769c3c`) passed. The bridge compiles with the icon change. ShellCheck and `nix/test-brightness.sh` pass. The Home Manager module evaluates. Under a headless KWin 6.8.2, MacShell reaches "configuration loaded" with the real and the fake bridge, with only the known `~/.face` QML warning. The real bridge's messages still match the protocol. CI has no Plasma, PowerDevil, AppMenu registrar or force-blur effect, so it can't exercise any of the six behaviours.
+
 ## Setup
 
 ```sh
