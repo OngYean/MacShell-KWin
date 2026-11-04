@@ -1,8 +1,9 @@
 #!/bin/sh
 # check-update.sh: asks GitHub whether a newer MacShell exists and prints ONE line of JSON. It never downloads or installs.
 #   {"status":"available|uptodate|error","latest":"0.4.1","current":"0.4.0","url":"https://github.com/..."}
-# Used by Settings (MacBar.qml: checkForUpdates). Repository: MACSHELL_REPO (default 0-ss/MacShell), branch: MACSHELL_BRANCH (main).
-REPO="${MACSHELL_REPO:-0-ss/MacShell}"
+# Used by Settings (MacBar.qml: checkForUpdates). Repository: MACSHELL_REPO (default OngYean/MacShell-KWin, this KDE Plasma
+# port; the original Hyprland MacShell is 0-ss/MacShell), branch: MACSHELL_BRANCH (main).
+REPO="${MACSHELL_REPO:-OngYean/MacShell-KWin}"
 BRANCH="${MACSHELL_BRANCH:-main}"
 HERE=$(cd "$(dirname "$0")" 2>/dev/null && pwd)
 ROOT=$(dirname "$HERE")

@@ -192,10 +192,10 @@ Scope {
     // included), with hysteresis so it never flickers, and falls back to the system look when both read equally well.
     // ═════════ UPDATE CHECK ═════════
     // Only ASKS whether a newer MacShell exists (assets/check-update.sh: the latest release, else VERSION on the main branch of
-    // github.com/0-ss/MacShell, compared with the VERSION file of this install). It never downloads or installs anything:
+    // github.com/OngYean/MacShell-KWin, compared with the VERSION file of this install). It never downloads or installs anything:
     // the "Update" button just opens updateUrl in the browser.
     readonly property string updateScript: decodeURIComponent(String(Qt.resolvedUrl("assets/check-update.sh")).replace(/^file:\/\//, ""))
-    property string updateUrl: "https://github.com/0-ss/MacShell/releases/latest"     // ← the link the "Update" button opens
+    property string updateUrl: "https://github.com/OngYean/MacShell-KWin"     // ← the link the "Update" button opens (check-update.sh replaces it)
     property bool updateChecking: false
     property string updateState: ""            // "" = not checked yet | uptodate | available | error
     property string updateVersion: ""          // the new version, e.g. "1.2.0"

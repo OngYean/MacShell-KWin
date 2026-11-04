@@ -82,6 +82,7 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Liquid Glass refraction | Live windows and the wallpaper | The wallpaper only |
 | Shortcut items in the generic File/Edit menus | `hyprctl sendshortcut` / `wtype` | `ydotool`, if installed |
 | Game Mode | Also tunes Hyprland, the power profile and the video wallpaper | Quiets MacShell's own effects only |
+| Settings → Software Update | Checks 0-ss/MacShell | Checks this fork (OngYean/MacShell-KWin); it only notifies, you update with Nix or git |
 
 ### Removed or unavailable on KDE Plasma
 
@@ -175,8 +176,8 @@ Run `nix flake lock`, then rebuild your system as usual (for example `sudo nixos
 
 The module never disables `plasmashell` or any KDE service. It works the same with standalone Home Manager.
 
-To **update**, run `nix flake update macshell` and rebuild. Ignore the "update available" notice in MacShell's
-Settings: it checks the original project (see [Known issues](#known-issues)).
+To **update**, run `nix flake update macshell` and rebuild. MacShell's Settings tells you when this fork has a
+newer version, but never installs anything itself.
 
 ### Try it without installing (Nix)
 
@@ -279,8 +280,6 @@ KWin's own task switcher stays on Alt+Tab.
   (`handoff/08-plasma-fixes-tests.md` is the test plan).
 - **Global menu:** no keyboard navigation; submenus open inside the same popover rather than cascading; menus of
   GTK apps, Electron apps, Firefox, VS Code and Xwayland apps are untested. Mnemonics are stripped, not underlined.
-- **Software update notice:** Settings checks the *original* project for updates and links to its releases, which
-  are Hyprland builds. Update this fork with Nix or git instead.
 - **No live window previews**, and the glass refracts only the wallpaper (KWin offers no window capture to
   clients).
 - The Settings, About and Clock windows draw their own frame, so they don't get your KWin decoration.
