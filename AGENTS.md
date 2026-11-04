@@ -496,6 +496,7 @@ Follow these rules throughout development:
 12. Document unsupported features and workarounds honestly.
 13. Run relevant tests and validate QML syntax after modifications.
 14. Maintain a clear rollback path throughout development.
+15. Keep the README's comparison with the original project current. `README.md` must list the features **added**, **modified** and **removed** (including those unavailable on KDE Plasma) compared to the original MacShell (https://github.com/0-ss/MacShell; this fork is based on its commit `51db0ba`). Every change that adds, changes, removes or disables a user-visible feature updates that list in the same branch, and says honestly whether the behaviour has been tested in Plasma. When upstream changes are merged, update the base commit and re-check the whole list.
 
 When uncertain about a KWin or Quickshell API, investigate it rather than inventing an interface.
 
