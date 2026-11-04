@@ -18,6 +18,11 @@ These handoffs let an agent start from the repository without access to the orig
 - [`05-kwin-port.md`](05-kwin-port.md) — what the `kwin-port` branch implements (compositor facade, KWin bridge, global menu, Nix), decisions and known gaps.
 - [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) — **start here to test the port**: step-by-step runbook with approval gates and the acceptance-criteria results table.
 - [`07-kickoff-prompt.md`](07-kickoff-prompt.md) — ready-to-paste first message for the agent on the Plasma host.
+- [`08-plasma-fixes-tests.md`](08-plasma-fixes-tests.md) — what to test for the six fixes on branch `kwin-plasma-fixes` (bar background, force blur, brightness, notifications, wallpaper sync, menu icons).
+
+## Update (2026-11-04, branch `kwin-plasma-fixes`)
+
+The user reports the AppMenu export problem is fixed in their Plasma session and listed six remaining bugs. Branch `kwin-plasma-fixes` (from `main`, pushed to `origin`) has a `wip` fix for each one, written without Plasma. Test them with [`08-plasma-fixes-tests.md`](08-plasma-fixes-tests.md).
 
 ## Current state (2026-11-03, branch `kwin-port`)
 
