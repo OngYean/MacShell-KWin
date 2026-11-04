@@ -354,6 +354,8 @@ Scope {
     property bool ccMigGame: false            // one-time: add the Game Mode tile to an existing Control Center layout
     property bool barGlass: true              // the bar strip itself is Liquid Glass (needs barStyle "liquid")
     property real barBgOpacity: 0.10          // fill of the separate "macbarbg" layer (0 = layer hidden). Must stay above the layerrule's ignore_alpha (0.05) for Hyprland to blur it
+    // the fill gets its own layer only where blur is a per-layer rule (Hyprland); KWin draws it in the bar window (barFillIn)
+    readonly property bool barFillLayer: !comp || comp.can("layerBlurRules")
     property bool glassRealtime: false        // live-capture every window all the time; off by default now that popovers refract a screen snapshot       // keep every window capture live all the time (no wallpaper-first delay when a popover opens)
     // Animated wallpaper inside the Liquid Glass (bar, Dock, widgets, Settings): OFF by default. Off = no video decoder exists at all and the
     // glass refracts a still frame of the wallpaper (the wallpaper itself still plays through mpvpaper). On = the glass plays a small
@@ -4945,7 +4947,9 @@ Scope {
             // shown once the opacity went above 0 got mapped AFTER the bar and ended up on top of it: its blur then covered the
             // whole bar (icons and text included). Mapped from the start (declared before the bar) it stays under it. With the
             // fill off it shrinks to 1 px and stays fully transparent, so nothing is blurred.
-            visible: true
+            // KWin blurs per region and does not keep this layer under the bar (its blur then smeared the bar's own items),
+            // so there the fill is drawn inside the bar window instead (barFillIn below).
+            visible: root.barFillLayer
             readonly property bool fillOn: root.barBgOpacity > 0.001
             anchors { left: true; right: true; top: true }
             implicitHeight: fillOn ? root.barH : 1
@@ -5658,6 +5662,19 @@ Scope {
                     x: 0; y: 0
                     width: ui.width
                     height: (ui.pop !== "" && ui.pop !== "spot") ? ui.height : root.barH
+                }
+
+                // Bar background without its own layer (KWin): the same fill, drawn under every bar item, with KWin's blur behind it
+                Rectangle {
+                    id: barFillIn
+                    readonly property bool fillOn: !root.barFillLayer && root.barEnabled && root.barBgOpacity > 0.001
+                    visible: fillOn
+                    x: 0; y: 0
+                    width: ui.width
+                    height: root.barH
+                    color: root.darkMode ? Qt.rgba(0.10, 0.10, 0.11, root.barBgOpacity) : Qt.rgba(1, 1, 1, root.barBgOpacity)
+                    Region { id: barFillBlur; item: barFillIn.fillOn ? barFillIn : null }
+                    Component.onCompleted: if (root.comp && root.comp.can("backgroundEffect")) win.BackgroundEffect.blurRegion = barFillBlur
                 }
 
                 // Liquid Glass menu bar strip: the bar itself refracts the live backdrop (wallpaper + windows), like the popovers.
