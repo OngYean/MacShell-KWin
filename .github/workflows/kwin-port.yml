@@ -4,7 +4,7 @@ name: kwin-port
 
 on:
   push:
-    branches: [kwin-port, kwin-plasma-fixes]
+    branches: [kwin-port, kwin-plasma-fixes, fork-credits-readme]
   pull_request:
   workflow_dispatch:
 
