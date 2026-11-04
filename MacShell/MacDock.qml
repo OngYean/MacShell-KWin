@@ -4773,13 +4773,13 @@ Scope {
         onExited: (code, status) => root.dockGlassState = (code === 0 ? "ready" : "failed")
     }
 
-    // wallpaper the glass refracts. Sources, in order: wallpaperPath override, Noctalia's settings.toml
+    // wallpaper the glass refracts. Sources, in order: Plasma's while it draws the desktop, wallpaperPath override, Noctalia's settings.toml
     // ([wallpaper.monitors.<name>] → [wallpaper.last] → [wallpaper.default]), then awww/swww/hyprpaper.
     readonly property var wallpaperMap: hub ? hub.wallpaperMap : ({})
     Binding { target: root.hub; property: "dockWantsWallpaper"; value: root.liquidActive }
     onWallpaperMapChanged: console.log("[macdock-glass] wallpaper sources:", JSON.stringify(wallpaperMap))
     function wallpaperFor(screenName) {
-        var p = wallpaperPath !== "" ? wallpaperPath
+        var p = (hub && hub.plasmaWallpaper) ? hub.plasmaWallpaper : wallpaperPath !== "" ? wallpaperPath
               : (wallpaperMap["wallpaper.monitors." + screenName] || wallpaperMap["wallpaper.last"]
                  || wallpaperMap["wallpaper.default"] || "");
         if (p.indexOf("~/") === 0) p = Quickshell.env("HOME") + p.substring(1);

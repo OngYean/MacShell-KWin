@@ -42,6 +42,16 @@ ShellRoot {
         Binding { target: sharedHub; property: "monData"; value: facade.monitors; when: facade.isKWin }
         Binding { target: sharedHub; property: "glassClients"; value: facade.clients; when: facade.isKWin }
         property var wallpaperMap: ({})
+        // KDE: plasmashell draws the desktop, so the glass refracts Plasma's wallpaper, also after it is changed in Plasma's
+        // settings, rather than MacShell's saved pick. Right after a pick of MacShell's (MacBar sets plasmaWallpaperAtPick)
+        // the pick shows until Plasma's config reports a different wallpaper: Plasma writes its config with a delay.
+        property string plasmaWallpaperAtPick: ""
+        readonly property string plasmaWallpaper: {
+            var p = facade.plasmaShellRunning ? (wallpaperMap["wallpaper.plasma"] || "") : "";
+            return p !== plasmaWallpaperAtPick ? p : "";
+        }
+        // Plasma reported another wallpaper: the pick is in its config now (or replaced there), so Plasma's word counts again
+        onWallpaperMapChanged: if (plasmaWallpaperAtPick !== "" && (wallpaperMap["wallpaper.plasma"] || "") !== plasmaWallpaperAtPick) plasmaWallpaperAtPick = ""
         readonly property string boldFontFamily: uiBoldFontLoader.status === FontLoader.Ready ? uiBoldFontLoader.name : "Open Runde Semibold"
 
         // the single settings window lives in MacDock.qml; everything else reaches it through here
@@ -342,12 +352,17 @@ ShellRoot {
                 + "    }' \"$f\")\n"
                 + "\"\n"
                 + "done\n"
+                // KDE Plasma: the desktop containment's org.kde.image wallpaper (Image=file:///… or a wallpaper package
+                // directory, whose largest contents/images/<W>x<H>.* is taken). Also sent on its own as wallpaper.plasma.
+                + "kp=\"\"; f=\"${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc\"\n"
+                + "if [ -f \"$f\" ] && printf %s \":${XDG_CURRENT_DESKTOP:-}:\" | grep -q :KDE:; then\n"
+                + "  kp=$(awk '/^\\[/ { w = index($0, \"][Wallpaper][org.kde.image][General]\") > 0; next } w && /^Image=/ { sub(/^Image=(file:\\/\\/)?/, \"\"); print; exit }' \"$f\")\n"
+                + "  [ -d \"$kp\" ] && kp=$(ls -d \"${kp%/}\"/contents/images/* 2>/dev/null | sort -V | tail -n1)\n"
+                + "fi\n"
                 + "if [ -z \"$(printf %s \"$out\" | tr -d ' \\t\\n')\" ]; then\n"
                 + "  p=$(swww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1)\n"
                 + "  [ -z \"$p\" ] && p=$(awww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1)\n"
-                // KDE Plasma: the desktop containment's org.kde.image wallpaper (Image=file:///…)
-                + "  f=\"${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc\"\n"
-                + "  [ -z \"$p\" ] && [ -f \"$f\" ] && printf %s \":${XDG_CURRENT_DESKTOP:-}:\" | grep -q :KDE: && p=$(awk '/^\\[/ { w = index($0, \"][Wallpaper][org.kde.image][General]\") > 0; next } w && /^Image=/ { sub(/^Image=(file:\\/\\/)?/, \"\"); print; exit }' \"$f\")\n"
+                + "  [ -z \"$p\" ] && p=$kp\n"
                 + "  [ -z \"$p\" ] && p=$(hyprctl hyprpaper listactive 2>/dev/null | head -n1 | sed 's/.*= //')\n"
                 + "  if [ -z \"$p\" ]; then f=\"$HOME/.config/hypr/hyprpaper.conf\"\n"
                 + "    [ -f \"$f\" ] && p=$(grep -E '^[[:space:]]*(path|wallpaper)[[:space:]]*=' \"$f\" | head -n1 | sed -E 's/^[^=]*=[[:space:]]*//; s/^[^,\\/]*,//')\n"
@@ -355,6 +370,7 @@ ShellRoot {
                 + "  p=$(printf %s \"$p\" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')\n"
                 + "  [ -n \"$p\" ] && out=\"wallpaper.default$(printf '\\t')$p\"\n"
                 + "fi\n"
+                + "[ -n \"$kp\" ] && out=\"$out$(printf '\\nwallpaper.plasma\\t%s' \"$kp\")\"\n"
                 + "printf '%s' \"$out\"\n"
             ]
             stdout: StdioCollector {

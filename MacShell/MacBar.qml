@@ -4226,7 +4226,7 @@ Scope {
     readonly property var wallpaperMap: hub ? hub.wallpaperMap : ({})
     Binding { target: root.hub; property: "barWantsWallpaper"; value: root.liquidActive }
     function wallpaperFor(screenName) {
-        var p = wallpaperPath !== "" ? wallpaperPath
+        var p = (hub && hub.plasmaWallpaper) ? hub.plasmaWallpaper : wallpaperPath !== "" ? wallpaperPath
               : (wallpaperMap["wallpaper.monitors." + screenName] || wallpaperMap["wallpaper.last"]
                  || wallpaperMap["wallpaper.default"] || "");
         if (p.indexOf("~/") === 0) p = Quickshell.env("HOME") + p.substring(1);
@@ -4643,7 +4643,8 @@ Scope {
         'p="$1"',
         root.stopVideoScript,
         '# KDE Plasma draws the desktop while plasmashell runs: hand it the image (starting awww there would stack a second wallpaper)',
-        'if pgrep -x plasmashell >/dev/null 2>&1 && command -v plasma-apply-wallpaperimage >/dev/null 2>&1; then',
+        '# (asked over D-Bus: on NixOS the process is ".plasmashell-wrapped", which pgrep -x plasmashell misses)',
+        'if command -v plasma-apply-wallpaperimage >/dev/null 2>&1 && dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner string:org.kde.plasmashell 2>/dev/null | grep -q "boolean true"; then',
         '  if plasma-apply-wallpaperimage "$p" >/dev/null 2>&1; then echo "applied with: plasma-apply-wallpaperimage"; exit 0; fi',
         'fi',
         'if command -v awww >/dev/null 2>&1; then',
@@ -4725,6 +4726,8 @@ Scope {
             setwallProc.running = true;
             return;
         }
+        // plasmashell keeps its wallpaper across logins: putting MacShell's last pick back would undo a change made in Plasma
+        if (comp && comp.plasmaShellRunning) return;
         var p = wpRestorePath;
         if (p === "") return;
         var cmd = (wallpaperCmd || "").trim();
@@ -4748,6 +4751,7 @@ Scope {
     }
     Process {
         id: wpApplyProc
+        onRunningChanged: if (running && root.hub) root.hub.plasmaWallpaperAtPick = root.hub.wallpaperMap["wallpaper.plasma"] || ""
         onExited: { root.wallpaperSampleForce = true; wallpaperColorTimer.restart(); }
         stdout: StdioCollector { onStreamFinished: if (text.trim() !== "") console.log("[wallpaper]", text.trim()) }
         stderr: StdioCollector { onStreamFinished: if (text.trim() !== "") console.log("[wallpaper] error:", text.trim()) }

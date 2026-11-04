@@ -623,7 +623,7 @@ Scope {
     // wallpaper behind the widgets (same lookup as the Dock's Liquid Glass)
     readonly property var wallpaperMap: hub ? hub.wallpaperMap : ({})
     function wallpaperFor(screenName) {
-        var p = (dock && dock.wallpaperPath !== "") ? dock.wallpaperPath
+        var p = (hub && hub.plasmaWallpaper) ? hub.plasmaWallpaper : (dock && dock.wallpaperPath !== "") ? dock.wallpaperPath
               : (wallpaperMap["wallpaper.monitors." + screenName] || wallpaperMap["wallpaper.last"]
                  || wallpaperMap["wallpaper.default"] || "");
         if (p.indexOf("~/") === 0) p = Quickshell.env("HOME") + p.substring(1);
