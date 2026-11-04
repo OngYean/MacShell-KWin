@@ -28,6 +28,7 @@
               runHook preInstall
               mkdir -p "$out/bin" "$out/share/quickshell/MacShell"
               cp -R ${./MacShell}/. "$out/share/quickshell/MacShell/"
+              install -Dm644 ${./LICENSE} "$out/share/licenses/macshell-hyprland/LICENSE"
               # -p takes a path (-c takes a config *name*); LiveWall.qml imports QtMultimedia, which Quickshell's wrapper lacks
               makeWrapper ${pkgs.quickshell}/bin/qs "$out/bin/macshell-hyprland" \
                 --add-flags "-p $out/share/quickshell/MacShell" \
@@ -38,6 +39,8 @@
 
             meta = {
               description = "MacShell Quickshell configuration for Hyprland";
+              homepage = "https://github.com/OngYean/MacShell-KWin";
+              license = with pkgs.lib.licenses; [ mit ofl ]; # MacShell + the bundled Open Runde font
               mainProgram = "macshell-hyprland";
               platforms = systems;
             };
@@ -58,8 +61,13 @@
               pkgs.qt6.qtbase
               pkgs.wayland
             ];
+            postInstall = ''
+              install -Dm644 ${./LICENSE} "$out/share/licenses/macshell-kwin-bridge/LICENSE"
+            '';
             meta = {
               description = "MacShell's KWin bridge: windows, workspaces, keyboard layouts and the global menu over JSON lines";
+              homepage = "https://github.com/OngYean/MacShell-KWin";
+              license = pkgs.lib.licenses.mit;
               mainProgram = "macshell-kwin-bridge";
               platforms = systems;
             };
@@ -79,6 +87,7 @@
               runHook preInstall
               mkdir -p "$out/share/macshell"
               cp -R ${./MacShell}/. "$out/share/macshell/"
+              install -Dm644 ${./LICENSE} "$out/share/licenses/macshell/LICENSE"
               install -Dm755 ${./nix/macshell.sh} "$out/libexec/macshell"
               install -Dm755 ${./nix/macshell-session.sh} "$out/libexec/macshell-session"
               makeWrapper "$out/libexec/macshell" "$out/bin/macshell" \
@@ -95,6 +104,8 @@
 
             meta = {
               description = "MacShell, a macOS-style Quickshell shell, for KDE Plasma (KWin) and Hyprland";
+              homepage = "https://github.com/OngYean/MacShell-KWin";
+              license = with pkgs.lib.licenses; [ mit ofl ]; # MacShell + the bundled Open Runde font
               mainProgram = "macshell";
               platforms = systems;
             };
@@ -116,6 +127,8 @@
             ];
             meta = {
               description = "KWin Plasma Window Management diagnostic and isolated AppMenu bridge";
+              homepage = "https://github.com/OngYean/MacShell-KWin";
+              license = pkgs.lib.licenses.mit;
               mainProgram = "macshell-kwin-backend-probe";
               platforms = systems;
             };
