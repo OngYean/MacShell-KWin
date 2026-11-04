@@ -4087,7 +4087,9 @@ Scope {
                             { img: "assets/credits/0-ss.jpg", name: "Rickky", gh: "0-ss",
                               role: "Owner — the menu bar, the Dock, the Liquid Glass the widgets and more... The one who actually knew what he was doing" },
                             { img: "assets/credits/vsoultann.png", name: "vSuol", gh: "vsoultann",
-                              role: "Contributors — improved the Settings app, and most of the bugs you would find" }
+                              role: "Contributors — improved the Settings app, and most of the bugs you would find" },
+                            { img: "assets/credits/OngYean.png", name: "OngYean", gh: "OngYean",
+                              role: "Porter — brought MacShell to KDE Plasma: the KWin bridge, the global menu and the Nix packaging" }
                         ]
                         delegate: Item {
                             id: cr
