@@ -28,10 +28,10 @@ Scope {
     property var layouts: []
     property int layoutIndex: -1
     property var appMenu: ({ status: "none", windowId: "", appId: "", revision: 0, items: [] })
-    // coexist (default): plasmashell keeps its notifications / OSD / desktop; MacShell starts no daemon of its own.
-    // replace: plasmashell was stopped for this session (macshell-session replace) and MacShell takes over notifications.
-    // Never switched automatically: Quickshell's notification server is process-wide and keeps re-claiming its D-Bus name,
-    // so enabling it after a plasmashell crash would leave the restarted plasmashell without notifications.
+    // coexist (default): plasmashell keeps its notifications / OSD / desktop; MacShell serves notifications only when nobody
+    // else does (notificationsUnserved). replace: plasmashell was stopped for this session (macshell-session replace) and
+    // MacShell takes over notifications. Quickshell's notification server is process-wide and keeps re-claiming its D-Bus
+    // name, so once MacShell serves them a plasmashell (re)started later shows none: MacShell's bell has them instead.
     readonly property bool replaceMode: String(Quickshell.env("MACSHELL_KDE_MODE") || "coexist") === "replace"
     property bool sessionKnown: false            // the bridge has reported who owns the desktop services
     property bool plasmaShellRunning: false
@@ -47,9 +47,20 @@ Scope {
         // KWin offers no capture protocol to ordinary clients, draws (Klassy) decorations itself and has no layer rules
         windowCapture: false, screenCapture: false, drawDecorations: false, windowRules: false, layerBlurRules: false,
         windowLayout: false, sendShortcut: false, colorPicker: false, nightShift: false, monitorConfig: false, inputConfig: false,
-        // plasmashell owns org.freedesktop.Notifications while it runs: never start a second daemon next to it (see replaceMode)
-        notificationServer: root.replaceMode && root.sessionKnown && !root.plasmaShellRunning && root.notificationsOwner !== "other"
+        // never a second daemon next to another owner of org.freedesktop.Notifications (plasmashell's tray, usually; see replaceMode)
+        notificationServer: root.sessionKnown && root.notificationsOwner !== "other"
+                            && ((root.replaceMode && !root.plasmaShellRunning) || root.notificationsUnserved)
     })
+    // coexist: plasmashell serves notifications only from a system tray. Without one nobody does, and every notification is
+    // lost, so MacShell takes the name once it has stayed free for a while (the grace lets a tray claim it first at login).
+    // Plasma's notification server can't replace Quickshell's (which disallows replacement), so the two never alternate.
+    property bool notificationsUnserved: false
+    Timer {
+        interval: 15000
+        running: root.sessionKnown && root.notificationsOwner === "none" && !root.notificationsUnserved
+        onTriggered: root.notificationsUnserved = true
+    }
+    onNotificationsOwnerChanged: if (notificationsOwner === "other") notificationsUnserved = false
 
     // ── Quickshell-Toplevel-like objects, one per window, kept stable (the switcher and Dock keep references) ──
     property var toplevels: []
