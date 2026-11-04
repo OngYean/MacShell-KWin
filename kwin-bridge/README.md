@@ -35,7 +35,7 @@ Alternatives considered:
 
 Qt and GTK apps export a D-Bus menu only while `com.canonical.AppMenu.Registrar` exists. kded's appmenu module runs that registrar only while some menu view owns `org.kde.kappmenuview` (`plasma-workspace/appmenu/appmenu.cpp`). Plasma's Global Menu applet owns that name when it is in a panel. With `--global-menu` the bridge registers it the same way: `QueueService` plus `DontAllowReplacement`, exactly like the applet. Whichever comes first owns it and the other queues behind it, so the menus survive when plasmashell (and its applet) is stopped. Qt checks for the registrar once per process, so **apps started before a menu view existed keep their in-window menu bar until restarted**.
 
-Menu events are sent the way KDE's `DBusMenuImporter` sends them: `Event(id, name, QDBusVariant(QString()), 0u)`, with `AboutToShow` + `opened` when a menu opens and `closed` when it goes away. Labels have their `_` mnemonic markers removed. Shortcuts are passed through as key lists (`[["Control","S"]]`).
+Menu events are sent the way KDE's `DBusMenuImporter` sends them: `Event(id, name, QDBusVariant(QString()), 0u)`, with `AboutToShow` + `opened` when a menu opens and `closed` when it goes away. Labels have their `_` mnemonic markers removed. Shortcuts are passed through as key lists (`[["Control","S"]]`). `icon` is the item's `icon-name`, or else its `icon-data` PNG (what Qt sends for icons without a theme name) as a `data:image/png;base64,` URL, at most 16 KiB per item and 1 MiB per menu; larger ones are dropped.
 
 ## Messages
 

@@ -52,6 +52,8 @@ constexpr int kProtocol = 1;
 constexpr qsizetype kMaxCommandLine = 16 * 1024;
 constexpr int kMaxMenuDepth = 12;
 constexpr int kMaxMenuItems = 5000;
+constexpr qsizetype kMaxMenuIconBytes = 16 * 1024;       // one item's icon-data (Qt sends a 16 px PNG)
+constexpr qsizetype kMaxMenuIconBudget = 1024 * 1024;    // all icon-data of one menu
 
 const QString kKWinService = QStringLiteral("org.kde.KWin");
 const QString kDesktopsPath = QStringLiteral("/VirtualDesktopManager");
@@ -130,6 +132,25 @@ QJsonArray decodeShortcut(const QVariant &raw)
     return chords;
 }
 
+// The item's icon for MacShell: its theme name, or else the PNG Qt sends for icons without one, as a data: URL.
+// The PNG is the app's data: size-capped per item and per menu (budget), since it ends up on MacShell's pipe.
+QString menuIcon(const QVariant &name, const QVariant &data, qsizetype &budget)
+{
+    const QString iconName = name.toString();
+    if (!iconName.isEmpty()) {
+        return iconName;
+    }
+    if (data.metaType() != QMetaType::fromType<QByteArray>()) {
+        return {};
+    }
+    const QByteArray png = data.toByteArray();
+    if (png.isEmpty() || png.size() > kMaxMenuIconBytes || png.size() > budget) {
+        return {};
+    }
+    budget -= png.size();
+    return QStringLiteral("data:image/png;base64,") + QString::fromLatin1(png.toBase64());
+}
+
 struct MenuItemInfo {
     bool actionable = false; // may receive "clicked"
     bool submenu = false; // may receive "opened" / "closed" / AboutToShow
@@ -137,7 +158,7 @@ struct MenuItemInfo {
 
 // one (ia{sv}av) node; returns an empty object for anything malformed. The full signature is checked first: QtDBus
 // demarshals by the type it is asked for, and a mismatched element (an app's bug) can crash libdbus, not just fail.
-QJsonObject decodeMenuItem(const QDBusArgument &argument, int depth, int &nodes, QHash<int, MenuItemInfo> &index)
+QJsonObject decodeMenuItem(const QDBusArgument &argument, int depth, int &nodes, qsizetype &iconBudget, QHash<int, MenuItemInfo> &index)
 {
     if (depth > kMaxMenuDepth || ++nodes > kMaxMenuItems || argument.currentSignature() != QLatin1String("(ia{sv}av)")) {
         return {};
@@ -158,7 +179,7 @@ QJsonObject decodeMenuItem(const QDBusArgument &argument, int depth, int &nodes,
             argument >> childVariant;
             const QVariant child = childVariant.variant();
             if (child.metaType() == QMetaType::fromType<QDBusArgument>()) {
-                const QJsonObject parsed = decodeMenuItem(child.value<QDBusArgument>(), depth + 1, nodes, index);
+                const QJsonObject parsed = decodeMenuItem(child.value<QDBusArgument>(), depth + 1, nodes, iconBudget, index);
                 if (!parsed.isEmpty()) {
                     children.append(parsed);
                 }
@@ -193,7 +214,7 @@ QJsonObject decodeMenuItem(const QDBusArgument &argument, int depth, int &nodes,
         {QStringLiteral("toggle"), (toggleType == QLatin1String("checkmark") || toggleType == QLatin1String("radio")) ? toggleType : QString()},
         // toggle-state: 0 off, 1 on, anything else "indeterminate"
         {QStringLiteral("toggleState"), toggleStateValue.isValid() ? toggleStateValue.toInt() : 0},
-        {QStringLiteral("icon"), property("icon-name").toString()},
+        {QStringLiteral("icon"), menuIcon(property("icon-name"), property("icon-data"), iconBudget)},
         {QStringLiteral("shortcut"), decodeShortcut(properties.value(QStringLiteral("shortcut")))},
         {QStringLiteral("children"), children},
     };
@@ -817,7 +838,8 @@ private:
             }
             QHash<int, MenuItemInfo> index;
             int nodes = 0;
-            const QJsonObject root = decodeMenuItem(reply.arguments().at(1).value<QDBusArgument>(), 0, nodes, index);
+            qsizetype iconBudget = kMaxMenuIconBudget;
+            const QJsonObject root = decodeMenuItem(reply.arguments().at(1).value<QDBusArgument>(), 0, nodes, iconBudget, index);
             m_menuItems = root.value(QStringLiteral("children")).toArray();
             m_menuIndex = index;
             m_menuIndex.insert(0, MenuItemInfo{false, true});
