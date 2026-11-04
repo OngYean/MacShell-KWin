@@ -87,6 +87,12 @@ Scope {
     function reboot() { if (backend) backend.reboot(); }
     function shutdown() { if (backend) backend.shutdown(); }
     function openSystemSettings(module) { if (backend) backend.openSystemSettings(module); }
+    // ── layer surfaces ──
+    // KWin reads a layer surface's namespace as its window type (layershellv1window.cpp, scopeToType). Any name but its own is a
+    // Normal application window, which force-blur effects blur edge to edge (MacShell's surfaces span the screen) and which
+    // ends "show desktop". On KWin every MacShell surface is a "dock"; Hyprland keeps the names its layer rules match.
+    function layerNamespace(name) { return isKWin ? "dock" : name; }
+
     // KDE: who already provides desktop services (so MacShell never starts a duplicate)
     readonly property bool plasmaShellRunning: backend ? backend.plasmaShellRunning : false
     readonly property string notificationsOwner: backend ? backend.notificationsOwner : "none"

@@ -647,7 +647,7 @@ Scope {
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
 
-            WlrLayershell.namespace: "macwidgets"
+            WlrLayershell.namespace: root.hub && root.hub.compositor ? root.hub.compositor.layerNamespace("macwidgets") : "macwidgets"
             WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 

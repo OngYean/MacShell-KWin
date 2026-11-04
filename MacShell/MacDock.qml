@@ -4921,7 +4921,7 @@ Scope {
             exclusionMode: ExclusionMode.Normal
             exclusiveZone: root.hideMode === "never" ? root.bgHeight + root.margin : 0
 
-            WlrLayershell.namespace: "macdock"
+            WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macdock") : "macdock"
             WlrLayershell.layer: WlrLayer.Top
 
             mask: Region { item: maskItem }
@@ -4936,7 +4936,7 @@ Scope {
                 exclusionMode: ExclusionMode.Ignore
                 color: "transparent"
                 mask: Region {}
-                WlrLayershell.namespace: "macdock-drag"
+                WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macdock-drag") : "macdock-drag"
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
                 // the window where it WAS: a still copy that takes its place the instant the real window jumps to the

@@ -508,7 +508,7 @@ Scope {
             anchors { top: true; bottom: true; left: true; right: true }
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
-            WlrLayershell.namespace: "macdesktop"
+            WlrLayershell.namespace: root.hub && root.hub.compositor ? root.hub.compositor.layerNamespace("macdesktop") : "macdesktop"
             WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.keyboardFocus: ((renameSheet.open || linkSheet.open) && !root.picking) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 

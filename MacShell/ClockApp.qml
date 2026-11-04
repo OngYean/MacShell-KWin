@@ -292,7 +292,7 @@ Scope {
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.namespace: "macshell-clock-alert"
+        WlrLayershell.namespace: root.hub && root.hub.compositor ? root.hub.compositor.layerNamespace("macshell-clock-alert") : "macshell-clock-alert"
         Rectangle {
             id: bannerCard
             width: 356; height: 80; x: 8; y: 4

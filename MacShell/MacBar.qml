@@ -3810,7 +3810,7 @@ Scope {
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
 
-            WlrLayershell.namespace: "macshot"
+            WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macshot") : "macshot"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
@@ -4957,7 +4957,7 @@ Scope {
             exclusionMode: ExclusionMode.Ignore
             mask: Region { }
 
-            WlrLayershell.namespace: "macbarbg"
+            WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macbarbg") : "macbarbg"
             // Top, not Bottom: on Bottom it sat under the windows, so it only ever blurred the wallpaper — over a
             // window there was nothing behind it to blur. It is declared before the bar itself, so it stacks under it.
             WlrLayershell.layer: WlrLayer.Top
@@ -4985,7 +4985,7 @@ Scope {
             exclusionMode: ExclusionMode.Normal
             exclusiveZone: root.barEnabled ? root.barH : 0
 
-            WlrLayershell.namespace: "macbar"
+            WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macbar") : "macbar"
             WlrLayershell.layer: WlrLayer.Top
             WlrLayershell.keyboardFocus: ((ui.pop === "wifi" || (ui.pop === "cc" && ui.ccPage === "wifi")) && ui.wifiPrompt !== "") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
@@ -8820,7 +8820,7 @@ Scope {
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
 
-            WlrLayershell.namespace: "macswitch"
+            WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macswitch") : "macswitch"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: (root.swOpen && ui.toastScreen) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
@@ -8994,7 +8994,7 @@ Scope {
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
 
-            WlrLayershell.namespace: "macwall"
+            WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macwall") : "macwall"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: (root.wpOpen && ui.toastScreen) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
@@ -9388,7 +9388,7 @@ Scope {
             exclusionMode: ExclusionMode.Ignore
             mask: Region { }                                       // never takes input: clicks go straight through
 
-            WlrLayershell.namespace: "macosd"
+            WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macosd") : "macosd"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
@@ -9516,7 +9516,7 @@ Scope {
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
 
-            WlrLayershell.namespace: "macspot"
+            WlrLayershell.namespace: root.comp ? root.comp.layerNamespace("macspot") : "macspot"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: ui.pop === "spot" ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
