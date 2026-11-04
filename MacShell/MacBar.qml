@@ -2509,7 +2509,7 @@ Scope {
 
     // brightness
     property real brightness: 0.5
-    property string brightMode: "bl"      // "bl" = laptop backlight (brightnessctl), "ddc" = external monitor (ddcutil), "none"
+    property string brightMode: "bl"      // "kde" = PowerDevil (KDE), "bl" = laptop backlight (brightnessctl), "ddc" = external monitor (ddcutil), "none"
     property real brightPending: -1       // value waiting for the running write to finish (DDC writes are slow)
     property bool brightKnown: false      // a first reading exists (DDC monitors are read ONCE: the bus is slow and a read can hitch the GPU)
     function refreshBrightness() {
@@ -2573,7 +2573,7 @@ Scope {
         brightApply.restart();
         showOsd("brightness", brightness);
     }
-    Timer { interval: root.brightMode === "bl" ? 850 : 10000; repeat: true; running: root.brightMode !== "ddc"; onTriggered: root.refreshBrightness() }
+    Timer { interval: (root.brightMode === "bl" || root.brightMode === "kde") ? 850 : 10000; repeat: true; running: root.brightMode !== "ddc"; onTriggered: root.refreshBrightness() }
     // ═════════════ KEYBOARD LAYOUT ═════════════
     // Hyprland's event gives an immediate update; a small reconciliation poll handles dropped events and
     // keyboards whose active keymap changes without a usable activelayout payload.
