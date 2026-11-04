@@ -1997,6 +1997,11 @@ Scope {
         }
         return clean;
     }
+    // D-BusMenu icon: a theme name, or a data: URL (the bridge's copy of a PNG the app sent); "" = none
+    function gmIcon(icon) {
+        var s = String(icon || "");
+        return (s === "" || s.indexOf("data:") === 0) ? s : Quickshell.iconPath(s, true);
+    }
     function gmModel(id) {
         var node = gm ? gmFind(gm.items, id) : null, m = [], lastSep = true;
         var kids = node ? (node.children || []) : [];
@@ -2008,6 +2013,7 @@ Scope {
             var item = { kind: "item", label: gmLabel(c.label), raw: true, gmId: c.id, sub: c.submenu === true,
                          shortcut: c.submenu === true ? "\u203A" : gmShortcut(c.shortcut) };
             if (c.toggle === "checkmark" || c.toggle === "radio") item.checked = c.toggleState === 1;
+            else if (c.icon) item.icon = gmIcon(c.icon);          // check marks take the icon's place, as in KDE's menus
             if (c.enabled === false) item.disabled = true;
             if (c.submenu !== true) item.run = (function (itemId, win) { return function () { root.comp.menuEvent(itemId, "clicked", win); }; })(c.id, gm.windowId);
             m.push(item);
@@ -5176,9 +5182,9 @@ Scope {
                     o[name] = !o[name];
                     spExpanded = o;
                 }
-                // gutter for check marks when any entry of the open menu has one
+                // gutter for check marks / icons when any entry of the open menu has one
                 readonly property bool menuLead: {
-                    for (var i = 0; i < menuModel.length; i++) if (menuModel[i].checked !== undefined || menuModel[i].glyph !== undefined) return true;
+                    for (var i = 0; i < menuModel.length; i++) if (menuModel[i].checked !== undefined || menuModel[i].glyph !== undefined || menuModel[i].icon) return true;
                     return false;
                 }
                 Connections {
@@ -6926,6 +6932,16 @@ Scope {
                                     width: 15; height: 15
                                     kind: it.modelData.glyph !== undefined ? it.modelData.glyph : ""
                                     color: it.hot ? "white" : (it.off ? panelPal.fg2 : panelPal.fg)
+                                }
+                                Image {
+                                    visible: !it.isSep && !!it.modelData.icon
+                                    x: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 16; height: 16
+                                    source: it.isSep ? "" : (it.modelData.icon || "")
+                                    sourceSize: Qt.size(32, 32)
+                                    fillMode: Image.PreserveAspectFit
+                                    opacity: it.off ? 0.4 : 1
                                 }
                                 Text {
                                     visible: !it.isSep && it.modelData.checked === true
