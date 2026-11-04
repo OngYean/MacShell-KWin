@@ -314,5 +314,6 @@ remove the module) and rebuild. MacShell's settings stay in the folders listed a
 
 MacShell and this port are released under the [MIT licence](LICENSE).
 
-Apple, the Apple logo and macOS are trademarks of Apple Inc. This project is not affiliated with or endorsed by
-Apple.
+Apple, the Apple logo and macOS are trademarks of Apple Inc. This project is not affiliated with, endorsed by or
+sponsored by Apple Inc. The optional menu bar Apple logo (`MacShell/apple-logo-*.svg`) belongs to its rightful
+copyright owner, Apple Inc., and is not covered by this project's MIT licence.
