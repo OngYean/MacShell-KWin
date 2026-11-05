@@ -63,7 +63,7 @@ jobs:
               cfgFiles = home.config.xdg.configFile;
               dropin = "systemd/user/plasma-plasmashell.service.d/macshell.conf";
             in
-            "ExecStart=${unit.Service.ExecStart} WantedBy=${toString unit.Install.WantedBy}"
+            "ExecStart=${toString unit.Service.ExecStart} WantedBy=${toString unit.Install.WantedBy}"
             + " mode=${home.config.programs.macshell.mode} OnFailure=${toString unit.Unit.OnFailure}"
             + " env=${home.config.systemd.user.sessionVariables.MACSHELL_KDE_MODE or "unset"}"
             + " dropin=${if builtins.hasAttr dropin cfgFiles
