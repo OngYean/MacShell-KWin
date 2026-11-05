@@ -4,7 +4,7 @@ name: kwin-port
 
 on:
   push:
-    branches: [kwin-port, kwin-plasma-fixes, fork-credits-readme, kwin-replace-wallpaper-splash]
+    branches: [kwin-port, kwin-plasma-fixes, fork-credits-readme, kwin-replace-wallpaper-splash, kwin-magic-lamp, pending-test]
   pull_request:
   workflow_dispatch:
 
