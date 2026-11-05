@@ -83,6 +83,7 @@ class Fake:
         ]
         self.menus = {"org.kde.kwrite": kwrite_menu(), "org.kde.dolphin": dolphin_menu()}
         self.active, self.current, self.layout, self.revision, self.showing = "{fake-kwrite}", DESKTOPS[0]["id"], 0, 1, False
+        self.icons = {}                                          # window id → its Dock icon (minimize target), as the real bridge keeps it
 
     def emit(self, obj):
         self.out(json.dumps(obj, separators=(",", ":")))
@@ -99,6 +100,8 @@ class Fake:
         self.emit_workspaces()
         self.emit_windows()
         self.emit_menu()
+        # the real bridge names the outputs it has an anchor on; the fake has none, but MacShell only needs one to exist
+        self.emit({"type": "iconAnchors", "screens": ["fake"]})
 
     def emit_workspaces(self):
         self.emit({"type": "workspaces", "available": True, "current": self.current, "rows": 1, "desktops": DESKTOPS})
@@ -188,9 +191,25 @@ class Fake:
                 w["keepAbove"] = not w["keepAbove"]
             elif cmd == "moveToDesktop" and any(d["id"] == req.get("desktop") for d in DESKTOPS):
                 w["desktops"] = [req["desktop"]]
+            elif cmd == "iconGeometry":
+                self.set_icon(w["id"], req)
+                return                                           # nothing visible changes
             else:
                 return
             self.emit_windows(); self.emit_menu()
+
+    def set_icon(self, id, req):
+        # the real bridge's checks (main.cpp setIconTarget): an empty screen forgets the target, a bad rectangle is dropped
+        screen = req.get("screen")
+        if not isinstance(screen, str):
+            return
+        if screen == "":
+            self.icons.pop(id, None)
+            return
+        x, y, w, h = (req.get(k) for k in ("x", "y", "width", "height"))
+        if (len(screen) <= 64 and all(isinstance(v, int) and not isinstance(v, bool) for v in (x, y, w, h))
+                and 0 <= x <= 32768 and 0 <= y <= 32768 and 1 <= w <= 4096 and 1 <= h <= 4096):
+            self.icons[id] = {"screen": screen, "x": x, "y": y, "width": w, "height": h}
 
 
 # message type → keys every message of that type carries (kwin-bridge/README.md "Messages")
@@ -201,6 +220,7 @@ SCHEMA = {
     "keyboard": {"available", "current", "layouts"},
     "menu": {"status", "windowId", "appId", "revision", "items"},
     "session": {"plasmashell", "notifications", "trayWatcher", "menuView"},
+    "iconAnchors": {"screens"},
 }
 WINDOW_KEYS = {"id", "appId", "title", "pid", "resourceName", "active", "minimized", "maximized", "fullscreen", "keepAbove",
                "onAllDesktops", "demandsAttention", "skipTaskbar", "skipSwitcher", "closeable", "minimizeable",
@@ -241,6 +261,16 @@ def selftest():
     fake.handle('{"cmd":"close","id":"{fake-konsole}"}')
     assert all(w["id"] != "{fake-konsole}" for w in last("windows")["windows"])
     fake.handle('not json'); fake.handle('{"cmd":"activate","id":"{nope}"}')  # ignored
+    assert last("iconAnchors")["screens"] == ["fake"]
+    fake.handle('{"cmd":"iconGeometry","id":"{fake-kwrite}","screen":"eDP-1","x":700,"y":1010,"width":52,"height":52}')
+    assert fake.icons["{fake-kwrite}"] == {"screen": "eDP-1", "x": 700, "y": 1010, "width": 52, "height": 52}
+    for bad in ('"x":-1,"y":0,"width":52,"height":52', '"x":0,"y":0,"width":0,"height":52', '"x":0.5,"y":0,"width":52,"height":52'):
+        fake.handle('{"cmd":"iconGeometry","id":"{fake-dolphin}","screen":"eDP-1",%s}' % bad)
+    assert "{fake-dolphin}" not in fake.icons                           # bad rectangles: dropped
+    fake.handle('{"cmd":"iconGeometry","id":"{nope}","screen":"eDP-1","x":0,"y":0,"width":52,"height":52}')
+    assert "{nope}" not in fake.icons                                   # unknown window: dropped
+    fake.handle('{"cmd":"iconGeometry","id":"{fake-kwrite}","screen":""}')
+    assert "{fake-kwrite}" not in fake.icons                            # no screen: forgotten
     for m in sent:
         check(m)
     print("fake-bridge selftest: %d messages ok" % len(sent))
