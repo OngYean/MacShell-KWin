@@ -68,6 +68,10 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   desktop is ready, which `plasmashell` normally does. Not yet tested in Plasma.
 - **Use KWin's blur** (Settings → Appearance). Every glass surface becomes a see-through tint and KWin blurs what's
   behind it, instead of MacShell's own Liquid Glass. See [KWin's blur](#kwins-blur). Not yet tested in Plasma.
+- **Minimizing into the Dock.** KWin's Magic Lamp effect animates a minimized window into its Dock icon (or its own
+  window cell) instead of towards the pointer. Restoring it comes out of the same place, whether you click the Dock,
+  use Alt+Tab or a shortcut. Not yet tested in Plasma; a CI check against a headless KWin covers only that KWin
+  receives the target, not the animation.
 - **Nix flake**: the packages `macshell`, `macshell-kwin-bridge` and `macshell-hyprland`, a Home Manager module
   (`programs.macshell`, with optional autostart) and a development shell.
 - **Tests**: a fake bridge for trying the interface without KWin, a smoke test against a headless KWin, shell-script
@@ -327,7 +331,11 @@ The option is stored as `kwinBlur` in `~/.config/macdock/settings.json`.
   without a tray, wallpaper sync and menu icons haven't been run in a live Plasma session yet
   (`handoff/08-plasma-fixes-tests.md` is the test plan). Neither has the wallpaper and splash handling without
   `plasmashell` (`handoff/10-replace-wallpaper-splash-tests.md`), nor "Use KWin's blur"
-  (`handoff/11-kwin-blur-tests.md`).
+  (`handoff/11-kwin-blur-tests.md`), nor minimizing into the Dock (`handoff/13-magic-lamp-tests.md`).
+- **Minimizing into the Dock:** windows whose app has no Dock icon still fly towards the pointer. The target is
+  where the icon rests, so the animation ignores magnification and ends where the Dock appears when it's hidden.
+  When running next to `plasmashell`, a Plasma task manager registers its own targets, and KWin uses whichever
+  panel is nearer the window.
 - **Without `plasmashell`:** if Plasma's settings name no wallpaper picture (for example, you never changed Plasma's
   default wallpaper) and you haven't picked one in MacShell, the background stays black until you pick one. If you
   changed the wallpaper in Plasma after your last pick in MacShell, MacShell shows its own pick. Video wallpapers
