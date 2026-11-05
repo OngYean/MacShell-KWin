@@ -14,7 +14,7 @@
   <a href="#changes-compared-to-the-original-macshell">Changes</a> ·
   <a href="#requirements">Requirements</a> ·
   <a href="#install">Install</a> ·
-  <a href="#running-it-next-to-plasma">Running it</a> ·
+  <a href="#running-it">Running it</a> ·
   <a href="#troubleshooting">Troubleshooting</a> ·
   <a href="#known-issues">Known issues</a> ·
   <a href="#credits-and-licence">Credits</a>
@@ -33,9 +33,10 @@
 MacShell replaces only what you *see* of Plasma: the top bar, the Dock, Spotlight, Control Center, notifications,
 desktop widgets and the wallpaper picker. Everything underneath stays KDE: **KWin** remains the compositor (with its
 effects and your window decorations, e.g. Breeze or [Klassy](https://github.com/paulmcauley/klassy)), and KDE's lock
-screen, PowerDevil, portals, Polkit agent, KIO, network and Bluetooth services keep doing their jobs. MacShell can run
-**next to** `plasmashell` or, for one login, **in its place**. Nothing it does is permanent: logging out and back in
-always gives you normal Plasma.
+screen, PowerDevil, portals, Polkit agent, KIO, network and Bluetooth services keep doing their jobs. By default
+MacShell runs **in place of** `plasmashell`; it can also run **next to** it. `plasmashell` is never uninstalled or
+masked: `macshell-session coexist` brings it back for the current login, and the Home Manager settings below decide
+what each login starts.
 
 The look is the same as the original's; see [its screenshots](https://github.com/0-ss/MacShell#screenshots).
 
@@ -55,11 +56,18 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 - **A real global menu.** The menu bar shows the active app's own menus, the ones KDE's Global Menu widget shows,
   with submenus, separators, disabled and checkable items, shortcut labels and icons. MacShell registers itself as a
   menu view, so apps export their menus even without Plasma's Global Menu widget.
-- **Coexistence with Plasma.** MacShell checks which KDE services already own notifications, the tray watcher and
-  the menu view, and never starts a duplicate. `macshell-session` switches a single login between Plasma's shell and
-  MacShell (`replace` / `restore`) without changing any configuration.
+- **Replacing Plasma's shell, or running next to it.** `macshell-session start` runs MacShell in place of
+  `plasmashell` (the default); `macshell-session coexist` runs it next to `plasmashell`. Either switches the current
+  login without changing any configuration. With Home Manager autostart, `plasmashell` is skipped at login and
+  started again if MacShell keeps failing. MacShell checks which KDE services already own notifications, the tray
+  watcher and the menu view, and never starts a duplicate. Logging in without `plasmashell` hasn't been tested yet.
 - **Notifications without a Plasma system tray.** If no Plasma tray serves notifications for 15 seconds, MacShell
   does.
+- **Wallpaper and login splash without `plasmashell`.** In replace mode MacShell draws the wallpaper itself (your
+  last pick in its picker, otherwise the picture Plasma is set to) and tells Plasma's login splash screen that the
+  desktop is ready, which `plasmashell` normally does. Not yet tested in Plasma.
+- **Use KWin's blur** (Settings → Appearance). Every glass surface becomes a see-through tint and KWin blurs what's
+  behind it, instead of MacShell's own Liquid Glass. See [KWin's blur](#kwins-blur). Not yet tested in Plasma.
 - **Nix flake**: the packages `macshell`, `macshell-kwin-bridge` and `macshell-hyprland`, a Home Manager module
   (`programs.macshell`, with optional autostart) and a development shell.
 - **Tests**: a fake bridge for trying the interface without KWin, a smoke test against a headless KWin, shell-script
@@ -77,8 +85,8 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Screenshots and screen recording | `grim`, `slurp`, `wf-recorder` | Spectacle |
 | Display, keyboard, mouse, trackpad and Night Shift settings | `hyprctl`, `hyprsunset` | Open the matching page of KDE System Settings |
 | Screen brightness | `brightnessctl` / `ddcutil` | PowerDevil (also controls DDC monitors) |
-| Wallpaper | Set with `awww` / `swww` / `hyprpaper` | Plasma's wallpaper: the glass follows it, and the picker sets it |
-| Blur behind the bar | Hyprland layer rules | KWin's blur, requested for the bar strip only |
+| Wallpaper | Set with `awww` / `swww` / `hyprpaper` | While `plasmashell` runs, Plasma's wallpaper: the glass follows it, and the picker sets it. Without `plasmashell`, MacShell draws the picker's choice itself |
+| Blur behind the bar | Hyprland layer rules | KWin's blur, requested for the bar strip only; with "Use KWin's blur", for every glass surface |
 | Liquid Glass refraction | Live windows and the wallpaper | The wallpaper only |
 | Shortcut items in the generic File/Edit menus | `hyprctl sendshortcut` / `wtype` | `ydotool`, if installed |
 | Game Mode | Also tunes Hyprland, the power profile and the video wallpaper | Quiets MacShell's own effects only |
@@ -98,7 +106,8 @@ No upstream code has been deleted; the Hyprland path is kept, but untested. On K
   Nix or git (see [Install](#install)).
 - **Hyprland keybinds and layer rules.** Bind keys in KDE's Shortcuts settings instead
   ([below](#keyboard-shortcuts)).
-- **Blur behind the Dock and popovers.** Not implemented for KWin yet.
+- **Blur behind the Dock and popovers in the Normal Blur style**, unless "Use KWin's blur" is on. Without it they're
+  a plain tint on KWin.
 - **A window list on other wlroots compositors** (Sway, niri, river). They now get no compositor backend.
 - **MacShell's notification list while Plasma's tray serves notifications.** They appear in Plasma instead.
 
@@ -171,10 +180,16 @@ Run `nix flake lock`, then rebuild your system as usual (for example `sudo nixos
 | `programs.macshell` option | Default | Effect |
 | --- | --- | --- |
 | `enable` | `false` | Installs `macshell` and `macshell-session`, and defines the `macshell.service` user unit. |
-| `autostart` | `false` | Starts `macshell.service` with every Plasma session (and only Plasma sessions). `plasmashell` keeps running. |
+| `autostart` | `false` | Starts `macshell.service` with every Plasma session (and only Plasma sessions). |
+| `mode` | `"replace"` | With `autostart`: `"replace"` skips `plasmashell` at login and MacShell takes its place; `"coexist"` starts `plasmashell` as usual and MacShell next to it. |
 | `package` | this flake's `macshell` | The package to use. |
 
-The module never disables `plasmashell` or any KDE service. It works the same with standalone Home Manager.
+In `"replace"` mode the module doesn't disable, mask or remove `plasmashell`. It adds a condition to Plasma's
+`plasma-plasmashell.service` (a drop-in, `ConditionEnvironment=!MACSHELL_KDE_MODE=replace`) and sets
+`MACSHELL_KDE_MODE=replace` for your user's services. If MacShell fails three times within a minute,
+`macshell-fallback.service` starts `plasmashell` instead. `macshell-session coexist` brings `plasmashell` back for the
+current login. `mode = "coexist"` or `autostart = false` brings it back at every login after you rebuild, log out
+and log in again. No other KDE service is touched. It works the same with standalone Home Manager.
 
 To **update**, run `nix flake update macshell` and rebuild. MacShell's Settings tells you when this fork has a
 newer version, but never installs anything itself.
@@ -182,7 +197,9 @@ newer version, but never installs anything itself.
 ### Try it without installing (Nix)
 
 ```sh
-nix run github:OngYean/MacShell-KWin#macshell        # Ctrl+C stops it
+nix run github:OngYean/MacShell-KWin#macshell-session -- start     # in place of plasmashell, for this login
+nix run github:OngYean/MacShell-KWin#macshell-session -- stop      # stop MacShell, plasmashell comes back
+nix run github:OngYean/MacShell-KWin#macshell                      # next to plasmashell, in the foreground; Ctrl+C stops it
 ```
 
 This works on any distribution with Nix and flakes enabled. Use `#macshell`: the flake's default app is the
@@ -209,28 +226,32 @@ There is no distribution package yet. You can run MacShell straight from a clone
    ```
 
 3. To start it at login, save a two-line script (`#!/bin/sh` and `exec qs -p /path/to/MacShell-KWin/MacShell`),
-   make it executable, and add it in System Settings → Autostart → Add… → Add Login Script.
+   make it executable, and add it in System Settings → Autostart → Add… → Add Login Script. This runs it next to
+   `plasmashell`; see [Running it](#running-it) for replacing it.
 
 Without Nix there is no `macshell` / `macshell-session` command. Use `qs -p /path/to/MacShell` in their place, and
-see [Running it](#running-it-next-to-plasma) for the manual replace / restore steps.
+see [Running it](#running-it) for the manual steps.
 
-## Running it next to Plasma
+## Running it
 
 ```sh
-macshell                       # start MacShell in the foreground (Ctrl+C or `macshell kill` stops it)
+macshell-session start         # in place of plasmashell, for this login (the default; `replace` is the same)
+macshell-session coexist       # next to plasmashell, starting it again if needed (`restore` is the same)
+macshell-session stop          # stop MacShell; plasmashell comes back
 macshell-session status        # what is running: plasmashell, MacShell, and a summary from the KWin bridge
-macshell-session start | stop  # start or stop MacShell next to plasmashell
-macshell-session replace       # for this login only: stop plasmashell, MacShell takes over notifications
-macshell-session restore       # bring plasmashell back
+macshell                       # MacShell in the foreground, next to whatever runs (Ctrl+C or `macshell kill` stops it)
 ```
 
-- **Coexist** (the default): `plasmashell` keeps its panels, desktop, OSDs, clipboard history and, if it has a
-  system tray, notifications. **Remove, move or auto-hide Plasma's top and bottom panels**, or they overlap
-  MacShell's bar and Dock. MacShell's desktop icons duplicate Plasma's desktop folder view, so turn one of them off.
-- **Replace** (`macshell-session replace`): Plasma's shell is stopped for the current login. Plasma's volume and
-  brightness pop-ups, Klipper's clipboard history and Plasma's desktop are gone until `restore` or the next login.
+- **Replace** (the default: `macshell-session start`, or Home Manager `autostart` with `mode = "replace"`): Plasma's
+  shell doesn't run. MacShell draws the wallpaper, takes over notifications and ends Plasma's login splash screen.
+  Plasma's volume and brightness pop-ups, Klipper's clipboard history and Plasma's desktop (its icons and widgets)
+  are gone until `macshell-session coexist` or `stop`.
   Without Nix: `systemctl --user stop plasma-plasmashell.service`, then `MACSHELL_KDE_MODE=replace qs -p ./MacShell`.
-  Undo it with `systemctl --user start plasma-plasmashell.service`.
+  Undo it with `Ctrl+C`, then `systemctl --user start plasma-plasmashell.service`.
+- **Coexist** (`macshell-session coexist`, or `mode = "coexist"`): `plasmashell` keeps its panels, desktop, pop-ups,
+  clipboard history and, if it has a system tray, notifications. **Remove, move or auto-hide Plasma's top and bottom
+  panels**, or they overlap MacShell's bar and Dock. MacShell's desktop takes the clicks meant for Plasma's desktop
+  icons, so remove Plasma's or turn MacShell's off.
 
 **Global menu:** Qt and GTK apps check once, at start, whether a global menu is available. Apps that were already
 running before MacShell keep their own menu bar until you restart them.
@@ -250,6 +271,32 @@ KWin's own task switcher stays on Alt+Tab.
 | `settings` | `open` |
 | `widgets` | `refresh` (re-fetch the weather), `edit true\|false` |
 
+### KWin's blur
+
+By default MacShell draws its glass itself. Liquid Glass blurs and bends a picture of the wallpaper, and the Normal
+Blur style is a plain tint on KWin, so the windows behind a menu or the Dock don't show through. Turn on
+**Settings → Appearance → Use KWin's blur** (shown on KWin only) to hand the blur to KWin instead:
+
+- These become a see-through tint:
+  - the bar strip (when "Liquid Glass bar" is on);
+  - menus and popovers, notification banners, the Control Center and Spotlight;
+  - the window switcher, the wallpaper picker and the volume/brightness pop-up;
+  - the Dock, its labels and its right-click menu;
+  - the desktop's right-click menu and its Rename, Quick Preview and Add Folder sheets;
+  - Liquid Glass desktop widgets.
+- MacShell asks KWin to blur what's behind each of them, cut to its rounded corners, the same way KDE's own apps ask
+  for blur (the `ext-background-effect` Wayland protocol).
+- The strength of the blur is KWin's: System Settings → Desktop Effects → Blur must be enabled. A replacement blur
+  effect such as Better Blur should work too if it honours what apps request. Keep its force-blur of docks off for
+  MacShell, or it blurs the whole screen (see [Troubleshooting](#troubleshooting)).
+- **Translucency** (Appearance) still sets how strong the tint is. The Liquid Glass sliders, Menu Bar style and Dock
+  style don't apply while the option is on.
+- MacShell's own glass rendering (wallpaper capture, blur passes, refraction shaders) is switched off.
+
+Not affected: the Settings window's frosted scroll edge and the Clock app's tab marker, which blur MacShell's own
+content rather than what's behind the window; the small pointer under Dock labels; and photo or solid-style widgets.
+The option is stored as `kwinBlur` in `~/.config/macdock/settings.json`.
+
 ### Where settings are stored
 
 | Path | Content |
@@ -267,6 +314,7 @@ KWin's own task switcher stays on Alt+Tab.
 | Empty Dock, generic File/Edit/View menus everywhere | Is the bridge running? `nix run github:OngYean/MacShell-KWin#kwin-bridge -- --check` (or `macshell-kwin-bridge --check`) prints a summary with counts only. |
 | One app still shows its own menu bar | It started before MacShell: restart it. `busctl --user status com.canonical.AppMenu.Registrar` must succeed while MacShell runs. |
 | No notifications | `busctl --user status org.freedesktop.Notifications` shows who owns them. MacShell takes them only when nobody else has for 15 s. |
+| No bar, Dock or wallpaper after login | MacShell didn't start and `plasmashell` was skipped. Open KRunner (`Alt+Space`) or a terminal and run `macshell-session stop` to get Plasma's shell; `journalctl --user -u macshell -b` shows why. |
 | The whole screen is blurred | A force-blur KWin effect (e.g. Better Blur) with "Blur docks" enabled. Turn that option off: MacShell asks KWin for blur where it needs it. |
 | Brightness slider does nothing | `busctl --user status org.kde.ScreenBrightness` must show PowerDevil. |
 | The glass shows another picture than the desktop | MacShell reads Plasma's wallpaper from `~/.config/plasma-org.kde.plasma.desktop-appletsrc`; with different wallpapers per screen only the first is used. |
@@ -277,7 +325,13 @@ KWin's own task switcher stays on Alt+Tab.
 
 - **Unverified fixes:** the latest fixes for the bar background, force-blur effects, brightness, notifications
   without a tray, wallpaper sync and menu icons haven't been run in a live Plasma session yet
-  (`handoff/08-plasma-fixes-tests.md` is the test plan).
+  (`handoff/08-plasma-fixes-tests.md` is the test plan). Neither has the wallpaper and splash handling without
+  `plasmashell` (`handoff/10-replace-wallpaper-splash-tests.md`), nor "Use KWin's blur"
+  (`handoff/11-kwin-blur-tests.md`).
+- **Without `plasmashell`:** if Plasma's settings name no wallpaper picture (for example, you never changed Plasma's
+  default wallpaper) and you haven't picked one in MacShell, the background stays black until you pick one. If you
+  changed the wallpaper in Plasma after your last pick in MacShell, MacShell shows its own pick. Video wallpapers
+  still go through `mpvpaper` there, which is untested on KWin.
 - **Global menu:** no keyboard navigation; submenus open inside the same popover rather than cascading; menus of
   GTK apps, Electron apps, Firefox, VS Code and Xwayland apps are untested. Mnemonics are stripped, not underlined.
 - **No live window previews**, and the glass refracts only the wallpaper (KWin offers no window capture to
@@ -287,9 +341,11 @@ KWin's own task switcher stays on Alt+Tab.
 - A Plasma system tray added *after* MacShell has taken over notifications in the same login gets none until
   MacShell is stopped and `plasmashell` restarted.
 
-To get your normal desktop back at any point: `Ctrl+C` (or `macshell kill`), `macshell-session restore` if you used
-`replace`, and in the worst case log out and back in. To uninstall, set `programs.macshell.enable = false` (or
-remove the module) and rebuild. MacShell's settings stay in the folders listed above.
+To get your normal desktop back at any point, run `macshell-session stop`, from KRunner (`Alt+Space`) or a terminal.
+Without Nix, run `systemctl --user start plasma-plasmashell.service` after stopping MacShell. With Home Manager
+autostart in replace mode, the next login starts MacShell again: set `mode = "coexist"` or `autostart = false` and
+rebuild to get Plasma's shell at login. To uninstall, set `programs.macshell.enable = false` (or remove the module)
+and rebuild. MacShell's settings stay in the folders listed above.
 
 ## Development
 
