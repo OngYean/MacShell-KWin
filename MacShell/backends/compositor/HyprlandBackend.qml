@@ -19,7 +19,7 @@ Scope {
         sessionActions: true, systemSettings: false,
         windowCapture: true, screenCapture: true, drawDecorations: true, windowRules: true, layerBlurRules: true,
         windowLayout: true, sendShortcut: true, colorPicker: true, nightShift: true, monitorConfig: true, inputConfig: true,
-        notificationServer: true
+        notificationServer: true, minimizeTarget: false
     })
 
     readonly property var toplevels: active ? ToplevelManager.toplevels.values : []
@@ -119,6 +119,7 @@ Scope {
     readonly property var appMenu: ({ status: "unsupported", windowId: "", appId: "", revision: 0, items: [] })
     function menuEvent(itemId, event, windowId) { }
     function menuAboutToShow(itemId, windowId) { }
+    function setIconTargets(map) { }                 // only KWin's minimize effects take a target
     readonly property bool plasmaShellRunning: false
     readonly property string notificationsOwner: "none"
     function openSystemSettings(module) { }

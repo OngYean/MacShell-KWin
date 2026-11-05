@@ -8,7 +8,7 @@
 // Before using a feature that only one compositor has, check can("<feature>"); the keys are listed in `caps` of each backend:
 //   windows activate close minimize maximize fullscreen workspaces moveToWorkspace keyboardLayouts globalMenu sessionActions
 //   systemSettings backgroundEffect windowCapture screenCapture drawDecorations windowRules layerBlurRules windowLayout
-//   sendShortcut colorPicker nightShift monitorConfig inputConfig notificationServer
+//   sendShortcut colorPicker nightShift monitorConfig inputConfig notificationServer minimizeTarget
 import QtQuick
 import Quickshell
 
@@ -58,6 +58,9 @@ Scope {
     function toggleFullscreen(addr) { if (backend) backend.toggleFullscreen(addr); }
     function moveWindowToWorkspace(addr, n) { if (backend) backend.moveWindowToWorkspace(addr, n); }
     function showDesktop(on) { if (backend) backend.showDesktop(on); }
+    // KWin (can("minimizeTarget")): where the Dock shows each window, so KWin's minimize effects (Magic Lamp) animate into
+    // it. map: address → { screen (name), x, y, width, height } in that screen's logical pixels; the whole set every time
+    function setIconTargets(map) { if (backend) backend.setIconTargets(map); }
 
     // ── workspaces ──
     readonly property var workspaceIds: backend ? backend.workspaceIds : [1]

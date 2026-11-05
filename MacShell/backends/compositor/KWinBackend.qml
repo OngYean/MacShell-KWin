@@ -44,6 +44,8 @@ Scope {
         workspaces: root.desktops.length > 0, moveToWorkspace: root.windowManagement && root.desktops.length > 0,
         keyboardLayouts: root.layouts.length > 0, globalMenu: root.globalMenuAvailable, backgroundEffect: true,
         sessionActions: true, systemSettings: true,
+        // KWin's minimize effects (Magic Lamp) can be told where each window's Dock icon is (setIconTargets)
+        minimizeTarget: root.windowManagement && root.iconScreens.length > 0,
         // KWin offers no capture protocol to ordinary clients, draws (Klassy) decorations itself and has no layer rules
         windowCapture: false, screenCapture: false, drawDecorations: false, windowRules: false, layerBlurRules: false,
         windowLayout: false, sendShortcut: false, colorPicker: false, nightShift: false, monitorConfig: false, inputConfig: false,
@@ -221,6 +223,26 @@ Scope {
     function menuEvent(itemId, event, windowId) { send({ cmd: "menuEvent", windowId: windowId !== undefined ? windowId : appMenu.windowId, id: itemId, event: event }); }
     function menuAboutToShow(itemId, windowId) { send({ cmd: "menuAboutToShow", windowId: windowId !== undefined ? windowId : appMenu.windowId, id: itemId }); }
 
+    // ── minimize targets: where the Dock shows each window, so Magic Lamp animates into it instead of towards the pointer ──
+    property var iconScreens: []                // screens the bridge has an anchor surface on ("iconAnchors")
+    property var iconWanted: ({})               // address → { screen, x, y, width, height }: the screen's own logical pixels
+    property var iconSent: ({})                 // address → what the bridge has now (JSON); a new bridge has nothing
+    function setIconTargets(map) { iconWanted = map || {}; syncIconTargets(); }
+    // only changes are sent, and only for windows the bridge already knows (it drops the rest), so this also runs on "windows"
+    function syncIconTargets() {
+        if (!ready) return;
+        var sent = iconSent, next = {}, a, t, j;
+        for (a in iconWanted) {
+            if (!byId[a]) continue;
+            t = iconWanted[a];
+            j = JSON.stringify(t);
+            next[a] = j;
+            if (sent[a] !== j) send({ cmd: "iconGeometry", id: a, screen: t.screen, x: t.x, y: t.y, width: t.width, height: t.height });
+        }
+        for (a in sent) if (next[a] === undefined && byId[a]) send({ cmd: "iconGeometry", id: a, screen: "" });
+        iconSent = next;
+    }
+
     // ── the bridge process ──
     function consume(line) {
         var m;
@@ -235,6 +257,9 @@ Scope {
             activeId = m.activeId || "";
             windowList = m.windows || [];
             syncToplevels();
+            syncIconTargets();
+        } else if (m.type === "iconAnchors") {
+            iconScreens = m.screens || [];
         } else if (m.type === "workspaces") {
             var d = (m.desktops || []).slice();
             d.sort(function (a, b) { return a.position - b.position; });
@@ -267,6 +292,7 @@ Scope {
             root.status = "bridge-exited-" + exitCode;
             root.windowList = []; root.activeId = ""; root.syncToplevels();
             root.appMenu = { status: "none", windowId: "", appId: "", revision: 0, items: [] };
+            root.iconScreens = []; root.iconSent = {};    // the next bridge starts with no anchors and no targets
             if (root.active) restartT.restart();          // KWin restarted or the bridge crashed: come back, with backoff
         }
     }

@@ -4448,6 +4448,45 @@ Scope {
         return out;
     }
 
+    // ── KWin: where each window's Dock icon is, so KWin's minimize effects (Magic Lamp) fly into it, not to the pointer ──
+    // The icons' resting places (no magnification, not hidden) in the screen's own logical pixels. A window with its own
+    // preview cell goes there, any other to its app's icon; to the Dock on its own screen, else to the one screen the Dock
+    // is limited to. Assumes the Dock surface spans its screen along the bottom edge, as tearGhost does.
+    readonly property var iconTargets: {
+        var out = {};
+        if (!comp || !comp.can("minimizeTarget") || !dockEnabled || !settingsReady) return out;
+        var screens = Quickshell.screens, shown = {}, home = null, i;
+        for (i = 0; i < screens.length; i++) {
+            if (monitor === "" || screens[i].name === monitor) { shown[i] = true; if (!home) home = screens[i]; }
+        }
+        if (!home) return out;
+        var cells = {}, list = items;
+        for (i = 0; i < list.length; i++) {
+            var it = list[i];
+            if (it.leaving) continue;
+            if (it.kind === "win" && it.tl) cells["w:" + it.tl.address] = it;
+            else if (it.kind === "app" && !it.special) cells["a:" + it.key] = it;
+        }
+        var screenOf = {}, clients = comp.clients;
+        for (i = 0; i < clients.length; i++) screenOf[clients[i].address] = clients[i].monitor;
+        var tls = comp.toplevels;
+        for (i = 0; i < tls.length; i++) {
+            var tl = tls[i], c = cells["w:" + tl.address] || (tl.appId ? cells["a:" + keyOf(appOf(tl))] : undefined);
+            if (!c) continue;
+            var s = shown[screenOf[tl.address]] ? screens[screenOf[tl.address]] : home;
+            out[tl.address] = {
+                screen: s.name,
+                x: Math.max(0, Math.round((s.width - totalW0) / 2 + c.nA * (iconSize + spacing) + c.nS * (sepWidth + spacing))),
+                y: Math.max(0, Math.round(s.height - margin - bottomPad - iconSize)),
+                width: iconSize, height: iconSize
+            };
+        }
+        return out;
+    }
+    onIconTargetsChanged: iconTargetsT.restart()
+    // debounced: while a window is dragged the window list changes every frame
+    Timer { id: iconTargetsT; interval: 250; onTriggered: if (root.comp) root.comp.setIconTargets(root.iconTargets) }
+
     function activate(item, forceNew) {
         if (item.kind === "win") { if (item.tl) item.tl.activate(); return; }
         if (item.special === "apps") { if (bar) bar.spotOpen("apps"); return; }
