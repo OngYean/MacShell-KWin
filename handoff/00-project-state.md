@@ -8,7 +8,7 @@ Port the existing macOS Tahoe-inspired MacShell Quickshell presentation to **KDE
 
 The user is now in a standard Plasma 6 Wayland session. Local verification reports KWin and plasmashell `6.8.2`, Qt `6.12.0`, `XDG_SESSION_TYPE=wayland`, and `XDG_CURRENT_DESKTOP=KDE`. Do not alter host configuration, change sessions, run `install.sh`, install software, disable plasmashell, or use privileged commands.
 
-## Current state (2026-11-04)
+## Current state (2026-11-05)
 
 This section supersedes older status lines further down where they disagree. The older lines are kept for history.
 
@@ -16,8 +16,30 @@ This section supersedes older status lines further down where they disagree. The
 - **Branches:**
   - `main` (`d53665e`) already contains `kwin-port`.
   - `kwin-plasma-fixes` (`701c526`) is based on `main`.
-  - `fork-credits-readme` (`e4ac899`) is based on `kwin-plasma-fixes`. It is the newest branch and holds all the work.
-  - Every branch is pushed, and CI passes on each head.
+  - `fork-credits-readme` (`2644f5c`) is based on `kwin-plasma-fixes`.
+  - `kwin-replace-wallpaper-splash` is based on `fork-credits-readme`. It is the newest branch and holds all the work.
+  - Every branch is pushed. CI passes on the heads of the older three; on `kwin-replace-wallpaper-splash`, see [`README.md`](README.md).
+- **Direction (user decision, 2026-11-05):** MacShell runs **in place of `plasmashell` by default**, and side by side is the second option. Three untested features on `kwin-replace-wallpaper-splash` implement it:
+  - the wallpaper and login splash without `plasmashell` ([`10`](10-replace-wallpaper-splash-tests.md));
+  - "Use KWin's blur" ([`11`](11-kwin-blur-tests.md));
+  - replace as the default launch and the Home Manager `mode` ([`12`](12-replace-default-tests.md)).
+
+  Agents still don't change the host's configuration themselves. The user opts in through Home Manager.
+- **Still missing without `plasmashell`** (checked against the Plasma 6.8.2 sources; none of it ported yet):
+  - **Tray entries:**
+    - Night Light on/off (the button only opens System Settings), keyboard backlight, the list of apps blocking sleep;
+    - Disks & Devices (no mount or eject menu; kded's automount still works);
+    - Display Configuration (layout switch, presentation mode);
+    - KDE Connect (`kdeconnect-indicator` would show in MacShell's tray);
+    - Printers, Vaults, Input Method, Lock Keys and Dwell Clicker.
+  - **Other `plasmashell` duties:**
+    - notifications from Flatpak and other sandboxed apps: the portal backend `plasmanotify` runs inside `plasmashell` (`kde-portals.conf`);
+    - file-transfer progress (`org.kde.JobViewServer`);
+    - pop-ups other than volume and brightness (`org.kde.osdService`), such as the muted-microphone reminder. The volume keys themselves stay working, because they're in plasma-pa's kded module;
+    - `Meta` alone, which KWin sends to Plasma's launcher;
+    - Klipper's clipboard history, replaced by `cliphist`, so `Meta+V` needs rebinding;
+    - the activity switcher and `Meta+1…9`.
+- **Coexist and notifications:** once any Plasma Notifications applet has loaded, `plasmashell` keeps `org.freedesktop.Notifications` until it exits. `libnotificationmanager`'s server is a process-wide singleton that never unregisters the name, and it registers it with `DontAllowReplacement`. So MacShell's 15 s takeover only works if no such applet ever loaded in that `plasmashell` process. Replace mode avoids the problem.
 - **Global Menu:** the user reports that the AppMenu export problem is fixed in their Plasma 6.8.2 session: real application menus now reach MacShell's bar. The "hidden yet clickable, mock items" failure described below is therefore out of date.
 - **Bugs reported after that fix:** six (bar background, force blur, brightness, notifications without a Plasma tray, wallpaper sync, menu icons). Each has a `wip` fix on `kwin-plasma-fixes`, none tested in Plasma. See [`08-plasma-fixes-tests.md`](08-plasma-fixes-tests.md).
 - **Fork housekeeping on `fork-credits-readme`:**
@@ -27,7 +49,7 @@ This section supersedes older status lines further down where they disagree. The
   - removal of leftover upstream files.
 
   See [`09-fork-credits-readme.md`](09-fork-credits-readme.md). `README.md` is now the user-facing install guide, and `AGENTS.md` §11 rule 15 requires its list of changes from upstream to stay current.
-- **Nix (M6):** `packages.macshell`, `packages.macshell-kwin-bridge`, `apps.macshell-session` and `homeManagerModules.macshell` all exist. The Home Manager module's autostart is off by default, and it never disables plasmashell. They build and evaluate in CI. The user runs MacShell from this flake, but the README's Home Manager steps have not been followed on a real machine.
+- **Nix (M6):** `packages.macshell`, `packages.macshell-kwin-bridge`, `apps.macshell-session` and `homeManagerModules.macshell` all exist. The Home Manager module's autostart is off by default. With autostart, `mode = "replace"` (the default since 2026-11-05) makes `plasma-plasmashell.service` skip itself at login through a drop-in condition, never a mask, and a fallback unit starts it again if MacShell keeps failing. They build and evaluate in CI. The user runs MacShell from this flake, but the README's Home Manager steps have not been followed on a real machine.
 - **Still unverified:**
   - Klassy (KWin was set to Breeze);
   - GTK, Electron, Firefox and VS Code menus, and menus of Xwayland apps;
@@ -93,7 +115,7 @@ The branch carries implementations for Milestones 3–6. CI builds them, evaluat
 - **M3 KWin backend:** `kwin-bridge/` (`macshell-kwin-bridge`), promoted from the POC. It is event-driven, validates its input, and keeps titles and labels in the pipe. Plasma Window Management stays isolated in this helper, with the decision record and version/fallback policy in its README; this closes the trust/access review the earlier briefs asked for.
 - **M4 global menu:** a real D-BusMenu renderer in `MacBar.qml`, falling back to the generic menus. The bridge registers `org.kde.kappmenuview` so the registrar survives without Plasma's applet.
 - **M5 integration:** dock, menu bar, session actions (KDE locker, `org.kde.Shutdown`), workspaces, keyboard layouts, Spectacle for screenshots/recording, KDE settings modules for displays/input/Night Light, no live capture on KWin, and notifications only in an explicit replace mode.
-- **M6 Nix:** `packages.macshell`, `packages.macshell-kwin-bridge`, `apps.macshell-session` (per-login `replace` / `restore`), `homeManagerModules.macshell` (autostart off by default; plasmashell never disabled).
+- **M6 Nix:** `packages.macshell`, `packages.macshell-kwin-bridge`, `apps.macshell-session` (per-login `start` = replace, the default, / `coexist` / `stop`), `homeManagerModules.macshell` (autostart off by default; with autostart, `mode = "replace"` by default skips plasmashell at login through a drop-in condition, never a mask, with a fallback that starts it again if MacShell keeps failing; see [`12-replace-default-tests.md`](12-replace-default-tests.md)).
 
 ## Milestones and status
 

@@ -20,6 +20,33 @@ These handoffs let an agent start from the repository without access to the orig
 - [`07-kickoff-prompt.md`](07-kickoff-prompt.md) — ready-to-paste first message for the agent on the Plasma host.
 - [`08-plasma-fixes-tests.md`](08-plasma-fixes-tests.md) — what to test for the six fixes on branch `kwin-plasma-fixes` (bar background, force blur, brightness, notifications, wallpaper sync, menu icons).
 - [`09-fork-credits-readme.md`](09-fork-credits-readme.md) — branch `fork-credits-readme`: licence and credits, the Plasma-focused README, the update check, the branch layout and open licensing items.
+- [`10-replace-wallpaper-splash-tests.md`](10-replace-wallpaper-splash-tests.md) — branch `kwin-replace-wallpaper-splash` (from `fork-credits-readme`): MacShell draws the wallpaper and ends the login splash when `plasmashell` isn't running. The first step towards dropping `plasmashell`.
+- [`11-kwin-blur-tests.md`](11-kwin-blur-tests.md) — the "Use KWin's blur" option: every glass surface becomes a see-through tint with KWin's blur behind it. Design decisions and test plan.
+- [`12-replace-default-tests.md`](12-replace-default-tests.md) — replacing `plasmashell` is the default launch (`macshell-session start`, Home Manager `mode = "replace"`), running side by side is `coexist`. How login skips `plasmashell`, the fallback, and the test plan.
+
+## Update (2026-11-05, branch `kwin-replace-wallpaper-splash`)
+
+Branches: `main` (`d53665e`) ← `kwin-plasma-fixes` (`701c526`) ← `fork-credits-readme` (`2644f5c`) ← `kwin-replace-wallpaper-splash`. The new branch is the newest and contains everything. Nothing has been merged into `main` since.
+
+On 2026-11-05 the user decided that MacShell should run **without `plasmashell` by default**, for two reasons:
+- MacShell's desktop layer takes the clicks meant for Plasma's desktop icons, so the two desktops can't share the screen.
+- MacShell already covers most of the Plasma tray.
+
+The branch adds three features towards that, all written on macOS without Nix, Quickshell or Plasma. **None has run in Plasma.**
+
+1. **Wallpaper and login splash without `plasmashell`.** `MacShell/Wallpaper.qml` draws the wallpaper and sends KSplash's last stage. Test plan: [`10`](10-replace-wallpaper-splash-tests.md).
+2. **Settings → Appearance → "Use KWin's blur".** Every glass surface becomes a see-through tint, and KWin blurs behind it (`GlassBlur.qml`, `BlurCollector.qml`). Test plan: [`11`](11-kwin-blur-tests.md).
+3. **Replace is the default launch.**
+   - `macshell-session start` replaces `plasmashell`, `coexist` runs MacShell side by side, and `stop` brings `plasmashell` back.
+   - The Home Manager option `mode` defaults to `"replace"`. With `autostart` it skips `plasmashell` at login through a drop-in condition (never a mask), and `macshell-fallback.service` starts it again if MacShell keeps failing.
+   - Test plan: [`12`](12-replace-default-tests.md).
+
+Validation so far:
+- `sh nix/test-macshell-session.sh` passes on macOS `sh` and `dash`.
+- `git diff --check` is clean, and brace balance is unchanged in every edited QML file.
+- qmllint, ShellCheck, Nix evaluation and the build were **not** run locally. The branch was added to the CI triggers so CI runs them on push. Its result: `https://api.github.com/repos/OngYean/MacShell-KWin/actions/runs?branch=kwin-replace-wallpaper-splash`.
+
+On the Plasma host, test in this order: [`08`](08-plasma-fixes-tests.md) (still pending), [`10`](10-replace-wallpaper-splash-tests.md), [`12`](12-replace-default-tests.md), [`11`](11-kwin-blur-tests.md). What is still missing without `plasmashell` is listed in [`00-project-state.md`](00-project-state.md#current-state-2026-11-05).
 
 ## Update (2026-11-04, branch `fork-credits-readme`)
 
