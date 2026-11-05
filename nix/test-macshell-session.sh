@@ -1,7 +1,8 @@
 #!/bin/sh
 # test-macshell-session.sh — checks the order of what macshell-session does, with stand-in commands that only log.
-# The order matters: plasmashell must be stopped before MacShell claims notifications (replace), and MacShell must be
-# gone before plasmashell starts again (restore), or plasmashell comes back without its notification name.
+# The order matters: plasmashell must be stopped before MacShell claims notifications (start / replace), and MacShell
+# must be gone before plasmashell starts again (coexist / restore / stop), or plasmashell comes back without its
+# notification name.
 #   sh nix/test-macshell-session.sh            (no Plasma, systemd or Nix needed)
 # shellcheck disable=SC2016  # the stub bodies are written literally: they expand when the stubs run
 set -eu
@@ -39,14 +40,20 @@ expect() { # name, expected log (one call per line; "" = nothing was called)
     echo "ok: $1"
 }
 
-HAVE_UNIT=1 run 0 replace
-expect "replace (systemd unit): plasmashell stops before MacShell restarts in replace mode" "systemctl --user stop plasma-plasmashell.service
+HAVE_UNIT=1 run 0 start
+expect "start (systemd unit, the default: replace): plasmashell stops before MacShell restarts in replace mode" "systemctl --user stop plasma-plasmashell.service
 systemctl --user cat macshell.service
 systemctl --user set-environment MACSHELL_KDE_MODE=replace
 systemctl --user restart macshell.service"
 
-HAVE_UNIT=1 run 0 restore
-expect "restore (systemd unit): MacShell stops, plasmashell starts and is up, then MacShell restarts in coexist" "systemctl --user cat macshell.service
+HAVE_UNIT=0 run 0 replace
+expect "replace = start (no unit): plasmashell stops, then a detached MacShell starts in replace mode" "systemctl --user stop plasma-plasmashell.service
+systemctl --user cat macshell.service
+macshell kill MACSHELL_KDE_MODE=
+macshell  MACSHELL_KDE_MODE=replace"
+
+HAVE_UNIT=1 run 0 coexist
+expect "coexist (systemd unit): MacShell stops, plasmashell starts and is up, then MacShell restarts in coexist" "systemctl --user cat macshell.service
 systemctl --user stop macshell.service
 macshell kill MACSHELL_KDE_MODE=
 systemctl --user unset-environment MACSHELL_KDE_MODE
@@ -56,21 +63,29 @@ systemctl --user cat macshell.service
 systemctl --user unset-environment MACSHELL_KDE_MODE
 systemctl --user restart macshell.service"
 
-HAVE_UNIT=0 run 0 replace
-expect "replace (no unit): plasmashell stops, then a detached MacShell starts in replace mode" "systemctl --user stop plasma-plasmashell.service
-systemctl --user cat macshell.service
-macshell kill MACSHELL_KDE_MODE=
-macshell  MACSHELL_KDE_MODE=replace"
-
 HAVE_UNIT=0 PLASMA_COMES_UP=0 run 1 restore
-expect "restore: plasmashell never appears, so MacShell is not restarted" "systemctl --user cat macshell.service
+expect "restore = coexist: plasmashell never appears, so MacShell is not restarted" "systemctl --user cat macshell.service
 macshell kill MACSHELL_KDE_MODE=
 systemctl --user unset-environment MACSHELL_KDE_MODE
 systemctl --user start plasma-plasmashell.service
 $(i=0; while [ "$i" -lt 30 ]; do echo "busctl --user status org.kde.plasmashell"; i=$((i + 1)); done)"
 
-DESKTOP=Hyprland run 2 replace
-expect "replace outside Plasma: refused before touching anything" ""
+# (sh keeps assignments made in front of a function call, so set again what an earlier test changed)
+HAVE_UNIT=1 PLASMA_COMES_UP=1 run 0 stop
+expect "stop (Plasma): MacShell stops, then plasmashell comes back (the session never stays without a shell)" "systemctl --user cat macshell.service
+systemctl --user stop macshell.service
+macshell kill MACSHELL_KDE_MODE=
+systemctl --user unset-environment MACSHELL_KDE_MODE
+systemctl --user start plasma-plasmashell.service
+busctl --user status org.kde.plasmashell"
+
+DESKTOP=Hyprland HAVE_UNIT=1 run 0 stop
+expect "stop outside Plasma: only MacShell stops, plasmashell is not started" "systemctl --user cat macshell.service
+systemctl --user stop macshell.service
+macshell kill MACSHELL_KDE_MODE="
+
+DESKTOP=Hyprland run 2 start
+expect "start outside Plasma: refused before touching anything" ""
 
 run 2 bogus
 expect "unknown command: usage, nothing run" ""

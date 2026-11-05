@@ -1,12 +1,14 @@
 #!/bin/sh
-# macshell-session — switch a KDE Plasma session between plasmashell and MacShell, for this login only.
+# macshell-session — run MacShell in a KDE Plasma session, in place of plasmashell (the default) or next to it.
 #   status   what is running: plasmashell, MacShell, and the KWin bridge's sanitized check (counts only)
-#   start    start MacShell next to plasmashell ("coexist": Plasma keeps notifications, OSD, clipboard history, desktop)
-#   stop     stop MacShell (plasmashell is left as it is)
-#   replace  stop plasmashell for this login and run MacShell in "replace" mode (it takes over notifications)
-#   restore  bring plasmashell back and put MacShell back into coexist mode
-# Nothing here is persistent: no unit is enabled, disabled or masked, so logging out and in again always gives the
-# normal Plasma session. KWin, Klassy, KDE's lock screen, kded, PowerDevil and the portals are never touched.
+#   start    stop plasmashell for this login and run MacShell in its place ("replace": MacShell draws the wallpaper and
+#            takes over notifications). `replace` does the same.
+#   coexist  run MacShell next to plasmashell, starting plasmashell again if it was stopped (Plasma keeps its
+#            notifications, pop-ups, clipboard history and desktop). `restore` does the same.
+#   stop     stop MacShell, and bring plasmashell back so the session is never left without a shell
+# Nothing here is persistent: no unit is enabled, disabled or masked. What the next login does is up to programs.macshell
+# (Home Manager): with autostart and mode = "replace" plasmashell is skipped at login, otherwise it starts as usual.
+# KWin, Klassy, KDE's lock screen, kded, PowerDevil and the portals are never touched.
 set -eu
 
 unit="macshell.service"
@@ -29,8 +31,6 @@ stop_macshell() {
     macshell kill >/dev/null 2>&1 || true
 }
 
-# MacShell's notification server keeps its D-Bus name while its process lives: plasmashell only gets it back after
-# MacShell has exited, so restore stops MacShell first and starts it again (coexist) once plasmashell is up
 wait_for_plasmashell() {
     i=0
     while [ "$i" -lt 30 ]; do
@@ -42,11 +42,19 @@ wait_for_plasmashell() {
     return 1
 }
 
+# Call with MacShell already stopped: its notification server keeps its D-Bus name while its process lives, and
+# plasmashell only gets the name if MacShell is gone. MACSHELL_KDE_MODE=replace in the user manager also keeps
+# plasmashell's unit from starting (programs.macshell's drop-in), so it is unset first.
+bring_plasmashell_back() {
+    systemctl --user unset-environment MACSHELL_KDE_MODE 2>/dev/null || true
+    systemctl --user start "$plasma"
+    wait_for_plasmashell
+}
+
+in_plasma() { case "${XDG_CURRENT_DESKTOP:-}" in *KDE*) return 0 ;; *) return 1 ;; esac; }
+
 require_plasma() {
-    case "${XDG_CURRENT_DESKTOP:-}" in
-        *KDE*) ;;
-        *) echo "macshell-session: not a KDE Plasma session (XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset})" >&2; exit 2 ;;
-    esac
+    in_plasma || { echo "macshell-session: not a KDE Plasma session (XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset})" >&2; exit 2; }
 }
 
 case "${1:-status}" in
@@ -57,23 +65,23 @@ case "${1:-status}" in
         printf 'MACSHELL_KDE_MODE (user manager): %s\n' "$(systemctl --user show-environment 2>/dev/null | sed -n 's/^MACSHELL_KDE_MODE=//p' | grep . || echo coexist)"
         macshell-kwin-bridge --check --global-menu 2>&1 || true
         ;;
-    start) require_plasma; start_macshell coexist ;;
-    stop) stop_macshell ;;
-    replace)
+    start | replace)
         require_plasma
         systemctl --user stop "$plasma"
         start_macshell replace
-        echo "plasmashell is stopped for this login. Undo: macshell-session restore (or log out and in again)."
+        echo "plasmashell is stopped for this login. Back to it: macshell-session coexist (MacShell next to it) or stop."
         ;;
-    restore)
+    coexist | restore)
         require_plasma
         stop_macshell
-        systemctl --user unset-environment MACSHELL_KDE_MODE 2>/dev/null || true
-        systemctl --user start "$plasma"
-        wait_for_plasmashell && start_macshell coexist
+        bring_plasmashell_back && start_macshell coexist
+        ;;
+    stop)
+        stop_macshell
+        if in_plasma; then bring_plasmashell_back; fi
         ;;
     *)
-        echo "usage: macshell-session status|start|stop|replace|restore" >&2
+        echo "usage: macshell-session status|start|coexist|stop   (replace = start, restore = coexist)" >&2
         exit 2
         ;;
 esac
