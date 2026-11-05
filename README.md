@@ -95,6 +95,7 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Shortcut items in the generic File/Edit menus | `hyprctl sendshortcut` / `wtype` | `ydotool`, if installed |
 | Game Mode | Also tunes Hyprland, the power profile and the video wallpaper | Quiets MacShell's own effects only |
 | Settings → Software Update | Checks 0-ss/MacShell | Checks this fork (OngYean/MacShell-KWin); it only notifies, you update with Nix or git |
+| Menu bar and popover icons | Drawn at 100 % and stretched by the UI scale and bar height, so blurry at other sizes | Drawn at the size they're shown at, and again when the display scale changes; tray icons loaded at 64 px. Not yet tested in Plasma |
 
 ### Removed or unavailable on KDE Plasma
 
