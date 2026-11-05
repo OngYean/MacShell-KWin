@@ -39,6 +39,7 @@ Item {
 
     // ── liquid glass inputs (the Appearance sliders) ──
     property bool glassReady: false     // liquidglass.frag.qsb compiled
+    property bool kwinBlur: false       // "Use KWin's blur": the frosted card turns see-through, KWin blurs behind it
     property url shaderUrl: ""
     property url wallUrl: ""
     property string wallVideo: ""        // animated wallpaper to play behind the glass ("" = none / real-time glass off)
@@ -99,6 +100,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         visible: w.style === "liquid" && !w.glassOn
+        opacity: w.kwinBlur ? Math.min(1, w.glassOpacity / 0.85) : 1     // ≈ the Translucency setting's alpha, like the other panes
         radius: w.radiusPx
         gradient: Gradient {
             GradientStop { position: 0.0; color: w.dark ? Qt.rgba(0.22, 0.22, 0.25, 0.82) : Qt.rgba(1.0, 1.0, 1.0, 0.88) }

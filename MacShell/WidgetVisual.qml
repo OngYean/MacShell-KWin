@@ -35,7 +35,8 @@ Item {
                 isDay: host.wxDay
                 hourly: host.wxHourly
                 daily: host.wxDaily
-                glassReady: host.glassState === "ready"
+                glassReady: host.glassState === "ready" && !host.kwinBlurOn
+                kwinBlur: host.kwinBlurOn
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
                 wallVideo: host.liveWallVideo
@@ -63,7 +64,8 @@ Item {
                 fam: host.fontFamily
                 screenX: v.sx; screenY: v.sy
                 weekStart: 0
-                glassReady: host.glassState === "ready"
+                glassReady: host.glassState === "ready" && !host.kwinBlurOn
+                kwinBlur: host.kwinBlurOn
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
                 wallVideo: host.liveWallVideo
@@ -90,7 +92,8 @@ Item {
                 fam: host.fontFamily
                 boldFam: host.boldFontFamily
                 screenX: v.sx; screenY: v.sy
-                glassReady: host.glassState === "ready"
+                glassReady: host.glassState === "ready" && !host.kwinBlurOn
+                kwinBlur: host.kwinBlurOn
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
                 wallVideo: host.liveWallVideo
@@ -136,7 +139,8 @@ Item {
                 lyricsState: host.lyricsState
                 lyricsSynced: host.lyricsSynced
                 onLyricsToggled: on => host.lyricsWanted = on
-                glassReady: host.glassState === "ready"
+                glassReady: host.glassState === "ready" && !host.kwinBlurOn
+                kwinBlur: host.kwinBlurOn
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
                 wallVideo: host.liveWallVideo

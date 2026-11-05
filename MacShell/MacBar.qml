@@ -1078,11 +1078,14 @@ Scope {
         property bool refreshOnResize: false
         signal shaderError()
 
+        GlassBlur { target: g; on: root.kwinBlurOn; cornerR: g.cornerR }
         Rectangle {
             visible: !g.liquid
             anchors.fill: parent
             radius: g.cornerR
-            color: g.dark ? Qt.rgba(0.12, 0.12, 0.13, 0.30 + g.tint * 0.9) : Qt.rgba(1, 1, 1, 0.30 + g.tint * 0.7)
+            // KWin's blur: the same see-through tint as GGlass / the Dock's Normal Blur, so the blur shows
+            color: root.kwinBlurOn ? (g.dark ? Qt.rgba(0.10, 0.10, 0.11, g.tint) : Qt.rgba(1, 1, 1, g.tint * 0.55))
+                 : (g.dark ? Qt.rgba(0.12, 0.12, 0.13, 0.30 + g.tint * 0.9) : Qt.rgba(1, 1, 1, 0.30 + g.tint * 0.7))
             border.width: 1
             border.color: g.dark ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.55)
         }
@@ -1327,6 +1330,7 @@ Scope {
         }
         readonly property point fp: framePos()
 
+        GlassBlur { target: gg; on: root.kwinBlurOn; cornerR: gg.cornerR }
         Rectangle {
             visible: !gg.gx.liquid
             anchors.fill: parent
@@ -4200,7 +4204,11 @@ Scope {
 
     // ═════════════ LIQUID GLASS BACKEND (same pipeline as macdock) ═════════════
     property string glassState: "idle"       // idle → building → ready | failed
-    readonly property bool liquidActive: barStyle === "liquid" && glassState === "ready" && !gaming
+    // Settings → Appearance → "Use KWin's blur" (stored by the Dock): no Liquid Glass at all, the flat panes + KWin's blur instead
+    readonly property bool kwinBlurOn: !!hub && hub.kwinBlur
+    readonly property bool liquidActive: barStyle === "liquid" && glassState === "ready" && !gaming && !kwinBlurOn
+    // the bar strip is glass: Liquid Glass, or a flat pane with KWin's blur behind it
+    readonly property bool barGlassOn: barGlass && (liquidActive || kwinBlurOn)
     readonly property string glassShaderSrc: decodeURIComponent(Qt.resolvedUrl("liquidglass.frag").toString().replace("file://", ""))
     readonly property string glassShaderOut: configDir + "/liquidglass.frag.qsb"
     readonly property url glassShaderUrl: "file://" + glassShaderOut
@@ -4987,6 +4995,7 @@ Scope {
 
         PanelWindow {
             id: win
+            BlurCollector { window: win; compositor: root.comp }    // bar strip fill, menus, popovers, Control Center, banners
             property var modelData: perScreen.modelData
             screen: perScreen.modelData
 
@@ -5685,15 +5694,14 @@ Scope {
                     width: ui.width
                     height: root.barH
                     color: root.darkMode ? Qt.rgba(0.10, 0.10, 0.11, root.barBgOpacity) : Qt.rgba(1, 1, 1, root.barBgOpacity)
-                    Region { id: barFillBlur; item: barFillIn.fillOn ? barFillIn : null }
-                    Component.onCompleted: if (root.comp && root.comp.can("backgroundEffect")) win.BackgroundEffect.blurRegion = barFillBlur
+                    GlassBlur { target: barFillIn; on: barFillIn.fillOn }     // with or without "Use KWin's blur"
                 }
 
                 // Liquid Glass menu bar strip: the bar itself refracts the live backdrop (wallpaper + windows), like the popovers.
                 // Settings → Menu Bar → "Liquid Glass bar". Sits under every bar item.
                 LGlass {
                     id: barGlassStrip
-                    visible: root.barGlass && root.liquidActive
+                    visible: root.barGlassOn
                     x: 0; y: 0
                     width: ui.width
                     height: root.barH
@@ -5716,7 +5724,7 @@ Scope {
                 // Feather: when the bar is completely clear (no glass, no fill) a soft, small fade just behind it keeps the text readable.
                 Rectangle {
                     id: barFeather
-                    readonly property bool wanted: root.barEnabled && !(root.barGlass && root.liquidActive) && root.barBgOpacity <= 0.001
+                    readonly property bool wanted: root.barEnabled && !root.barGlassOn && root.barBgOpacity <= 0.001
                     visible: opacity > 0.01
                     opacity: wanted ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -8835,6 +8843,7 @@ Scope {
         // ═════════ Window switcher (ALT + TAB) lives in its OWN layer (namespace "macswitch") ═════════
         PanelWindow {
             id: swWin
+            BlurCollector { window: swWin; compositor: root.comp }
             screen: perScreen.modelData
             visible: (root.swOpen && ui.toastScreen) || swPanel.opacity > 0
             onVisibleChanged: root.popCount += (visible ? 1 : -1)     // keeps the window-geometry poller running while it is open
@@ -9009,6 +9018,7 @@ Scope {
         // ═════════ Wallpaper picker (CTRL + ALT + W) lives in its OWN layer (namespace "macwall") ═════════
         PanelWindow {
             id: wpWin
+            BlurCollector { window: wpWin; compositor: root.comp }
             screen: perScreen.modelData
             visible: (root.wpOpen && ui.toastScreen) || wpPanel.opacity > 0
             onVisibleChanged: root.popCount += (visible ? 1 : -1)     // keeps the window-geometry poller running while it is open
@@ -9401,6 +9411,7 @@ Scope {
         // Hyprland: `layerrule = noanim, macosd` keeps its fade clean.
         PanelWindow {
             id: osdWin
+            BlurCollector { window: osdWin; compositor: root.comp }
             screen: perScreen.modelData
             readonly property bool shown: ui.toastScreen && (root.osdVisible || levelOsd.opacity > 0)
             visible: shown
@@ -9502,6 +9513,7 @@ Scope {
         // "macspot" and leave "macbar" without blur.
         PanelWindow {
             id: spotWin
+            BlurCollector { window: spotWin; compositor: root.comp }
             screen: perScreen.modelData
             // Mapped only while open (or fading out) and on the Overlay layer, so it shows above fullscreen windows: changing the
             // layer of an already-mapped surface is ignored by Hyprland, so it cannot just stay mapped on Top. The glass backdrop

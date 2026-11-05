@@ -39,6 +39,8 @@ Scope {
 
     // Liquid Glass look = the Appearance sliders (Translucency / Blur / Liquid strength) of the Dock + Menu Bar
     readonly property real glassOpacity: dock ? dock.glassOpacity : 0.42
+    // Settings → Appearance → "Use KWin's blur": Liquid Glass widgets draw their frosted card, see-through, and KWin blurs behind
+    readonly property bool kwinBlurOn: !!hub && hub.kwinBlur
     readonly property real glassBlur: (dock ? dock.glassBlur : 5) + 11     // the Appearance blur slider, plus 11 more for widgets
     readonly property real glassLiquid: dock ? dock.glassLiquid : 1.0
     readonly property real glassRim: dock ? dock.glassRim : 0.45
@@ -641,6 +643,7 @@ Scope {
 
         PanelWindow {
             id: win
+            BlurCollector { window: win; compositor: root.hub ? root.hub.compositor : null }
             required property var modelData
             screen: modelData
             anchors { left: true; right: true; top: true; bottom: true }
@@ -712,6 +715,8 @@ Scope {
                         readonly property real radiusPx: 28 * root.widgetScale * (wsize === "small" ? 168 / 158 : (wsize === "medium" ? 358 / 338 : 1))
                         width: baseDims[0]
                         height: baseDims[1]
+                        // only the Liquid Glass style is glass; the solid styles and photos stay as they are
+                        GlassBlur { target: ww; on: root.kwinBlurOn && ww.wstyle === "liquid" && ww.wtype !== "image"; cornerR: ww.radiusPx }
 
                         WidgetVisual {
                             id: visual

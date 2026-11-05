@@ -42,6 +42,9 @@ ShellRoot {
         Binding { target: sharedHub; property: "monData"; value: facade.monitors; when: facade.isKWin }
         Binding { target: sharedHub; property: "glassClients"; value: facade.clients; when: facade.isKWin }
         property var wallpaperMap: ({})
+        // Settings → Appearance → "Use KWin's blur": every glass surface turns into a translucent tint and KWin blurs what is
+        // behind it (GlassBlur.qml / BlurCollector.qml) instead of MacShell's own Liquid Glass pipeline. KWin only.
+        readonly property bool kwinBlur: macDock.kwinBlur && facade.can("backgroundEffect")
         // KDE: plasmashell draws the desktop, so the glass refracts Plasma's wallpaper, also after it is changed in Plasma's
         // settings, rather than MacShell's saved pick. Right after a pick of MacShell's (MacBar sets plasmaWallpaperAtPick)
         // the pick shows until Plasma's config reports a different wallpaper: Plasma writes its config with a delay.

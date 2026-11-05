@@ -21,6 +21,9 @@ Item {
 
     property var backdrop: null          // the Dock's glass backdrop item (wallpaper + live windows, screen coordinates), or null
     property bool live: false            // true: blur the backdrop; false: plain tinted fill
+    // Settings → Appearance → "Use KWin's blur" (pass it with live: false): the see-through tint of the live bubble, and KWin
+    // blurs what is behind the body (GlassBlur; the tail stays unblurred)
+    property bool kwinBlur: false
     property bool frozen: false          // true: the blurred picture is left as it is (no re-capture, no re-blur) until false again
     // `frozen` takes effect after a short moment, so the bubble first gets one current picture at its final place (a capture that is
     // frozen before it ever rendered would stay empty)
@@ -55,7 +58,7 @@ Item {
     property real capSx: 1
     property real capSy: 1
     // everything that changes the picture: any of these repaints the canvases
-    readonly property string shapeKey: [width, bodyH, tailW, tailH, tailTipR, tailX, radius, dark, live, k].join("|")
+    readonly property string shapeKey: [width, bodyH, tailW, tailH, tailTipR, tailX, radius, dark, live, kwinBlur, k].join("|")
 
     function syncPos() {
         if (!gp.backdrop || gp.hold) return;
@@ -198,14 +201,15 @@ Item {
             ctx.fill();
             ctx.globalCompositeOperation = "source-over";
 
-            // tint over the blurred backdrop (a firmer one when there is no backdrop of our own to blur)
+            // tint over the blurred backdrop (a firmer one when there is no blur behind it at all)
+            var seeThrough = gp.live || gp.kwinBlur;
             var g = ctx.createLinearGradient(0, pd, 0, pd + H + TH);
             if (gp.dark) {
-                g.addColorStop(0, gp.live ? "rgba(56,56,62,0.50)" : "rgb(54,54,59)");
-                g.addColorStop(1, gp.live ? "rgba(30,30,34,0.58)" : "rgb(34,34,38)");
+                g.addColorStop(0, seeThrough ? "rgba(56,56,62,0.50)" : "rgb(54,54,59)");
+                g.addColorStop(1, seeThrough ? "rgba(30,30,34,0.58)" : "rgb(34,34,38)");
             } else {
-                g.addColorStop(0, gp.live ? "rgba(255,255,255,0.44)" : "rgb(246,246,249)");
-                g.addColorStop(1, gp.live ? "rgba(255,255,255,0.36)" : "rgb(236,236,241)");
+                g.addColorStop(0, seeThrough ? "rgba(255,255,255,0.44)" : "rgb(246,246,249)");
+                g.addColorStop(1, seeThrough ? "rgba(255,255,255,0.36)" : "rgb(236,236,241)");
             }
             outline();
             ctx.fillStyle = g;
@@ -245,4 +249,5 @@ Item {
         width: gp.width
         height: gp.bodyH
     }
+    GlassBlur { target: body; on: gp.kwinBlur; cornerR: gp.radius }
 }

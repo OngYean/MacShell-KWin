@@ -22,6 +22,7 @@ Scope {
     readonly property string fam: dock ? dock.fontFamily : "Open Runde"
     readonly property color accent: dock ? dock.accent : "#0A84FF"
     readonly property bool darkMode: dock ? dock.darkMode : true
+    readonly property bool kwinBlurOn: !!hub && hub.kwinBlur     // Settings → Appearance → "Use KWin's blur"
     readonly property int iconSize: dock ? Math.max(32, Math.min(128, Math.round(dock.desktopIconSize || 48))) : 48
     readonly property string home: Quickshell.env("HOME")
     property string xdgDesktop: ""
@@ -497,6 +498,7 @@ Scope {
         model: root.enabled ? Quickshell.screens : []
         PanelWindow {
             id: w
+            BlurCollector { window: w; compositor: root.hub ? root.hub.compositor : null }    // right-click menu and sheets
             required property var modelData
             screen: modelData
             property int widgetRevision: root.hub && root.hub.widgets ? root.hub.widgets.rev : 0
@@ -772,7 +774,8 @@ Scope {
                     property real clickX: 0
                     property real clickY: 0
                     backdrop: desktopGlassBackdrop
-                    live: visible
+                    live: visible && !root.kwinBlurOn
+                    kwinBlur: root.kwinBlurOn
                     frozen: false
                     dark: root.darkMode
                     k: menuScale
@@ -939,6 +942,7 @@ Scope {
                     property var item: null
                     title: I18n.tr("Rename")
                     backdrop: desktopGlassBackdrop
+                    kwinBlur: root.kwinBlurOn
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
@@ -988,6 +992,7 @@ Scope {
                     property var item: null
                     title: I18n.tr("Quick Preview")
                     backdrop: desktopGlassBackdrop
+                    kwinBlur: root.kwinBlurOn
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
@@ -1103,6 +1108,7 @@ Scope {
                     id: picSheet
                     z: 60
                     backdrop: desktopGlassBackdrop
+                    kwinBlur: root.kwinBlurOn
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
@@ -1152,6 +1158,7 @@ Scope {
                     readonly property string tint: paths.length > 0 ? (root.folderColors[paths[0]] || "") : ""
                     title: I18n.tr("Folder Icon")
                     backdrop: desktopGlassBackdrop
+                    kwinBlur: root.kwinBlurOn
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
@@ -1216,6 +1223,7 @@ Scope {
                     property string error: ""
                     title: I18n.tr("Add Folder to Desktop")
                     backdrop: desktopGlassBackdrop
+                    kwinBlur: root.kwinBlurOn
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
