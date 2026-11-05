@@ -695,25 +695,45 @@ Scope {
     // ═════════════ REUSABLE COMPONENTS ═════════════
     // (inline components don't see ids of this file, so everything arrives through properties / `t` = palette)
 
-    // Hand-drawn monochrome glyphs on an 18×18 grid (no icon theme needed)
-    component Glyph: Canvas {
+    // Hand-drawn monochrome glyphs on an 18×18 grid (no icon theme needed). A Canvas is a bitmap, and the bar's rows and the
+    // popovers are resized with `scale:` (barWidgetScale, barPopupScale), which would stretch it and blur the glyph. So the
+    // canvas is painted at the size the glyph is shown at, then scaled back: one bitmap pixel per screen pixel.
+    component Glyph: Item {
         id: gl
         property string kind: ""
         property color color: "white"
         property real level: 3          // speaker / sun intensity 0..3, wifi bars 0..3, battery 0..100
         property bool flag: false       // "disabled" slash for wifi / bluetooth
         width: 18; height: 18
-        antialiasing: true
-        onKindChanged: requestPaint()
-        onColorChanged: requestPaint()
-        onLevelChanged: requestPaint()
-        onFlagChanged: requestPaint()
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        onPaint: {
-            var ctx = getContext("2d");
+        // the ancestors' scale in 5 % steps, so an opening popover repaints once rather than every frame. The glyph's own
+        // `scale:` (a press animation) is left to the transform.
+        readonly property real shownScale: {
+            var k = 1;
+            for (var p = gl.parent; p; p = p.parent) k *= p.scale;
+            return Math.max(0.25, Math.min(8, Math.round(k * 20) / 20));
+        }
+        onKindChanged: cv.requestPaint()
+        onColorChanged: cv.requestPaint()
+        onLevelChanged: cv.requestPaint()
+        onFlagChanged: cv.requestPaint()
+        Canvas {
+            id: cv
+            width: gl.width * gl.shownScale
+            height: gl.height * gl.shownScale
+            scale: 1 / gl.shownScale
+            transformOrigin: Item.TopLeft
+            antialiasing: true
+            // Qt's Canvas doesn't repaint when the screen's pixel density changes (qquickcanvasitem.cpp, Qt 6.12). A new display
+            // scale in KDE also changes the screen's logical size, so either change repaints it.
+            readonly property string screenSig: Screen.devicePixelRatio + " " + Screen.width + "x" + Screen.height
+            onScreenSigChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onPaint: gl.draw(getContext("2d"), width, height)
+        }
+        function draw(ctx, w, h) {
             ctx.reset();
-            var s = Math.min(width, height) / 18;
+            var s = Math.min(w, h) / 18;
             ctx.scale(s, s);
             ctx.strokeStyle = color;
             ctx.fillStyle = color;
@@ -5925,9 +5945,11 @@ Scope {
                                     anchors.centerIn: parent
                                     width: 16; height: 16
                                     source: tray.modelData.icon
-                                    sourceSize: Qt.size(32, 32)
+                                    // drawn 16 px, then the bar's scale × the screen's density: room up to 4×, mipmaps below
+                                    sourceSize: Qt.size(64, 64)
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
+                                    mipmap: true
                                 }
                                 MouseArea {
                                     anchors.fill: parent
