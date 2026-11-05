@@ -49,17 +49,21 @@
           # KWin side of the compositor backend (MacShell/backends/compositor/KWinBackend.qml); see kwin-bridge/README.md
           macshell-kwin-bridge = pkgs.stdenv.mkDerivation {
             pname = "macshell-kwin-bridge";
-            version = "0.1.0";
+            version = "0.2.0";
             src = ./kwin-bridge;
             nativeBuildInputs = [
               pkgs.cmake
               pkgs.pkg-config
               pkgs.qt6.wrapQtAppsHook
+              pkgs.wayland-scanner
             ];
             buildInputs = [
               pkgs.kdePackages.kwayland
               pkgs.qt6.qtbase
               pkgs.wayland
+              # protocol XML for wayland-scanner: wlr-layer-shell (the Dock's minimize-target anchors) and xdg-shell
+              pkgs.wlr-protocols
+              pkgs.wayland-protocols
             ];
             postInstall = ''
               install -Dm644 ${./LICENSE} "$out/share/licenses/macshell-kwin-bridge/LICENSE"
@@ -203,6 +207,9 @@
               pkgs.pkg-config
               pkgs.kdePackages.kwayland
               pkgs.wayland
+              pkgs.wayland-scanner # building kwin-bridge/ by hand
+              pkgs.wlr-protocols
+              pkgs.wayland-protocols
               # The optional legacy probe remains available as `nix run .#kwin-backend-probe`; it is not needed to run the shell.
               self.packages.${system}.macshell-kwin-bridge
             ];
