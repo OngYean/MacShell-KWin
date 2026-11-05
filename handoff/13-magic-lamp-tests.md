@@ -7,7 +7,7 @@ Written on macOS without Nix, Quickshell or Plasma. Done there:
 - `python3 kwin-bridge/fake-bridge.py --selftest` passes;
 - the new QML JavaScript parses in Node, and the Dock's target computation gives the expected positions in a Node mock (two screens, separators, a window cell, Dock limited to one screen).
 
-Not done there: building, qmllint, ShellCheck, the Nix evaluation, the headless-KWin smoke test (CI runs these), and **every check below**.
+CI on `pending-test` (`3abdc32`, run `41991523455`) passes: the bridge builds with the generated layer-shell code, and against a headless KWin 6.8.2 `--check` reports `icon_anchors=1`. KWin reports the rectangle the bridge registered as KWrite's `iconGeometry`, so the anchor approach works in KWin itself. MacShell loads with no new QML diagnostics. **Not run: every check below.** The animation and multi-screen behaviour need Plasma.
 
 ## How it works
 

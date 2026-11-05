@@ -2,7 +2,7 @@
 
 `AGENTS.md` remains the authority, and [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) has the general runbook. On 2026-11-05 the user reported that the bar's icons go blurry when the UI scale changes. Committed straight to `pending-test` (`wip(bar): paint the bar's glyphs at the scale they are shown at`).
 
-Written on macOS without Quickshell or Plasma. Done there: braces balance as before; the new `Glyph` binding and `draw()` parse with `node --check`; `draw()` runs for all 54 glyph kinds in a Node mock without a `ReferenceError`. **Not run:** qmllint, CI and every check below.
+Written on macOS without Quickshell or Plasma. Done there: braces balance as before; the new `Glyph` binding and `draw()` parse with `node --check`; `draw()` runs for all 54 glyph kinds in a Node mock without a `ReferenceError`. CI on `pending-test` (`3abdc32`, run `41991523455`) passes: MacShell loads against a headless KWin with no new QML diagnostics (the only one is the old `.face` warning). CI's qmllint covers only `backends/compositor/`. **Not run: every check below.** Sharpness can only be judged on a real screen.
 
 ## Cause
 

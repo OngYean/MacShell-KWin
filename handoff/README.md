@@ -34,6 +34,15 @@ Branches: `main` (`d53665e`) ← `kwin-plasma-fixes` ← `fork-credits-readme` �
 
 Committed straight to `pending-test`, on top of `kwin-magic-lamp`, so it is in no feature branch: the menu bar's icons stay sharp at any UI scale (test plan: [`14`](14-sharp-bar-icons-tests.md)). They were Canvas bitmaps stretched by the bar's `scale:` transforms, and Qt's Canvas didn't repaint on display-scale changes. Not run in Plasma or CI.
 
+CI on `pending-test` passes at `3abdc32` (run `41991523455`). The Home Manager check had failed since `904342a`, on every branch, because Home Manager's `master` now stores `ExecStart` as a list. The check now takes both forms (`3abdc32`), and reports nix's own error in an annotation (`6917f87`). `kwin-magic-lamp` lacks both fixes, so its CI stays red. What the run shows:
+- the bridge builds and links with the generated layer-shell code;
+- against headless KWin 6.8.2, `--check` reports `icon_anchors=1`, and **KWin reports the rectangle the bridge registered as KWrite's `iconGeometry`**;
+- the real bridge's messages, `iconAnchors` included, match the protocol;
+- MacShell loads with the real and the fake bridge, and its only QML diagnostic is the old `Cannot open: file:///home/runner/.face`, so neither the Dock targets nor the new `Glyph` produce warnings;
+- the Home Manager module evaluates with `mode=replace`, the drop-in and the fallback.
+
+The animation and the icons' sharpness can only be judged in Plasma.
+
 On the Plasma host, test from `pending-test`, in this order: [`08`](08-plasma-fixes-tests.md), [`10`](10-replace-wallpaper-splash-tests.md), [`12`](12-replace-default-tests.md), [`11`](11-kwin-blur-tests.md), [`13`](13-magic-lamp-tests.md), [`14`](14-sharp-bar-icons-tests.md).
 
 ## Update (2026-11-05, branch `kwin-replace-wallpaper-splash`)
