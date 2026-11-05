@@ -24,6 +24,7 @@ These handoffs let an agent start from the repository without access to the orig
 - [`11-kwin-blur-tests.md`](11-kwin-blur-tests.md) — the "Use KWin's blur" option: every glass surface becomes a see-through tint with KWin's blur behind it. Design decisions and test plan.
 - [`12-replace-default-tests.md`](12-replace-default-tests.md) — replacing `plasmashell` is the default launch (`macshell-session start`, Home Manager `mode = "replace"`), running side by side is `coexist`. How login skips `plasmashell`, the fallback, and the test plan.
 - [`13-magic-lamp-tests.md`](13-magic-lamp-tests.md) — branch `kwin-magic-lamp`: KWin's Magic Lamp minimizes windows into their Dock icon instead of towards the pointer (bridge anchor surfaces + `set_minimized_geometry`). How it works and the test plan.
+- [`14-sharp-bar-icons-tests.md`](14-sharp-bar-icons-tests.md) — on `pending-test`: the menu bar's icons stay sharp at any UI scale, bar height and display scale. Cause, fix and test plan.
 
 ## Update (2026-11-05, branches `kwin-magic-lamp` and `pending-test`)
 
@@ -31,7 +32,9 @@ Branches: `main` (`d53665e`) ← `kwin-plasma-fixes` ← `fork-credits-readme` �
 
 `kwin-magic-lamp` adds minimizing into the Dock (test plan: [`13`](13-magic-lamp-tests.md)). Bridge 0.2.0 builds layer-shell client code with `wayland-scanner` (new build inputs: `wayland-scanner`, `wlr-protocols`, `wayland-protocols`). The smoke test checks that KWin reports the registered rectangle as KWrite's `iconGeometry`. None of it has run in Plasma.
 
-On the Plasma host, test from `pending-test`, in this order: [`08`](08-plasma-fixes-tests.md), [`10`](10-replace-wallpaper-splash-tests.md), [`12`](12-replace-default-tests.md), [`11`](11-kwin-blur-tests.md), [`13`](13-magic-lamp-tests.md).
+Committed straight to `pending-test`, on top of `kwin-magic-lamp`, so it is in no feature branch: the menu bar's icons stay sharp at any UI scale (test plan: [`14`](14-sharp-bar-icons-tests.md)). They were Canvas bitmaps stretched by the bar's `scale:` transforms, and Qt's Canvas didn't repaint on display-scale changes. Not run in Plasma or CI.
+
+On the Plasma host, test from `pending-test`, in this order: [`08`](08-plasma-fixes-tests.md), [`10`](10-replace-wallpaper-splash-tests.md), [`12`](12-replace-default-tests.md), [`11`](11-kwin-blur-tests.md), [`13`](13-magic-lamp-tests.md), [`14`](14-sharp-bar-icons-tests.md).
 
 ## Update (2026-11-05, branch `kwin-replace-wallpaper-splash`)
 
