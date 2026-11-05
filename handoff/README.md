@@ -43,7 +43,7 @@ CI on `pending-test` passes at `3abdc32` (run `41991523455`). The Home Manager c
 
 The animation and the icons' sharpness can only be judged in Plasma.
 
-On the Plasma host, test from `pending-test`, in this order: [`08`](08-plasma-fixes-tests.md), [`10`](10-replace-wallpaper-splash-tests.md), [`12`](12-replace-default-tests.md), [`11`](11-kwin-blur-tests.md), [`13`](13-magic-lamp-tests.md), [`14`](14-sharp-bar-icons-tests.md).
+On the Plasma host, test from `pending-test`, in this order: [`08`](08-plasma-fixes-tests.md), [`09`](09-fork-credits-readme.md), [`10`](10-replace-wallpaper-splash-tests.md), [`12`](12-replace-default-tests.md), [`11`](11-kwin-blur-tests.md), [`13`](13-magic-lamp-tests.md), [`14`](14-sharp-bar-icons-tests.md). Start the agent there with [`07-kickoff-prompt.md`](07-kickoff-prompt.md), and commit fixes found in Plasma to `pending-test`.
 
 ## Update (2026-11-05, branch `kwin-replace-wallpaper-splash`)
 

@@ -17,14 +17,19 @@ This section supersedes older status lines further down where they disagree. The
   - `main` (`d53665e`) already contains `kwin-port`.
   - `kwin-plasma-fixes` (`701c526`) is based on `main`.
   - `fork-credits-readme` (`2644f5c`) is based on `kwin-plasma-fixes`.
-  - `kwin-replace-wallpaper-splash` is based on `fork-credits-readme`. It is the newest branch and holds all the work.
-  - Every branch is pushed. CI passes on the heads of the older three; on `kwin-replace-wallpaper-splash`, see [`README.md`](README.md).
+  - `kwin-replace-wallpaper-splash` is based on `fork-credits-readme`.
+  - `kwin-magic-lamp` is based on `kwin-replace-wallpaper-splash`: Magic Lamp minimizes into the Dock ([`13`](13-magic-lamp-tests.md)).
+  - **`pending-test`** is the staging branch: everything above, merged (fast-forwards, since the branches are stacked), plus commits made straight to it. These are sharp menu bar icons ([`14`](14-sharp-bar-icons-tests.md)) and two CI fixes for the Home Manager check. It is the branch to test and fix on in Plasma, before it goes into `main`.
+  - Every branch is pushed. CI passes on `pending-test` (`3abdc32`). It fails on `kwin-replace-wallpaper-splash` and `kwin-magic-lamp`, whose Home Manager check predates the CI fixes on `pending-test`. `kwin-plasma-fixes` and `fork-credits-readme` last passed on 2026-11-04, before Home Manager's `master` changed; a re-run would likely fail the same check. See [`README.md`](README.md).
 - **Direction (user decision, 2026-11-05):** MacShell runs **in place of `plasmashell` by default**, and side by side is the second option. Three untested features on `kwin-replace-wallpaper-splash` implement it:
   - the wallpaper and login splash without `plasmashell` ([`10`](10-replace-wallpaper-splash-tests.md));
   - "Use KWin's blur" ([`11`](11-kwin-blur-tests.md));
   - replace as the default launch and the Home Manager `mode` ([`12`](12-replace-default-tests.md)).
 
   Agents still don't change the host's configuration themselves. The user opts in through Home Manager.
+- **Since then, on `pending-test`, untested in Plasma:**
+  - KWin's Magic Lamp animates into each window's Dock icon instead of towards the pointer. The bridge (0.2.0) registers the targets against its own invisible per-output layer surfaces. CI confirms that KWin reports them as `iconGeometry` ([`13`](13-magic-lamp-tests.md)).
+  - The menu bar's Canvas icons are painted at the scale they're shown at, and repainted when the display scale changes, so they're no longer blurry at UI scales other than 100 % ([`14`](14-sharp-bar-icons-tests.md)).
 - **Still missing without `plasmashell`** (checked against the Plasma 6.8.2 sources; none of it ported yet):
   - **Tray entries:**
     - Night Light on/off (the button only opens System Settings), keyboard backlight, the list of apps blocking sleep;
