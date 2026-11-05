@@ -41,7 +41,8 @@ jobs:
 
       - name: The Home Manager module evaluates
         run: |
-          nix eval --impure --raw --expr '
+          # job logs need a GitHub login: nix's own error goes into an annotation, readable through the public API
+          if ! nix eval --impure --raw --expr '
             let
               self = builtins.getFlake (toString ./.);
               hm = builtins.getFlake "github:nix-community/home-manager";
@@ -70,7 +71,11 @@ jobs:
                                 (builtins.replaceStrings [ "\n" ] [ " " ] (builtins.getAttr dropin cfgFiles).text) != null
                          then "yes" else "no"}"
             + " drv=${home.activationPackage.drvPath}"
-          ' | tee hm.txt
+          ' > hm.txt 2> hm-err.txt; then
+            msg=$(sed -n '/error:/,$p' hm-err.txt | tail -n 30)
+            echo "::error title=home-manager eval::$(printf '%s' "${msg:-$(tail -n 30 hm-err.txt)}" | tr '\n' ' ' | sed 's/%/%25/g' | cut -c1-4000)"
+            exit 1
+          fi
           echo "::notice title=home-manager::$(cat hm.txt)"
           # autostart with the default mode replaces plasmashell at login, with the fallback in place
           grep -q "mode=replace OnFailure=macshell-fallback.service env=replace dropin=yes" hm.txt \
