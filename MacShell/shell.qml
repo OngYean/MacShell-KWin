@@ -397,6 +397,7 @@ ShellRoot {
 
     MacBar { id: macBar; hub: sharedHub }
     MacDock { id: macDock; hub: sharedHub; bar: macBar }
+    Wallpaper { hub: sharedHub }    // KDE without plasmashell only
     // Keep the desktop layer below widgets; desktop placement also reserves each widget's live footprint.
     Desktop { id: desktopIcons; hub: sharedHub }
     MacWidgets { id: macWidgets; hub: sharedHub }

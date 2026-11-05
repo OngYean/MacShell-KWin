@@ -95,5 +95,7 @@ Scope {
 
     // KDE: who already provides desktop services (so MacShell never starts a duplicate)
     readonly property bool plasmaShellRunning: backend ? backend.plasmaShellRunning : false
+    // KDE without plasmashell (macshell-session replace): nobody draws the wallpaper or ends the login splash (Wallpaper.qml)
+    readonly property bool desktopUnserved: isKWin && backend.sessionKnown && !backend.plasmaShellRunning
     readonly property string notificationsOwner: backend ? backend.notificationsOwner : "none"
 }

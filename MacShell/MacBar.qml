@@ -4648,6 +4648,8 @@ Scope {
     readonly property string awwwScript: [
         'p="$1"',
         root.stopVideoScript,
+        // KDE without plasmashell: Wallpaper.qml draws the pick (root.wallpaperPath) itself; a daemon would stack a second one
+        root.comp && root.comp.desktopUnserved ? 'echo "applied with: MacShell (KDE without plasmashell)"; exit 0' : '',
         '# KDE Plasma draws the desktop while plasmashell runs: hand it the image (starting awww there would stack a second wallpaper)',
         '# (asked over D-Bus: on NixOS the process is ".plasmashell-wrapped", which pgrep -x plasmashell misses)',
         'if command -v plasma-apply-wallpaperimage >/dev/null 2>&1 && dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner string:org.kde.plasmashell 2>/dev/null | grep -q "boolean true"; then',
