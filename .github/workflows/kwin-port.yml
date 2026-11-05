@@ -59,10 +59,22 @@ jobs:
                 ];
               };
               unit = home.config.systemd.user.services.macshell;
+              cfgFiles = home.config.xdg.configFile;
+              dropin = "systemd/user/plasma-plasmashell.service.d/macshell.conf";
             in
-            "ExecStart=${unit.Service.ExecStart} WantedBy=${toString unit.Install.WantedBy} drv=${home.activationPackage.drvPath}"
+            "ExecStart=${unit.Service.ExecStart} WantedBy=${toString unit.Install.WantedBy}"
+            + " mode=${home.config.programs.macshell.mode} OnFailure=${toString unit.Unit.OnFailure}"
+            + " env=${home.config.systemd.user.sessionVariables.MACSHELL_KDE_MODE or "unset"}"
+            + " dropin=${if builtins.hasAttr dropin cfgFiles
+                           && builtins.match ".*ConditionEnvironment=!MACSHELL_KDE_MODE=replace.*"
+                                (builtins.replaceStrings [ "\n" ] [ " " ] (builtins.getAttr dropin cfgFiles).text) != null
+                         then "yes" else "no"}"
+            + " drv=${home.activationPackage.drvPath}"
           ' | tee hm.txt
           echo "::notice title=home-manager::$(cat hm.txt)"
+          # autostart with the default mode replaces plasmashell at login, with the fallback in place
+          grep -q "mode=replace OnFailure=macshell-fallback.service env=replace dropin=yes" hm.txt \
+            || { echo "::error title=home-manager::replace mode did not produce the drop-in, the session variable and the fallback"; exit 1; }
 
       - name: qmllint (informational)
         continue-on-error: true
