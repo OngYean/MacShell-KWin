@@ -30,6 +30,7 @@ import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import "I18n.js" as I18n
 import "Fonts.js" as Fonts
+import "KdeColors.js" as KdeColors
 
 Scope {
     id: root
@@ -216,6 +217,27 @@ Scope {
         { name: "Green",    c: "#30d158" }, { name: "Graphite", c: "#8e8e93" }
     ]
     property color accent: "#0A84FF"     // menu highlight (macOS blue)
+    // ── the accent colour is shared with KDE Plasma (Settings → Appearance → "Follow KDE's accent colour") ──
+    // Plasma keeps the highlight colour it paints with in ~/.config/kdeglobals (KdeColors.js). While this is on, MacShell
+    // uses that colour and follows every change made in System Settings → Colors; a colour picked in MacShell's own
+    // Settings is handed to Plasma (pickAccent), which then reports it back through the same file.
+    property bool accentFromKde: true
+    readonly property bool kdeAccentOn: accentFromKde && !!comp && comp.isKWin
+    property string kdeAccent: ""        // "#rrggbb", "" while kdeglobals names no colour
+    FileView {
+        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/kdeglobals"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: root.kdeAccent = KdeColors.accent(text())
+    }
+    // after both settings files are read, so a saved accent doesn't replace Plasma's
+    readonly property string kdeAccentWanted: (kdeAccentOn && settingsReady && (!bar || bar.settingsReady)) ? kdeAccent : ""
+    onKdeAccentWantedChanged: if (kdeAccentWanted !== "") setLook("accent", kdeAccentWanted)
+    function pickAccent(c) {
+        setLook("accent", c);
+        if (kdeAccentOn) Quickshell.execDetached(["plasma-apply-colorscheme", "--accent-color", String(c)]);
+    }
     // Dock icon tint: every icon is re-coloured with one colour (works with any icon pack)
     property bool iconTint: false
     property string iconTintColor: "#0a84ff"
@@ -2286,11 +2308,18 @@ Scope {
                                     }
                                     MouseArea {
                                         anchors.fill: parent
-                                        onClicked: root.setLook("accent", sw.modelData.c)
+                                        onClicked: root.pickAccent(sw.modelData.c)
                                     }
                                 }
                             }
                         }
+                    }
+                    SRow {
+                        t: pal
+                        visible: !!root.comp && root.comp.isKWin
+                        title: I18n.tr("Follow KDE's accent color")
+                        subtitle: I18n.tr("Uses the color from System Settings → Colors, and applies a color picked here to Plasma too")
+                        SSwitch { t: pal; checked: root.accentFromKde; onToggled: v => root.accentFromKde = v }
                     }
                 }
 
@@ -4283,7 +4312,7 @@ Scope {
         desktopIcons = true; desktopIconSize = 48;
         iconSize = 52; magnification = 1.7; magnificationEnabled = true;
         spacing = 6; margin = 6; cornerRadius = 18;
-        darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accent = "#0a84ff"; fontFamily = "Open Runde";
+        darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accentFromKde = true; accent = "#0a84ff"; fontFamily = "Open Runde";
         iconTint = false; iconTintColor = "#0a84ff"; iconTintStrength = 1.0;
         hideMode = "smart"; hideDelay = 450; monitor = "";
         showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; glassLive = true;
@@ -4291,7 +4320,7 @@ Scope {
 
     // ── settings persistence (~/.config/macdock/settings.json) ──
     readonly property string settingsSig: [dockEnabled, settingsEnabled, desktopIcons, desktopIconSize, iconSize, magnification, magnificationEnabled, spacing, margin,
-        cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
+        cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, accentFromKde, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
         showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength].join("|")
     property bool settingsReady: false
     onSettingsSigChanged: if (settingsReady) saveTimer.restart()
@@ -4303,7 +4332,7 @@ Scope {
         var o = {
             dockEnabled: dockEnabled, settingsEnabled: settingsEnabled, desktopIcons: desktopIcons, desktopIconSize: desktopIconSize, iconSize: iconSize, magnification: magnification, magnificationEnabled: magnificationEnabled,
             spacing: spacing, margin: margin, cornerRadius: cornerRadius,
-            darkMode: darkMode, appearanceMode: appearanceMode, glassOpacity: glassOpacity, dockStyle: dockStyle, kwinBlur: kwinBlur, wallpaperPath: wallpaperPath, glassDebug: glassDebug,
+            darkMode: darkMode, appearanceMode: appearanceMode, glassOpacity: glassOpacity, dockStyle: dockStyle, kwinBlur: kwinBlur, accentFromKde: accentFromKde, wallpaperPath: wallpaperPath, glassDebug: glassDebug,
             glassRim: glassRim, glassGrain: glassGrain, glassLiquid: glassLiquid, glassBlur: glassBlur,
             accent: String(accent), fontFamily: fontFamily,
             hideMode: hideMode, hideDelay: hideDelay, monitor: monitor,
@@ -4317,7 +4346,7 @@ Scope {
     function applySettings(o) {
         if (!o || typeof o !== "object") return;
         var keys = ["dockEnabled", "settingsEnabled", "desktopIcons", "desktopIconSize", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
-                    "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
+                    "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "accentFromKde", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
                     "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength"];
         for (var i = 0; i < keys.length; i++) {
             if (o[keys[i]] === undefined) continue;

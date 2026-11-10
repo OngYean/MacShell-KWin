@@ -38,6 +38,7 @@ jobs:
           sh nix/test-macshell-session.sh
           sh nix/test-brightness.sh
           sh nix/test-launch-app.sh
+          node nix/test-kde-colors.js
           python3 kwin-bridge/fake-bridge.py --selftest
 
       - name: The Home Manager module evaluates
