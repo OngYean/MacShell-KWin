@@ -25,6 +25,7 @@ These handoffs let an agent start from the repository without access to the orig
 - [`12-replace-default-tests.md`](12-replace-default-tests.md) — replacing `plasmashell` is the default launch (`macshell-session start`, Home Manager `mode = "replace"`), running side by side is `coexist`. How login skips `plasmashell`, the fallback, and the test plan.
 - [`13-magic-lamp-tests.md`](13-magic-lamp-tests.md) — branch `kwin-magic-lamp`: KWin's Magic Lamp minimizes windows into their Dock icon instead of towards the pointer (bridge anchor surfaces + `set_minimized_geometry`). How it works and the test plan.
 - [`14-sharp-bar-icons-tests.md`](14-sharp-bar-icons-tests.md) — on `pending-test`: the menu bar's icons stay sharp at any UI scale, bar height and display scale. Cause, fix and test plan.
+- [`15-plasma-test-report.md`](15-plasma-test-report.md) — **the current work list**: the six bugs (B1–B6) and eight feature requests (F1–F8) from the user's Plasma 6.8 test without `plasmashell` on 2026-11-10, with each item's status, cause, change and test steps.
 
 ## Update (2026-11-05, branches `kwin-magic-lamp` and `pending-test`)
 
