@@ -10,5 +10,20 @@ case "${1:-}" in
         shift
         exec qs "$sub" -p "$cfg" "$@"
         ;;
-    *) exec qs -p "$cfg" "$@" ;;
+    *)
+        # Settings → Appearance → "KDE's text rendering" (saved by MacDock.qml as "nativeText": true). Qt decides how it
+        # draws text once, at start: with QML_DISABLE_DISTANCEFIELD set, Qt Quick uses the system's rasterizer, which
+        # follows KDE's font settings. Set the variable yourself to force it either way ("" keeps Qt's own rendering).
+        if [ -z "${QML_DISABLE_DISTANCEFIELD+set}" ]; then
+            settings="${HOME}/.config/macdock/settings.json"
+            if [ -r "$settings" ]; then
+                while IFS= read -r line; do
+                    case "$line" in *'"nativeText": true'*) export QML_DISABLE_DISTANCEFIELD=1 ;; esac
+                done < "$settings"
+            fi
+        elif [ -z "$QML_DISABLE_DISTANCEFIELD" ]; then
+            unset QML_DISABLE_DISTANCEFIELD
+        fi
+        exec qs -p "$cfg" "$@"
+        ;;
 esac

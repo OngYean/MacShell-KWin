@@ -34,10 +34,11 @@ jobs:
 
       - name: Shell scripts and test helpers
         run: |
-          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh nix/test-brightness.sh MacShell/assets/brightness.sh nix/test-launch-app.sh MacShell/assets/launch-app.sh
+          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh nix/test-brightness.sh MacShell/assets/brightness.sh nix/test-launch-app.sh MacShell/assets/launch-app.sh nix/test-macshell.sh
           sh nix/test-macshell-session.sh
           sh nix/test-brightness.sh
           sh nix/test-launch-app.sh
+          sh nix/test-macshell.sh
           node nix/test-kde-colors.js
           python3 kwin-bridge/fake-bridge.py --selftest
 
