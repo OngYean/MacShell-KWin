@@ -21,7 +21,7 @@ CI on `pending-test` (`3abdc32`, run `41991523455`) passes: the bridge builds wi
 
 ## 0. Before you start
 
-1. Build or run from this branch (`nix run .#macshell` from the work tree, or install the package). The bridge must be 0.2.0: `macshell-kwin-bridge --version`.
+1. Build or run from this branch (`nix run .#macshell` from the work tree, or install the package). The bridge must be 0.2.0 or later (0.3.0 on `pending-test` since 2026-11-10): `macshell-kwin-bridge --version`.
 2. System Settings → Window Management → Desktop Effects: **Magic Lamp** is on. It replaces Squash; only one minimize animation can be on.
 3. `macshell-kwin-bridge --check` ends with `icon_anchors=N`, where N is the number of connected screens. **0 means the feature is off:** note the `status=` lines on stderr.
 

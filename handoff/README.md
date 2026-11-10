@@ -27,6 +27,12 @@ These handoffs let an agent start from the repository without access to the orig
 - [`14-sharp-bar-icons-tests.md`](14-sharp-bar-icons-tests.md) — on `pending-test`: the menu bar's icons stay sharp at any UI scale, bar height and display scale. Cause, fix and test plan.
 - [`15-plasma-test-report.md`](15-plasma-test-report.md) — **the current work list**: the six bugs (B1–B6) and eight feature requests (F1–F8) from the user's Plasma 6.8 test without `plasmashell` on 2026-11-10, with each item's status, cause, change and test steps.
 
+## Update (2026-11-10, branch `pending-test`)
+
+The user tested `pending-test` on a real Plasma 6.8 session without `plasmashell` and reported six bugs and eight feature requests. [`15-plasma-test-report.md`](15-plasma-test-report.md) is the work list and the test plan for them. Every item except B5 (slow return after unlocking, cause not found) now has a `wip` commit on `pending-test`. **The commits are local: not pushed, not run by CI, not run in Plasma.** The bridge is 0.3.0 (window pictures for the Dock), and that C++ change has not been compiled yet.
+
+Next: push `pending-test`, read the CI result, then test on the Plasma host in the order given in [`15`](15-plasma-test-report.md).
+
 ## Update (2026-11-05, branches `kwin-magic-lamp` and `pending-test`)
 
 Branches: `main` (`d53665e`) ← `kwin-plasma-fixes` ← `fork-credits-readme` ← `kwin-replace-wallpaper-splash` ← `kwin-magic-lamp`. All are in a straight line. `pending-test` is the staging branch for what still needs testing in Plasma before it goes into `main`. It holds every branch above, merged.
