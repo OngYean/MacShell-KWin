@@ -32,12 +32,18 @@ Region {
     height: shown ? Math.round(probe.opacity * 100) : 0
     radius: shown ? Math.round(cornerR * probe.scale) : 0
 
-    // registration: the window's top-level item, and the BlurCollector among its children
+    // registration: the BlurCollector declared directly in this surface's window, found among the children of one of the
+    // target's ancestors. Not only the topmost one's: the window's content item is the top of the tree until Quickshell
+    // creates the window, and is then parented to the QQuickWindow's own root item (ProxyWindowBase), one level further up.
+    // Looking only there found no collector once a window existed, so nothing was ever blurred.
     readonly property Item windowRoot: { var t = null; for (var it = target; it; it = it.parent) t = it; return t; }
     property var collector: null
     function attach() {
-        var c = null, kids = windowRoot ? windowRoot.children : [];
-        for (var i = 0; i < kids.length && !c; i++) if (kids[i].objectName === "glassBlurCollector") c = kids[i];
+        var c = null;
+        for (var it = target; it && !c; it = it.parent) {
+            var kids = it.children;
+            for (var i = 0; i < kids.length && !c; i++) if (kids[i].objectName === "glassBlurCollector") c = kids[i];
+        }
         if (c === collector) return;
         if (collector) collector.remove(gb);
         collector = c;
