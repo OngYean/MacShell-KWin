@@ -59,8 +59,11 @@ in
         Unit = {
           Description = "MacShell (Quickshell desktop shell)";
           PartOf = [ "graphical-session.target" ];
-          # after plasmashell, so a coexisting plasmashell owns its notification / OSD names first
-          After = [ "graphical-session.target" "plasma-plasmashell.service" ];
+          # After plasma-core.target, as Plasma asks of its session's services (KWin and the environment are up by then),
+          # and after plasmashell, so a coexisting plasmashell owns its notification / OSD names first. Never after
+          # graphical-session.target: plasma-workspace.target wants this unit and is itself ordered before that target,
+          # so systemd found an ordering cycle and dropped MacShell's start job at login.
+          After = [ "plasma-core.target" "plasma-plasmashell.service" ];
           # gives up after 3 failures in a minute (instead of restarting forever), then the fallback brings plasmashell back
           StartLimitIntervalSec = 60;
           StartLimitBurst = 3;
@@ -78,8 +81,10 @@ in
       systemd.user.services.macshell-fallback = {
         Unit = {
           Description = "Start plasmashell again after MacShell failed";
-          # only in a running session: not when MacShell dies because the session is being logged out
+          # only in a running session: not when MacShell dies because the session is being logged out. After=, so a
+          # failure during login waits for the session to finish starting instead of finding the target not yet active
           Requisite = [ "graphical-session.target" ];
+          After = [ "graphical-session.target" ];
         };
         Service = {
           Type = "oneshot";

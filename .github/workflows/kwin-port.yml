@@ -70,6 +70,7 @@ jobs:
                            && builtins.match ".*ConditionEnvironment=!MACSHELL_KDE_MODE=replace.*"
                                 (builtins.replaceStrings [ "\n" ] [ " " ] (builtins.getAttr dropin cfgFiles).text) != null
                          then "yes" else "no"}"
+            + " after=${toString unit.Unit.After}"
             + " drv=${home.activationPackage.drvPath}"
           ' > hm.txt 2> hm-err.txt; then
             msg=$(sed -n '/error:/,$p' hm-err.txt | tail -n 30)
@@ -80,6 +81,10 @@ jobs:
           # autostart with the default mode replaces plasmashell at login, with the fallback in place
           grep -q "mode=replace OnFailure=macshell-fallback.service env=replace dropin=yes" hm.txt \
             || { echo "::error title=home-manager::replace mode did not produce the drop-in, the session variable and the fallback"; exit 1; }
+          # plasma-workspace.target wants macshell.service and comes before graphical-session.target: ordering the unit
+          # after that target is a cycle, and systemd then drops MacShell's start job at login
+          grep -q " after=plasma-core.target plasma-plasmashell.service " hm.txt \
+            || { echo "::error title=home-manager::macshell.service must be ordered after plasma-core.target, not graphical-session.target"; exit 1; }
 
       - name: qmllint (informational)
         continue-on-error: true
