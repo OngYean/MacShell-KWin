@@ -1819,6 +1819,11 @@ Scope {
                         SSwitch { t: pal; checked: root.bar ? root.bar.barWidgetEnabled("volume") : true; onToggled: v => { if (root.bar) root.bar.setBarWidget("volume", v); } }
                     }
                     SRow {
+                        t: pal; title: I18n.tr("Display brightness")
+                        subtitle: I18n.tr("Scroll on the icon to change the brightness")
+                        SSwitch { t: pal; checked: root.bar ? root.bar.barWidgetEnabled("brightness") : false; onToggled: v => { if (root.bar) root.bar.setBarWidget("brightness", v); } }
+                    }
+                    SRow {
                         t: pal; title: I18n.tr("Bluetooth")
                         subtitle: I18n.tr("Show the Bluetooth status icon, even while Bluetooth is off")
                         SSwitch { t: pal; checked: root.bar ? root.bar.barWidgetEnabled("bluetooth") : true; onToggled: v => { if (root.bar) root.bar.setBarWidget("bluetooth", v); } }

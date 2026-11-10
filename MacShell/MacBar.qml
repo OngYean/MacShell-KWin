@@ -1695,6 +1695,8 @@ Scope {
             function setFrom(mx) { s.moved(Math.max(0, Math.min(1, (mx - s.trackX) / s.trackW))); }
             onPressed: mouse => setFrom(mouse.x)
             onPositionChanged: mouse => { if (pressed) setFrom(mouse.x); }
+            // the scroll wheel moves the value too, as on macOS
+            onWheel: wheel => { var d = root.wheelStep(wheel); if (d !== 0) s.moved(Math.max(0, Math.min(1, s.value + d))); }
         }
     }
 
@@ -2131,6 +2133,9 @@ Scope {
     onMutedChanged: showOsd("volume", muted ? 0 : volume)
     Timer { id: osdTimer; interval: 1500; onTriggered: root.osdVisible = false }
     Timer { interval: 1200; running: true; repeat: false; onTriggered: root.osdReady = true }
+    // Scroll wheel on a volume / brightness control: one mouse notch (120) is 5 %; a touchpad sends many small steps.
+    // 0 for a sideways scroll, so callers skip it (setVolume would unmute).
+    function wheelStep(wheel) { return wheel.angleDelta.y / 120 * 0.05; }
     function setVolume(v) { osdQuiet("volume", 600); if (sink && sink.audio) { sink.audio.muted = false; sink.audio.volume = Math.max(0, Math.min(1, v)); } }
     function toggleMute() { osdQuiet("volume", 600); if (sink && sink.audio) sink.audio.muted = !sink.audio.muted; }
     readonly property var micSource: Pipewire.defaultAudioSource
@@ -6031,6 +6036,19 @@ Scope {
                                 onWheel: wheel => root.setVolume(root.volume + (wheel.angleDelta.y > 0 ? 0.03 : -0.03))
                             }
                         }
+                        // display brightness (optional, off by default): scroll to change it, click for the Control Center's slider
+                        Item {
+                            id: briBtn
+                            readonly property bool on: root.barWidgetEnabled("brightness") && root.brightMode !== "none"
+                            visible: on
+                            width: on ? 28 : 0; height: 28
+                            Glyph { anchors.centerIn: parent; width: 16; height: 16; kind: "sun"; level: root.brightness < 0.34 ? 1 : (root.brightness < 0.67 ? 2 : 3); color: bpal.fg }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: ui.openPop("cc", 0)
+                                onWheel: wheel => { var d = root.wheelStep(wheel); if (d !== 0) root.setBrightness(root.brightness + d); }
+                            }
+                        }
                         // keyboard layout: click = next layout, right-click = pick from a list, scroll = cycle
                         Item {
                             id: kbBtn
@@ -8514,6 +8532,10 @@ Scope {
                                 color: ccPal.fg; font.family: Fonts.forWeight(Font.DemiBold, root.boldFontFamily); font.pixelSize: 12; font.weight: Font.DemiBold
                             }
                             HoverHandler { id: tileHovDisplay }
+                            WheelHandler {      // scrolling anywhere on the tile changes the brightness
+                                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                onWheel: event => { var d = root.wheelStep(event); if (d !== 0) root.setBrightness(root.brightness + d); }
+                            }
                             CCSlider {
                                 tileHover: tileHovDisplay.hovered
                                 t: ccPal
@@ -8538,6 +8560,10 @@ Scope {
                                 color: ccPal.fg; font.family: Fonts.forWeight(Font.DemiBold, root.boldFontFamily); font.pixelSize: 12; font.weight: Font.DemiBold
                             }
                             HoverHandler { id: tileHovSound }
+                            WheelHandler {      // scrolling anywhere on the tile changes the volume
+                                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                onWheel: event => { var d = root.wheelStep(event); if (d !== 0) root.setVolume(root.volume + d); }
+                            }
                             CCSlider {
                                 tileHover: tileHovSound.hovered
                                 t: ccPal
