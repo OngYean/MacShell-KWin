@@ -47,6 +47,16 @@ Alternatives considered:
 - An xdg_toplevel with `org_kde_plasma_shell` positioning would be decorated, animated, listed and matched by window rules like any window.
 - `_NET_WM_ICON_GEOMETRY` only covers Xwayland windows.
 
+## Window snapshots (decision record)
+
+On macOS a minimized window sits in the Dock as a small picture of itself. KWin offers no capture *Wayland protocol* to ordinary clients, but its screenshot D-Bus interface, `org.kde.KWin.ScreenShot2` (the one Spectacle uses, documented in `plugins/screenshot/org.kde.KWin.ScreenShot2.xml`), has `CaptureWindow(handle, options, pipe)`. At `v6.8.2` it takes the window's uuid, has no caller check for unsandboxed clients, and renders the window item off screen, so a minimized window is captured too (`screenshot.cpp`, `takeScreenShot(Window *)`).
+
+- The bridge captures **only when MacShell asks** (`snapshot`), one window at a time. MacShell asks once, when a window becomes minimized. Nothing is captured in the background, and nothing is live.
+- KWin replies with the raw picture's size and format and writes the pixels into the pipe. The reply is checked (type, dimensions, format, stride, at most 300 MiB) before it is used. A capture that takes longer than 5 s is given up.
+- The picture is scaled to at most 256 px and sent as a PNG `data:` URL. Like titles and menu labels, window contents only travel through the parent pipe, never to a file or a log.
+- One render per minimize runs on KWin's primary GPU. On a hybrid laptop that is the GPU KWin already composites with.
+- If the interface is missing or restricted in another KWin version, the answer is an empty `url` and the Dock keeps the application icon.
+
 ## Global menu prerequisites (`--global-menu`)
 
 Qt and GTK apps export a D-Bus menu only while `com.canonical.AppMenu.Registrar` exists. kded's appmenu module runs that registrar only while some menu view owns `org.kde.kappmenuview` (`plasma-workspace/appmenu/appmenu.cpp`). Plasma's Global Menu applet owns that name when it is in a panel. With `--global-menu` the bridge registers it the same way: `QueueService` plus `DontAllowReplacement`, exactly like the applet. Whichever comes first owns it and the other queues behind it, so the menus survive when plasmashell (and its applet) is stopped. Qt checks for the registrar once per process, so **apps started before a menu view existed keep their in-window menu bar until restarted**.
@@ -61,13 +71,14 @@ One JSON object per line.
 
 | `type`       | Fields                                                                                                                                       |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hello`      | `protocol` (1), `bridge` (version), `windowManagement` (`available` / `unsupported`), `advertisedVersion`, `appMenuProtocol`, `globalMenu`, `dbus` |
+| `hello`      | `protocol` (1), `bridge` (version), `windowManagement` (`available` / `unsupported`), `advertisedVersion`, `appMenuProtocol`, `globalMenu`, `dbus`, `snapshots` (the `snapshot` command works) |
 | `windows`    | `windows[]` { `id`, `appId`, `title`, `pid`, `resourceName`, `active`, `minimized`, `maximized`, `fullscreen`, `keepAbove`, `onAllDesktops`, `demandsAttention`, `skipTaskbar`, `skipSwitcher`, `closeable`, `minimizeable`, `maximizeable`, `fullscreenable`, `x`, `y`, `width`, `height`, `desktops[]`, `parent`, `hasAppMenu` }, `activeId`, `stacking[]`, `showingDesktop` |
 | `workspaces` | `available`, `current` (desktop id), `rows`, `desktops[]` { `id`, `name`, `position` }                                                      |
 | `keyboard`   | `available`, `current` (index), `layouts[]` { `short`, `display`, `name` }                                                                    |
 | `menu`       | `status` (`ok` / `loading` / `none` / `error` / `unsupported`), `windowId`, `appId`, `revision`, `items[]` { `id`, `label`, `visible`, `enabled`, `separator`, `submenu`, `toggle` (`""` / `checkmark` / `radio`), `toggleState`, `icon`, `shortcut`, `children[]` } |
 | `session`    | `plasmashell`, `notifications`, `trayWatcher`, `menuView`: `none` / `self` (MacShell) / `bridge` / `other`                                    |
 | `iconAnchors` | `screens[]`: names of the outputs that have a mapped anchor (sorted). Sent when it changes; never sent without layer shell                   |
+| `snapshot`   | `id` (window), `url`: a PNG `data:` URL of the window, at most 256 px on its longer side; `""` if KWin gave none. The answer to a `snapshot` command |
 
 `windows` is sent (debounced by 25 ms, and only when it changed) on any window change. It lists only windows past their initial state.
 
@@ -83,6 +94,7 @@ One JSON object per line.
 | `menuEvent`                                                                                                               | `windowId`, `id`, `event` (`clicked` / `opened` / `closed`) |
 | `menuAboutToShow`                                                                                                         | `windowId`, `id`                               |
 | `iconGeometry`                                                                                                            | `id`, `screen` (output name; `""` forgets the target), `x`, `y`, `width`, `height` (integers, the screen's logical pixels: 0–32768, sizes 1–4096) |
+| `snapshot`                                                                                                                | `id`: take a picture of that window (answered with a `snapshot` message) |
 
 ## Build and diagnose
 

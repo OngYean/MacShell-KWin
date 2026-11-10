@@ -9,6 +9,7 @@
 //   KWin   org.kde.KWin.VirtualDesktopManager (D-Bus)     workspaces: list, current, switch
 //   apps   com.canonical.dbusmenu (D-Bus)                 the active window's real menu (--global-menu only)
 //   kded   org.kde.keyboard /Layouts (D-Bus)              keyboard layouts
+//   KWin   org.kde.KWin.ScreenShot2 (D-Bus)               a still picture of one window, for the Dock's minimized windows
 //
 // Trust boundary: window titles and menu labels only travel through the parent pipe, never to stderr or logs. Commands
 // from the parent are validated against current state (known window / desktop / menu item), unknown input is dropped.
@@ -23,6 +24,7 @@
 #include <KWayland/Client/surface.h>
 
 #include <QAbstractEventDispatcher>
+#include <QBuffer>
 #include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
@@ -31,6 +33,7 @@
 #include <QDBusPendingReply>
 #include <QDBusReply>
 #include <QDBusServiceWatcher>
+#include <QDBusUnixFileDescriptor>
 #include <QDBusVariant>
 #include <QDateTime>
 #include <QGuiApplication>
@@ -52,8 +55,10 @@
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #undef namespace
 
+#include <cerrno>
 #include <csignal>
 #include <cstdio>
+#include <fcntl.h>
 #include <unistd.h>
 
 using KWayland::Client::Output;
@@ -72,12 +77,18 @@ constexpr qsizetype kMaxMenuIconBytes = 16 * 1024;       // one item's icon-data
 constexpr qsizetype kMaxMenuIconBudget = 1024 * 1024;    // all icon-data of one menu
 constexpr int kMaxIconCoordinate = 32768;                // a Dock icon's place on its screen, in logical pixels
 constexpr int kMaxIconSize = 4096;
+constexpr int kSnapshotSide = 256;                       // longer side of the window picture sent to MacShell, in pixels
+constexpr int kMaxSnapshotDimension = 16384;             // what KWin may report as the raw picture's width / height
+constexpr qint64 kMaxSnapshotBytes = 300ll * 1024 * 1024; // the raw picture KWin writes (an 8K window is about 133 MiB)
+constexpr int kSnapshotTimeoutMs = 4000;
 
 const QString kKWinService = QStringLiteral("org.kde.KWin");
 const QString kDesktopsPath = QStringLiteral("/VirtualDesktopManager");
 const QString kDesktopsInterface = QStringLiteral("org.kde.KWin.VirtualDesktopManager");
 const QString kPropertiesInterface = QStringLiteral("org.freedesktop.DBus.Properties");
 const QString kMenuInterface = QStringLiteral("com.canonical.dbusmenu");
+const QString kScreenShotService = QStringLiteral("org.kde.KWin.ScreenShot2");
+const QString kScreenShotPath = QStringLiteral("/org/kde/KWin/ScreenShot2");
 const QString kKeyboardService = QStringLiteral("org.kde.keyboard");
 const QString kKeyboardPath = QStringLiteral("/Layouts");
 const QString kKeyboardInterface = QStringLiteral("org.kde.KeyboardLayouts");
@@ -265,9 +276,13 @@ public:
         , m_checkOnly(checkOnly)
         , m_bus(QDBusConnection::sessionBus())
     {
-        for (QTimer *timer : {&m_windowsTimer, &m_desktopsTimer, &m_menuTimer, &m_keyboardTimer, &m_sessionTimer}) {
+        for (QTimer *timer : {&m_windowsTimer, &m_desktopsTimer, &m_menuTimer, &m_keyboardTimer, &m_sessionTimer, &m_snapshotTimer}) {
             timer->setSingleShot(true);
         }
+        m_snapshotTimer.setInterval(kSnapshotTimeoutMs + 1000); // KWin never answered or never finished writing
+        connect(&m_snapshotTimer, &QTimer::timeout, this, [this] {
+            finishSnapshot(QImage());
+        });
         m_windowsTimer.setInterval(25); // coalesce bursts (a dragged window moves every frame)
         m_desktopsTimer.setInterval(30);
         m_menuTimer.setInterval(60);
@@ -282,6 +297,9 @@ public:
 
     ~Bridge() override
     {
+        if (m_snapshotFd >= 0) {
+            ::close(m_snapshotFd);
+        }
         for (IconAnchor *anchor : std::as_const(m_anchors)) {
             zwlr_layer_surface_v1_destroy(anchor->layer);
             delete anchor->surface;
@@ -476,6 +494,8 @@ public:
             }
         } else if (command == QLatin1String("iconGeometry")) {
             setIconTarget(QString::fromUtf8(window->uuid()), request);
+        } else if (command == QLatin1String("snapshot")) {
+            requestSnapshot(QString::fromUtf8(window->uuid()));
         }
     }
 
@@ -507,6 +527,166 @@ private:
         }
     }
 
+    // ── window snapshots: the Dock's picture of a minimized window ──
+    // KWin's screenshot interface (org.kde.KWin.ScreenShot2.CaptureWindow, the one Spectacle uses) renders a single window,
+    // also a minimized one, replies with the raw picture's size and writes it into a pipe. One window at a time, only when
+    // MacShell asks. The picture is scaled down here and goes to MacShell as a PNG data: URL: like titles and menu labels,
+    // window contents only travel through the parent pipe, never to a file or a log.
+    void requestSnapshot(const QString &uuid)
+    {
+        if (uuid != m_snapshotWindow && !m_snapshotQueue.contains(uuid)) {
+            m_snapshotQueue.append(uuid);
+        }
+        nextSnapshot();
+    }
+
+    void nextSnapshot()
+    {
+        while (m_snapshotWindow.isEmpty() && !m_snapshotQueue.isEmpty()) {
+            const QString uuid = m_snapshotQueue.takeFirst();
+            if (readyWindow(uuid)) { // not closed meanwhile
+                startSnapshot(uuid);
+            }
+        }
+    }
+
+    void emitSnapshot(const QString &uuid, const QString &url)
+    {
+        emitLine({{QStringLiteral("type"), QStringLiteral("snapshot")}, {QStringLiteral("id"), uuid}, {QStringLiteral("url"), url}});
+    }
+
+    void startSnapshot(const QString &uuid)
+    {
+        int fds[2];
+        if (!m_bus.isConnected() || ::pipe2(fds, O_CLOEXEC) != 0) {
+            emitSnapshot(uuid, QString());
+            return;
+        }
+        // only our end: KWin's writer sets up its own
+        ::fcntl(fds[0], F_SETFL, ::fcntl(fds[0], F_GETFL) | O_NONBLOCK);
+        m_snapshotWindow = uuid;
+        m_snapshotFd = fds[0];
+        m_snapshotData.clear();
+        m_snapshotExpected = -1;
+        m_snapshotEof = false;
+        const quint64 generation = ++m_snapshotGeneration;
+
+        QDBusMessage call = QDBusMessage::createMethodCall(kScreenShotService, kScreenShotPath, kScreenShotService, QStringLiteral("CaptureWindow"));
+        QVariantMap options;
+        options.insert(QStringLiteral("include-decoration"), false);
+        options.insert(QStringLiteral("include-shadow"), false);
+        call << uuid << options << QVariant::fromValue(QDBusUnixFileDescriptor(fds[1]));
+        ::close(fds[1]); // the message carries its own duplicate
+
+        auto *watcher = new QDBusPendingCallWatcher(m_bus.asyncCall(call, kSnapshotTimeoutMs), this);
+        connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, generation](QDBusPendingCallWatcher *self) {
+            self->deleteLater();
+            if (generation != m_snapshotGeneration || m_snapshotWindow.isEmpty()) {
+                return; // that capture was given up
+            }
+            const QDBusPendingReply<QVariantMap> reply = *self;
+            if (reply.isError()) {
+                finishSnapshot(QImage());
+                return;
+            }
+            // KWin's description of what it writes: untrusted until checked
+            const QVariantMap results = reply.value();
+            const qint64 width = results.value(QStringLiteral("width")).toLongLong();
+            const qint64 height = results.value(QStringLiteral("height")).toLongLong();
+            const qint64 stride = results.value(QStringLiteral("stride")).toLongLong();
+            const int format = results.value(QStringLiteral("format")).toInt();
+            if (results.value(QStringLiteral("type")).toString() != QLatin1String("raw") || width < 1 || width > kMaxSnapshotDimension
+                || height < 1 || height > kMaxSnapshotDimension || format <= QImage::Format_Invalid || format >= QImage::NImageFormats) {
+                finishSnapshot(QImage());
+                return;
+            }
+            const qint64 bytesPerPixel = QImage::toPixelFormat(static_cast<QImage::Format>(format)).bitsPerPixel() / 8;
+            if (bytesPerPixel < 1 || stride < width * bytesPerPixel || stride > kMaxSnapshotDimension * 16ll || stride * height > kMaxSnapshotBytes) {
+                finishSnapshot(QImage());
+                return;
+            }
+            m_snapshotWidth = static_cast<int>(width);
+            m_snapshotHeight = static_cast<int>(height);
+            m_snapshotStride = static_cast<int>(stride);
+            m_snapshotFormat = static_cast<QImage::Format>(format);
+            m_snapshotExpected = stride * height;
+            readSnapshot();
+        });
+
+        m_snapshotNotifier = new QSocketNotifier(m_snapshotFd, QSocketNotifier::Read, this);
+        connect(m_snapshotNotifier, &QSocketNotifier::activated, this, [this] {
+            readSnapshot();
+        });
+        m_snapshotTimer.start();
+    }
+
+    // Takes what the pipe has. The size comes with KWin's reply, which can arrive before or after the first bytes.
+    void readSnapshot()
+    {
+        if (m_snapshotFd < 0) {
+            return;
+        }
+        char buffer[65536];
+        while (!m_snapshotEof) {
+            const ssize_t count = ::read(m_snapshotFd, buffer, sizeof buffer);
+            if (count > 0) {
+                m_snapshotData.append(buffer, count);
+                if (m_snapshotData.size() > kMaxSnapshotBytes) {
+                    finishSnapshot(QImage());
+                    return;
+                }
+            } else if (count == 0) {
+                m_snapshotEof = true;
+                m_snapshotNotifier->setEnabled(false); // an ended pipe stays readable
+            } else if (errno != EINTR) {
+                break; // EAGAIN: nothing more for now
+            }
+        }
+        if (m_snapshotExpected >= 0 && m_snapshotData.size() >= m_snapshotExpected) {
+            const QImage raw(reinterpret_cast<const uchar *>(m_snapshotData.constData()), m_snapshotWidth, m_snapshotHeight, m_snapshotStride,
+                             m_snapshotFormat);
+            // scaled() and copy() detach from m_snapshotData, which finishSnapshot releases
+            finishSnapshot((raw.width() > kSnapshotSide || raw.height() > kSnapshotSide)
+                               ? raw.scaled(kSnapshotSide, kSnapshotSide, Qt::KeepAspectRatio, Qt::SmoothTransformation)
+                               : raw.copy());
+        } else if (m_snapshotEof && m_snapshotExpected >= 0) {
+            finishSnapshot(QImage()); // KWin stopped short
+        }
+    }
+
+    // Ends the current capture, with the picture or (a null image) without one, and starts the next.
+    void finishSnapshot(const QImage &image)
+    {
+        if (m_snapshotWindow.isEmpty()) {
+            return;
+        }
+        const QString uuid = m_snapshotWindow;
+        m_snapshotWindow.clear();
+        m_snapshotTimer.stop();
+        if (m_snapshotNotifier) {
+            m_snapshotNotifier->setEnabled(false);
+            m_snapshotNotifier->deleteLater();
+            m_snapshotNotifier = nullptr;
+        }
+        if (m_snapshotFd >= 0) {
+            ::close(m_snapshotFd);
+            m_snapshotFd = -1;
+        }
+        m_snapshotData = QByteArray();
+        m_snapshotExpected = -1;
+
+        QString url;
+        if (!image.isNull()) {
+            QByteArray png;
+            QBuffer out(&png);
+            if (out.open(QIODevice::WriteOnly) && image.save(&out, "PNG")) {
+                url = QStringLiteral("data:image/png;base64,") + QString::fromLatin1(png.toBase64());
+            }
+        }
+        emitSnapshot(uuid, url);
+        nextSnapshot();
+    }
+
     void emitHello()
     {
         emitLine({
@@ -518,6 +698,7 @@ private:
             {QStringLiteral("appMenuProtocol"), m_appMenuProtocol},
             {QStringLiteral("globalMenu"), m_globalMenu && m_windowManagement != nullptr && m_bus.isConnected()},
             {QStringLiteral("dbus"), m_bus.isConnected()},
+            {QStringLiteral("snapshots"), m_bus.isConnected()},
         });
         if (!m_windowManagement) {
             logStatus("status=unsupported protocol=org_kde_plasma_window_management");
@@ -1165,6 +1346,20 @@ private:
     bool m_plasmaShell = false;
     QString m_notificationsOwner = QStringLiteral("none");
     QTimer m_sessionTimer;
+
+    QStringList m_snapshotQueue; // window uuids waiting for their picture
+    QString m_snapshotWindow; // the one being captured; empty while idle
+    quint64 m_snapshotGeneration = 0;
+    int m_snapshotFd = -1; // our end of the pipe KWin writes the raw picture into
+    QSocketNotifier *m_snapshotNotifier = nullptr;
+    QByteArray m_snapshotData;
+    bool m_snapshotEof = false;
+    qint64 m_snapshotExpected = -1; // bytes of the raw picture, known once KWin has replied
+    int m_snapshotWidth = 0;
+    int m_snapshotHeight = 0;
+    int m_snapshotStride = 0;
+    QImage::Format m_snapshotFormat = QImage::Format_Invalid;
+    QTimer m_snapshotTimer;
 
     QString m_menuWindow;
     QString m_menuAppId;

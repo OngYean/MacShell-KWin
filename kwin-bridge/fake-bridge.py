@@ -93,7 +93,7 @@ class Fake:
 
     def start(self):
         self.emit({"type": "hello", "protocol": 1, "bridge": "fake", "windowManagement": "available", "advertisedVersion": 21,
-                   "appMenuProtocol": True, "globalMenu": self.global_menu, "dbus": True})
+                   "appMenuProtocol": True, "globalMenu": self.global_menu, "dbus": True, "snapshots": True})
         self.emit({"type": "session", "plasmashell": True, "notifications": "other", "trayWatcher": "other",
                    "menuView": "bridge" if self.global_menu else "other"})
         self.emit({"type": "keyboard", "available": True, "current": self.layout, "layouts": LAYOUTS})
@@ -194,6 +194,10 @@ class Fake:
             elif cmd == "iconGeometry":
                 self.set_icon(w["id"], req)
                 return                                           # nothing visible changes
+            elif cmd == "snapshot":
+                # the real bridge sends a scaled-down picture of the window; a single pixel stands in for it
+                self.emit({"type": "snapshot", "id": w["id"], "url": SNAPSHOT})
+                return
             else:
                 return
             self.emit_windows(); self.emit_menu()
@@ -212,15 +216,19 @@ class Fake:
             self.icons[id] = {"screen": screen, "x": x, "y": y, "width": w, "height": h}
 
 
+# a 1x1 PNG, as the data: URL the real bridge sends
+SNAPSHOT = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
 # message type → keys every message of that type carries (kwin-bridge/README.md "Messages")
 SCHEMA = {
-    "hello": {"protocol", "bridge", "windowManagement", "advertisedVersion", "appMenuProtocol", "globalMenu", "dbus"},
+    "hello": {"protocol", "bridge", "windowManagement", "advertisedVersion", "appMenuProtocol", "globalMenu", "dbus", "snapshots"},
     "windows": {"windows", "activeId", "stacking", "showingDesktop"},
     "workspaces": {"available", "current", "rows", "desktops"},
     "keyboard": {"available", "current", "layouts"},
     "menu": {"status", "windowId", "appId", "revision", "items"},
     "session": {"plasmashell", "notifications", "trayWatcher", "menuView"},
     "iconAnchors": {"screens"},
+    "snapshot": {"id", "url"},
 }
 WINDOW_KEYS = {"id", "appId", "title", "pid", "resourceName", "active", "minimized", "maximized", "fullscreen", "keepAbove",
                "onAllDesktops", "demandsAttention", "skipTaskbar", "skipSwitcher", "closeable", "minimizeable",
@@ -271,6 +279,11 @@ def selftest():
     assert "{nope}" not in fake.icons                                   # unknown window: dropped
     fake.handle('{"cmd":"iconGeometry","id":"{fake-kwrite}","screen":""}')
     assert "{fake-kwrite}" not in fake.icons                            # no screen: forgotten
+    fake.handle('{"cmd":"snapshot","id":"{fake-kwrite}"}')
+    assert last("snapshot")["id"] == "{fake-kwrite}" and last("snapshot")["url"].startswith("data:image/png;base64,")
+    count = len(sent)
+    fake.handle('{"cmd":"snapshot","id":"{nope}"}')
+    assert len(sent) == count                                           # unknown window: dropped
     for m in sent:
         check(m)
     print("fake-bridge selftest: %d messages ok" % len(sent))

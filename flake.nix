@@ -49,7 +49,7 @@
           # KWin side of the compositor backend (MacShell/backends/compositor/KWinBackend.qml); see kwin-bridge/README.md
           macshell-kwin-bridge = pkgs.stdenv.mkDerivation {
             pname = "macshell-kwin-bridge";
-            version = "0.2.0";
+            version = "0.3.0";
             src = ./kwin-bridge;
             nativeBuildInputs = [
               pkgs.cmake
