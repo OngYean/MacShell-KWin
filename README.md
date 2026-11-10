@@ -72,6 +72,28 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   window cell) instead of towards the pointer. Restoring it comes out of the same place, whether you click the Dock,
   use Alt+Tab or a shortcut. Not yet tested in Plasma; a CI check against a headless KWin covers only that KWin
   receives the target, not the animation.
+- **Minimized windows as pictures in the Dock** (Settings → Desktop & Dock, on by default on KDE). A minimized
+  window sits next to the Trash as a small picture of itself with its app's icon as a badge, as on macOS. KWin takes
+  the picture once, when the window is minimized; nothing is captured live. Not yet tested in Plasma, and the
+  bridge code for it has not been compiled yet.
+- **Applications start as their own systemd units** on KDE (`app-macshell-<id>@….service` in `app.slice`), like
+  Plasma's own launchers, so they are not children of MacShell and survive a restart of it. Falls back to a direct
+  start. Not yet tested in Plasma.
+- **Desktop-entry actions** (New Window, New Private Window, …) in the Dock icon's right-click menu, in Spotlight's
+  results and on right-click in Spotlight's application grid. Not yet tested.
+- **Submenus open to the side** (Settings → Menu Bar, off by default): a submenu of an application's menu opens
+  next to its parent row instead of replacing the menu. Not yet tested in Plasma.
+- **Follow KDE's accent color** (Settings → Appearance, on by default on KDE). MacShell uses the highlight colour
+  Plasma paints with and follows changes made in System Settings → Colors; a colour picked in MacShell is applied
+  to Plasma too. Not yet tested in Plasma.
+- **KDE's text rendering** (Settings → Appearance, off by default). Text is drawn by the system's rasterizer and so
+  follows KDE's font settings (anti-aliasing, hinting, sub-pixel). Needs a restart of MacShell, and is soft at UI
+  scales other than 100 %. Not yet tested.
+- **Screen corner radius** (Settings → Appearance, off by default): black rounded corners on every screen, like a
+  MacBook's display. Not yet tested.
+- **Scroll wheel on volume and brightness**: on the Control Center's Display and Sound tiles, on every Control
+  Center style slider, and on a new optional "Display brightness" icon in the menu bar (Settings → Menu Bar). Not
+  yet tested.
 - **Nix flake**: the packages `macshell`, `macshell-kwin-bridge` and `macshell-hyprland`, a Home Manager module
   (`programs.macshell`, with optional autostart) and a development shell.
 - **Tests**: a fake bridge for trying the interface without KWin, a smoke test against a headless KWin, shell-script
@@ -95,14 +117,18 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Shortcut items in the generic File/Edit menus | `hyprctl sendshortcut` / `wtype` | `ydotool`, if installed |
 | Game Mode | Also tunes Hyprland, the power profile and the video wallpaper | Quiets MacShell's own effects only |
 | Settings → Software Update | Checks 0-ss/MacShell | Checks this fork (OngYean/MacShell-KWin); it only notifies, you update with Nix or git |
+| Menu popovers | Always 260 px wide; long entries cut off with "…" | As wide as the longest entry needs (up to 640 px). Not yet tested |
+| Dock icons | Loaded at exactly the Dock's icon size, again at every step of the Size slider | Loaded in 64 px steps, so dragging Size or Magnification no longer freezes the shell with SVG icon themes. Not yet tested |
+| Terminal apps started from the Dock | Started without a terminal | Open in the configured terminal, as from Spotlight (also on Hyprland). Not yet tested |
 | Menu bar and popover icons | Drawn at 100 % and stretched by the UI scale and bar height, so blurry at other sizes | Drawn at the size they're shown at, and again when the display scale changes; tray icons loaded at 64 px. Not yet tested in Plasma |
 
 ### Removed or unavailable on KDE Plasma
 
 No upstream code has been deleted; the Hyprland path is kept, but untested. On KDE Plasma you don't get:
 
-- **Live window previews** in the Dock or in the glass, and dragging a window copy out of the Dock. KWin doesn't let
-  ordinary programs capture windows, so the Dock shows app icons instead.
+- **Live window previews** in the Dock or in the glass, and dragging a window copy out of the Dock. KWin has no
+  capture protocol for ordinary programs. A minimized window gets a still picture instead (see Added); open
+  windows show app icons.
 - **Colour picker** (`hyprpicker`).
 - **Window layout controls** in the window menu (float, pin, split, move and resize). KWin's own window menu has
   these.
