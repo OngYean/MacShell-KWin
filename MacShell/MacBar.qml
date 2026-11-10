@@ -3478,6 +3478,37 @@ Scope {
         if (!(hub && hub.launch(cmd, wd, e.id))) e.execute();
     }
     function appRunner(e) { return function () { launchApp(e); }; }
+    // The entry's own actions (freedesktop "Desktop Actions": New Window, New Private Window, ...) as [{ id, name, icon, run }],
+    // for the Dock's right-click menu, Spotlight's results and the application grid.
+    // shortcut: an action of a Terminal=true entry starts without a terminal; route it through runEntry's terminal script if one shows up
+    function entryActions(e) {
+        var out = [], acts = [];
+        try { acts = (e && e.actions) ? Array.prototype.slice.call(e.actions) : []; } catch (err) { acts = []; }
+        acts.forEach(function (a) {
+            if (!a || !a.name) return;
+            out.push({ id: a.id, name: a.name, icon: a.icon || "", run: function () {
+                if (!(hub && hub.launch(a.command, e.workingDirectory, e.id + "-" + a.id))) a.execute();
+            } });
+        });
+        return out;
+    }
+    // Spotlight rows: the top app hit's actions first, then any app's action whose name matches the query
+    function appActionItems(q, limit) {
+        var s = (q || "").trim().toLowerCase(), out = [], seen = {}, list = appList, hits = searchApps(q);
+        if (s === "") return out;
+        function add(e, a) {
+            var k = e.id + "\n" + a.id;
+            if (seen[k] || out.length >= limit) return;
+            seen[k] = true;
+            out.push({ title: a.name, sub: e.name, icon: iconSrc(a.icon || e.icon), glyph: "", confirm: false, run: a.run });
+        }
+        if (hits.length > 0) entryActions(hits[0]).forEach(function (a) { add(hits[0], a); });
+        for (var i = 0; i < list.length && out.length < limit; i++) {
+            var e = list[i];
+            entryActions(e).forEach(function (a) { if (a.name.toLowerCase().indexOf(s) >= 0) add(e, a); });
+        }
+        return out;
+    }
     function appItems(q, limit) {
         var r = searchApps(q), out = [];
         for (var i = 0; i < r.length && i < limit; i++)
@@ -3572,6 +3603,8 @@ Scope {
             return out;
         }
         if(s.length>0) out=appItems(q,4);
+        // the apps' own actions, while there is room: three for a single hit, one when four apps already match
+        if(s.length>0){ var aa=appActionItems(q,3); for(var ai=0;ai<aa.length&&out.length<5;ai++)out.push(aa[ai]); }
         var cv=conversion(s); if(cv) out.unshift(cv);
         else { var expr=s.replace(/^=\s*/,""); var v=calcValue(expr); if(v!==null && (s.charAt(0)==="=" || /[+*/%xX×÷()]/.test(s))) out.unshift({title:String(Number(v.toPrecision(10))),sub:I18n.tr("Calculator · Return to copy"),glyph:"search",run:function(){Quickshell.execDetached(["wl-copy",String(v)]);}}); }
         var wins=windowItems(q); for(var j=0;j<wins.length&&out.length<6;j++)out.push(wins[j]);
@@ -10543,6 +10576,61 @@ Scope {
                         GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
                         MenuBorder { amount: 0.3; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
+                        // right-click an app: its desktop-entry actions (New Window, New Private Window, ...) in a small menu
+                        property var actMenu: null          // { x, y, acts: root.entryActions(entry) }, in this panel's coordinates
+                        onVisibleChanged: actMenu = null
+                        MouseArea {                         // a click anywhere else closes it
+                            z: 20
+                            anchors.fill: parent
+                            visible: appsPanel.actMenu !== null
+                            acceptedButtons: Qt.AllButtons
+                            onPressed: appsPanel.actMenu = null
+                        }
+                        Rectangle {
+                            id: actPop
+                            z: 21
+                            readonly property var acts: appsPanel.actMenu ? appsPanel.actMenu.acts : []
+                            visible: appsPanel.actMenu !== null
+                            width: 240
+                            height: actCol.height + 12
+                            x: appsPanel.actMenu ? Math.max(8, Math.min(appsPanel.width - width - 8, appsPanel.actMenu.x)) : 0
+                            y: appsPanel.actMenu ? Math.max(8, Math.min(appsPanel.height - height - 8, appsPanel.actMenu.y)) : 0
+                            radius: 12
+                            color: root.panelDarkMode ? Qt.rgba(0.16, 0.16, 0.18, 0.98) : Qt.rgba(0.97, 0.97, 0.98, 0.98)
+                            border.width: 1
+                            border.color: panelPal.sep
+                            Column {
+                                id: actCol
+                                x: 6; y: 6
+                                width: parent.width - 12
+                                Repeater {
+                                    model: actPop.acts
+                                    delegate: Item {
+                                        id: actRow
+                                        required property var modelData
+                                        width: actCol.width
+                                        height: 28
+                                        Rectangle { anchors.fill: parent; radius: 6; color: root.accent; visible: actMa.containsMouse }
+                                        Text {
+                                            x: 10
+                                            width: parent.width - 20
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            elide: Text.ElideRight
+                                            text: actRow.modelData.name
+                                            color: actMa.containsMouse ? "white" : panelPal.fg
+                                            font.family: root.fontForWeight(Font.Normal, panelPal.fam); font.pixelSize: 13
+                                        }
+                                        MouseArea {
+                                            id: actMa
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: { var run = actRow.modelData.run; appsPanel.actMenu = null; ui.pop = ""; run(); }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         Item {
                             id: appsHeader
                             x: 24
@@ -10666,7 +10754,18 @@ Scope {
                                                         id: cma
                                                         anchors.fill: parent
                                                         hoverEnabled: true
-                                                        onClicked: { ui.pop = ""; root.launchApp(cell.e); }
+                                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                        onClicked: mouse => {
+                                                            if (mouse.button === Qt.RightButton) {      // the entry's actions, if it has any
+                                                                var acts = root.entryActions(cell.e);
+                                                                if (acts.length > 0) {
+                                                                    var at = cell.mapToItem(appsPanel, mouse.x, mouse.y);
+                                                                    appsPanel.actMenu = { x: at.x, y: at.y, acts: acts };
+                                                                }
+                                                                return;
+                                                            }
+                                                            ui.pop = ""; root.launchApp(cell.e);
+                                                        }
                                                     }
                                                 }
                                             }

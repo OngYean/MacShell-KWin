@@ -4624,6 +4624,13 @@ Scope {
                      run: function () { togglePin(item); } });
             m.push({ kind: "item", label: wins.length > 0 ? I18n.tr("New Window") : I18n.tr("Open"),
                      run: function () { activate(item, true); } });
+            // the desktop entry's own actions (New Private Window, ...), as KDE's task manager lists them. Looked up
+            // again here: the entry stored in the Dock model can be a stale object (see activate)
+            var ent = null;
+            try { ent = DesktopEntries.byId(item.appId || item.key); } catch (err) { ent = null; }
+            var acts = bar && bar.entryActions ? bar.entryActions(ent || item.entry) : [];
+            if (acts.length > 0) m.push({ kind: "sep" });
+            for (var a = 0; a < acts.length; a++) m.push({ kind: "item", label: acts[a].name, run: acts[a].run });
         }
         if (wins.length > 0) {
             m.push({ kind: "sep" });
