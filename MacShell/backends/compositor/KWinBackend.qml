@@ -208,8 +208,11 @@ Scope {
     function setKeyboardLayout(i) { send({ cmd: "setKeyboardLayout", index: i }); }
 
     // ── session: KDE's own services, so the session is saved and KDE's lock screen (not MacLock) is used ──
+    // --print-reply keeps dbus-send on the bus until the call is answered. org.kde.Shutdown is started on demand, and
+    // dbus-daemon drops a call queued for a starting service once its sender has disconnected (bus/activation.c): without
+    // it Log Out, Restart and Shut Down did nothing, while Lock worked because KWin's locker is always running.
     function dbusSend(dest, path, method) {
-        Quickshell.execDetached(["dbus-send", "--session", "--type=method_call", "--dest=" + dest, path, dest + "." + method]);
+        Quickshell.execDetached(["dbus-send", "--session", "--print-reply", "--type=method_call", "--dest=" + dest, path, dest + "." + method]);
     }
     function lock() { dbusSend("org.freedesktop.ScreenSaver", "/ScreenSaver", "Lock"); }
     function sleep() { Quickshell.execDetached(["systemctl", "suspend"]); }   // logind; KDE's screen locker locks on suspend per its settings
