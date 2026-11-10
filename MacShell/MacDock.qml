@@ -227,6 +227,9 @@ Scope {
     // none. Qt reads this once, at start: the `macshell` launcher (nix/macshell.sh) finds it in settings.json and sets
     // QML_DISABLE_DISTANCEFIELD. nativeTextActive is what this run was started with.
     property bool nativeText: false
+    // Settings → Appearance → "Screen corner radius": black rounded corners on every screen, like a MacBook's display
+    // (ScreenCorners.qml). Logical pixels; 0 = off.
+    property int screenCornerRadius: 0
     readonly property bool nativeTextActive: String(Quickshell.env("QML_DISABLE_DISTANCEFIELD") || "") !== ""
     readonly property bool kdeAccentOn: accentFromKde && !!comp && comp.isKWin
     property string kdeAccent: ""        // "#rrggbb", "" while kdeglobals names no colour
@@ -2341,6 +2344,23 @@ Scope {
                     }
                 }
 
+                SCard {
+                    t: pal
+                    SRow {
+                        t: pal
+                        title: I18n.tr("Screen corner radius")
+                        subtitle: I18n.tr("Rounds the corners of every screen, like a MacBook's display")
+                        SSlider {
+                            t: pal
+                            from: 0; to: 40; stepSize: 1
+                            value: root.screenCornerRadius
+                            leftLabel: I18n.tr("Off"); rightLabel: I18n.tr("Round")
+                            resetValue: 0
+                            onMoved: v => root.screenCornerRadius = Math.round(v)
+                        }
+                    }
+                }
+
                 // KWin only: hand the blur to the compositor (GlassBlur.qml / BlurCollector.qml)
                 SCard {
                     t: pal
@@ -4330,7 +4350,7 @@ Scope {
         desktopIcons = true; desktopIconSize = 48;
         iconSize = 52; magnification = 1.7; magnificationEnabled = true;
         spacing = 6; margin = 6; cornerRadius = 18;
-        darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accentFromKde = true; nativeText = false; accent = "#0a84ff"; fontFamily = "Open Runde";
+        darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accentFromKde = true; nativeText = false; screenCornerRadius = 0; accent = "#0a84ff"; fontFamily = "Open Runde";
         iconTint = false; iconTintColor = "#0a84ff"; iconTintStrength = 1.0;
         hideMode = "smart"; hideDelay = 450; monitor = "";
         showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; glassLive = true;
@@ -4338,7 +4358,7 @@ Scope {
 
     // ── settings persistence (~/.config/macdock/settings.json) ──
     readonly property string settingsSig: [dockEnabled, settingsEnabled, desktopIcons, desktopIconSize, iconSize, magnification, magnificationEnabled, spacing, margin,
-        cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, accentFromKde, nativeText, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
+        cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, accentFromKde, nativeText, screenCornerRadius, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
         showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength].join("|")
     property bool settingsReady: false
     onSettingsSigChanged: if (settingsReady) saveTimer.restart()
@@ -4350,7 +4370,7 @@ Scope {
         var o = {
             dockEnabled: dockEnabled, settingsEnabled: settingsEnabled, desktopIcons: desktopIcons, desktopIconSize: desktopIconSize, iconSize: iconSize, magnification: magnification, magnificationEnabled: magnificationEnabled,
             spacing: spacing, margin: margin, cornerRadius: cornerRadius,
-            darkMode: darkMode, appearanceMode: appearanceMode, glassOpacity: glassOpacity, dockStyle: dockStyle, kwinBlur: kwinBlur, accentFromKde: accentFromKde, nativeText: nativeText, wallpaperPath: wallpaperPath, glassDebug: glassDebug,
+            darkMode: darkMode, appearanceMode: appearanceMode, glassOpacity: glassOpacity, dockStyle: dockStyle, kwinBlur: kwinBlur, accentFromKde: accentFromKde, nativeText: nativeText, screenCornerRadius: screenCornerRadius, wallpaperPath: wallpaperPath, glassDebug: glassDebug,
             glassRim: glassRim, glassGrain: glassGrain, glassLiquid: glassLiquid, glassBlur: glassBlur,
             accent: String(accent), fontFamily: fontFamily,
             hideMode: hideMode, hideDelay: hideDelay, monitor: monitor,
@@ -4364,7 +4384,7 @@ Scope {
     function applySettings(o) {
         if (!o || typeof o !== "object") return;
         var keys = ["dockEnabled", "settingsEnabled", "desktopIcons", "desktopIconSize", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
-                    "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "accentFromKde", "nativeText", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
+                    "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "accentFromKde", "nativeText", "screenCornerRadius", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
                     "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength"];
         for (var i = 0; i < keys.length; i++) {
             if (o[keys[i]] === undefined) continue;
