@@ -66,6 +66,21 @@ ShellRoot {
         property var about: aboutApp
         function openSettings(pane) { macDock.openPrefs(pane); }
 
+        // ── starting applications ──
+        // KDE: assets/launch-app.sh starts the app as its own systemd user service (app.slice), like Plasma's launchers, so it
+        // is not a child of the shell and survives a restart of macshell.service. Elsewhere the command is started directly.
+        readonly property string appUnitScript: decodeURIComponent(String(Qt.resolvedUrl("assets/launch-app.sh")).replace(/^file:\/\//, ""))
+        // cmd: the argument list; appId names the unit (a desktop entry id). False if there was nothing to start.
+        function launch(cmd, workingDirectory, appId) {
+            var c = cmd ? Array.prototype.slice.call(cmd) : [], wd = workingDirectory || "";
+            if (c.length === 0) return false;
+            if (facade.isKWin)
+                Quickshell.execDetached(["sh", appUnitScript, String(appId || c[0]),
+                                         Math.floor(Math.random() * 0xffffffff).toString(16), wd].concat(c));
+            else Quickshell.execDetached({ command: c, workingDirectory: wd });
+            return true;
+        }
+
         // set by MacBar / MacDock (Binding elements) when their glass needs live data
         property bool barWantsGeo: false
         property bool dockWantsGeo: false

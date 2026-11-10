@@ -3460,21 +3460,22 @@ Scope {
     }
     // Quickshell's DesktopEntry.execute() ignores Terminal=true, so TUI apps (htop, btop, ncdu, ...) started and died at once.
     // Those entries are run inside the configured terminal instead ("$@" keeps every argument intact, no quoting issues).
+    // Everything goes through hub.launch, which on KDE starts the app as its own systemd unit (shell.qml).
     function runEntry(e) {
         if (!e) return;
-        var cmd = [];
+        var cmd = [], wd = "";
         try { cmd = e.command ? Array.prototype.slice.call(e.command) : []; } catch (err) { cmd = []; }
+        try { wd = e.workingDirectory || ""; } catch (err2) { wd = ""; }
         if (e.runInTerminal === true && cmd.length > 0) {
             var t = (terminal || "").trim() !== "" ? terminal : "kitty";
-            var wd = "";
-            try { wd = e.workingDirectory || ""; } catch (err2) { wd = ""; }
             var script = (wd !== "" ? "cd \"$MS_WD\" 2>/dev/null; " : "")
                        + "if command -v " + t.split(/\s+/)[0] + " >/dev/null 2>&1; then exec " + t + " -e \"$@\"; fi; "
                        + "for tm in kitty alacritty foot wezterm ghostty konsole xterm; do command -v $tm >/dev/null 2>&1 && exec $tm -e \"$@\"; done";
-            Quickshell.execDetached(["env", "MS_WD=" + wd, "sh", "-c", script, "sh"].concat(cmd));
+            var tcmd = ["env", "MS_WD=" + wd, "sh", "-c", script, "sh"].concat(cmd);
+            if (!(hub && hub.launch(tcmd, "", e.id))) Quickshell.execDetached(tcmd);
             return;
         }
-        e.execute();
+        if (!(hub && hub.launch(cmd, wd, e.id))) e.execute();
     }
     function appRunner(e) { return function () { launchApp(e); }; }
     function appItems(q, limit) {

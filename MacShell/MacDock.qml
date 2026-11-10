@@ -4522,7 +4522,10 @@ Scope {
             try { ent = DesktopEntries.byId(rid); } catch (err) { ent = null; }
             if (!ent) { try { ent = DesktopEntries.heuristicLookup ? DesktopEntries.heuristicLookup(item.key) : null; } catch (err2) { ent = null; } }
             var ok = false;
-            if (ent && typeof ent.execute === "function") { try { ent.execute(); ok = true; } catch (err3) { ok = false; } }
+            // through the bar's runEntry: a terminal for Terminal=true entries, and on KDE the app's own systemd unit
+            if (ent && typeof ent.execute === "function") {
+                try { if (bar && bar.runEntry) bar.runEntry(ent); else ent.execute(); ok = true; } catch (err3) { ok = false; }
+            }
             if (!ok) {
                 var id = rid;
                 console.log("[macdock] launching", id, "via gtk-launch (desktop entry unavailable)");

@@ -461,7 +461,8 @@ Scope {
                 + "[ -n \"$exec_line\" ] || exec xdg-open \"$1\"; "
                 + "if [ \"$terminal\" = true ]; then for t in x-terminal-emulator kitty foot alacritty wezterm konsole xfce4-terminal xterm; do c=$(command -v \"$t\" 2>/dev/null) || continue; \"$c\" -e sh -c \"$exec_line\" && exit 0; done; fi; "
                 + "exec sh -c \"$exec_line\"";
-            Quickshell.execDetached(["sh", "-c", launchScript, "sh", it.path, id]);
+            var lc = ["sh", "-c", launchScript, "sh", it.path, id];
+            if (!(hub && hub.launch && hub.launch(lc, "", id))) Quickshell.execDetached(lc);     // KDE: in the app's own systemd unit
             return;
         }
         // folders open in a graphical file manager (the system default, unless that is a terminal program); files go through the Bar's viewer / xdg-open
