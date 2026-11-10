@@ -2047,6 +2047,18 @@ Scope {
         if (m.length > 0 && m[m.length - 1].kind === "sep") m.pop();
         return m;
     }
+    // Width a menu popover needs for its rows: 6 px padding each side, the check / icon gutter, the widest label with its
+    // shortcut, 12 px after it. fm / scFm: FontMetrics of the label and the shortcut font.
+    function menuFitWidth(model, lead, fm, scFm) {
+        var w = 0;
+        for (var i = 0; i < model.length; i++) {
+            var it = model[i];
+            if (it.kind === "sep") continue;
+            var sc = it.shortcut ? scFm.advanceWidth(it.shortcut) + 12 : 0;
+            w = Math.max(w, fm.advanceWidth(it.raw === true ? it.label : I18n.tr(it.label)) + sc);
+        }
+        return Math.ceil(12 + (lead ? 28 : 12) + w + 12) + 4;
+    }
     // path = submenus opened inside the popover of top menu `top`
     function gmPathModel(path, top) {
         var id = path.length > 0 ? path[path.length - 1] : top, m = gmModel(id);
@@ -6928,7 +6940,12 @@ Scope {
                 Item {
                     id: menuPop
                     z: 10
-                    width: 260
+                    // As wide as the longest row needs (gutter, label, shortcut), so an application's long entries are not cut
+                    // off with "…"; never narrower than before, and never wider than the screen.
+                    FontMetrics { id: menuFm; font.family: Fonts.forWeight(Font.Normal, "Open Runde"); font.pixelSize: 13; font.weight: Font.Normal }
+                    FontMetrics { id: menuScFm; font.family: Fonts.forWeight(Font.Normal, "Open Runde"); font.pixelSize: 12; font.weight: Font.Normal }
+                    readonly property real fitWidth: root.menuFitWidth(ui.menuModel, ui.menuLead, menuFm, menuScFm)
+                    width: Math.max(260, Math.min(fitWidth, 640, (ui.width - 12) / root.barPopupScale))
                     height: menuCol.height + 14
                     x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 6, ui.menuDropX - 4))
                     y: root.barH + 3
