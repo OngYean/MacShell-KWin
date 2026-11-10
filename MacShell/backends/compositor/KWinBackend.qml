@@ -19,6 +19,11 @@ Scope {
     property bool ready: false
     property bool windowManagement: false
     property bool globalMenuAvailable: false
+    // the bridge can take a still picture of a window (KWin's screenshot interface), for the Dock's minimized windows
+    property bool snapshotsAvailable: false
+    property bool snapshotsWanted: false          // set through the facade by the Dock
+    property var snapshotAsked: ({})              // window id → asked for this spell of being minimized (plain bookkeeping)
+    property int minimizedRev: 0                  // counts up whenever a window is minimized or restored
 
     // ── raw bridge state ──
     property var windowList: []                 // bridge window objects (id, appId, title, pid, active, minimized, ..., x, y, width, height, desktops)
@@ -46,6 +51,7 @@ Scope {
         sessionActions: true, systemSettings: true,
         // KWin's minimize effects (Magic Lamp) can be told where each window's Dock icon is (setIconTargets)
         minimizeTarget: root.windowManagement && root.iconScreens.length > 0,
+        windowSnapshot: root.windowManagement && root.snapshotsAvailable,
         // KWin offers no capture protocol to ordinary clients, draws (Klassy) decorations itself and has no layer rules
         windowCapture: false, screenCapture: false, drawDecorations: false, windowRules: false, layerBlurRules: false,
         windowLayout: false, sendShortcut: false, colorPicker: false, nightShift: false, monitorConfig: false, inputConfig: false,
@@ -82,6 +88,7 @@ Scope {
             property bool minimized: false
             property bool maximized: false
             property bool fullscreen: false
+            property string snapshot: ""       // a picture of the window while it is minimized (data: URL), "" = none
             property var info: ({})
             function activate() { backend.send({ cmd: "activate", id: address }); }
             function close() { backend.send({ cmd: "close", id: address }); }
@@ -91,7 +98,7 @@ Scope {
         }
     }
     function syncToplevels() {
-        var seen = {}, next = [], i, w, a, map = byId, changed = false;
+        var seen = {}, next = [], i, w, a, map = byId, changed = false, minChanged = false;
         for (i = 0; i < windowList.length; i++) {
             w = windowList[i];
             if (w.skipTaskbar) continue;           // Plasma's desktop / panels / OSDs, as Plasma's own task manager filters them
@@ -101,7 +108,11 @@ Scope {
             a.appId = w.appId || w.resourceName || "";
             a.title = w.title || "";
             a.activated = w.id === activeId;
+            if (a.minimized !== (w.minimized === true)) minChanged = true;
             a.minimized = w.minimized === true;
+            // one picture per spell of being minimized, asked for when it starts; forgotten when the window is back
+            if (!a.minimized) { a.snapshot = ""; delete snapshotAsked[w.id]; }
+            else if (snapshotsWanted && snapshotsAvailable && !snapshotAsked[w.id]) { snapshotAsked[w.id] = true; send({ cmd: "snapshot", id: w.id }); }
             a.maximized = w.maximized === true;
             a.fullscreen = w.fullscreen === true;
             a.info = w;
@@ -109,7 +120,8 @@ Scope {
         // keep the old order (creation order, like ToplevelManager), new windows at the end
         for (i = 0; i < toplevels.length; i++) if (seen[toplevels[i].address]) next.push(toplevels[i]);
         for (var id in seen) if (next.indexOf(map[id]) < 0) next.push(map[id]);
-        for (var k in map) if (!seen[k]) { map[k].destroy(); delete map[k]; changed = true; }
+        for (var k in map) if (!seen[k]) { map[k].destroy(); delete map[k]; delete snapshotAsked[k]; changed = true; }
+        if (minChanged) minimizedRev++;
         if (changed || next.length !== toplevels.length) toplevels = next;
         else for (i = 0; i < next.length; i++) if (next[i] !== toplevels[i]) { toplevels = next; break; }
     }
@@ -255,12 +267,16 @@ Scope {
             restartDelay = 1000;
             windowManagement = m.windowManagement === "available";
             globalMenuAvailable = m.globalMenu === true;
+            snapshotsAvailable = m.snapshots === true;
             status = windowManagement ? "ok" : "window-management-unsupported";
         } else if (m.type === "windows") {
             activeId = m.activeId || "";
             windowList = m.windows || [];
             syncToplevels();
             syncIconTargets();
+        } else if (m.type === "snapshot") {
+            var sa = byId[m.id];
+            if (sa && sa.minimized && typeof m.url === "string" && m.url.indexOf("data:image/") === 0) sa.snapshot = m.url;
         } else if (m.type === "iconAnchors") {
             iconScreens = m.screens || [];
         } else if (m.type === "workspaces") {
@@ -296,6 +312,7 @@ Scope {
             root.windowList = []; root.activeId = ""; root.syncToplevels();
             root.appMenu = { status: "none", windowId: "", appId: "", revision: 0, items: [] };
             root.iconScreens = []; root.iconSent = {};    // the next bridge starts with no anchors and no targets
+            root.snapshotsAvailable = false; root.snapshotAsked = {};
             if (root.active) restartT.restart();          // KWin restarted or the bridge crashed: come back, with backoff
         }
     }
@@ -304,6 +321,8 @@ Scope {
         interval: root.restartDelay
         onTriggered: { root.restartDelay = Math.min(30000, root.restartDelay * 2); if (root.active) bridge.running = true; }
     }
+    // switched on with windows already minimized: ask for their pictures now
+    onSnapshotsWantedChanged: if (snapshotsWanted) syncToplevels()
     // the flag is a bridge argument: stopping it lets onExited start it again with the new command
     onGlobalMenuChanged: if (bridge.running) bridge.running = false
     // a missing bridge binary never says hello

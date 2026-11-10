@@ -209,6 +209,12 @@ Scope {
     property bool bounceOnLaunch: true
     property bool showThumbs: true       // open windows get a live preview cell next to the Trash
     property bool windowCapture: true    // live window capture for those previews (off: the cells show the app icon, nothing is captured). Liquid Glass is not affected
+    // KDE: a minimized window sits next to the Trash as a small picture of itself, as on macOS. KWin takes the picture once,
+    // when the window is minimized (KWinBackend / the bridge's `snapshot`); nothing is captured live.
+    property bool minimizedSnapshots: true
+    readonly property bool snapshotCells: minimizedSnapshots && !!comp && comp.can("windowSnapshot")
+    Binding { target: root.comp; property: "windowSnapshotsWanted"; value: root.snapshotCells && root.dockEnabled; when: root.comp !== null }
+    onSnapshotCellsChanged: rebuild()
     property int hideDelay: 450          // ms before the dock hides after the pointer leaves
     readonly property var accentChoices: [
         { name: "Blue",     c: "#0a84ff" }, { name: "Purple", c: "#bf5af2" },
@@ -2537,6 +2543,13 @@ Scope {
                     }
                     SRow {
                         t: pal
+                        visible: !!root.comp && root.comp.can("windowSnapshot")
+                        title: I18n.tr("Minimized windows as pictures")
+                        subtitle: I18n.tr("A minimized window sits next to the Trash as a small picture of itself, taken once when it is minimized")
+                        SSwitch { t: pal; checked: root.minimizedSnapshots; onToggled: v => root.minimizedSnapshots = v }
+                    }
+                    SRow {
+                        t: pal
                         title: I18n.tr("Live window capture")
                         subtitle: I18n.tr("Capture open windows for the previews. Turn off and the previews show the app icon instead (Liquid Glass is not affected)")
                         SSwitch { t: pal; checked: root.windowCapture; onToggled: v => root.windowCapture = v }
@@ -4359,13 +4372,13 @@ Scope {
         darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accentFromKde = true; nativeText = false; screenCornerRadius = 0; accent = "#0a84ff"; fontFamily = "Open Runde";
         iconTint = false; iconTintColor = "#0a84ff"; iconTintStrength = 1.0;
         hideMode = "smart"; hideDelay = 450; monitor = "";
-        showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; glassLive = true;
+        showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; minimizedSnapshots = true; glassLive = true;
     }
 
     // ── settings persistence (~/.config/macdock/settings.json) ──
     readonly property string settingsSig: [dockEnabled, settingsEnabled, desktopIcons, desktopIconSize, iconSize, magnification, magnificationEnabled, spacing, margin,
         cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, accentFromKde, nativeText, screenCornerRadius, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
-        showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength].join("|")
+        showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, minimizedSnapshots, glassLive, iconTint, iconTintColor, iconTintStrength].join("|")
     property bool settingsReady: false
     onSettingsSigChanged: if (settingsReady) saveTimer.restart()
     onShowTrashChanged: { rebuild(); if (showTrash) trashCheck(); }
@@ -4381,7 +4394,7 @@ Scope {
             accent: String(accent), fontFamily: fontFamily,
             hideMode: hideMode, hideDelay: hideDelay, monitor: monitor,
             showTrash: showTrash, showLabels: showLabels, showIndicators: showIndicators,
-            bounceOnLaunch: bounceOnLaunch, showThumbs: showThumbs, windowCapture: windowCapture, glassLive: glassLive,
+            bounceOnLaunch: bounceOnLaunch, showThumbs: showThumbs, windowCapture: windowCapture, minimizedSnapshots: minimizedSnapshots, glassLive: glassLive,
             iconTint: iconTint, iconTintColor: iconTintColor, iconTintStrength: iconTintStrength
         };
         settingsStore.setText(JSON.stringify(o, null, 2));
@@ -4391,7 +4404,7 @@ Scope {
         if (!o || typeof o !== "object") return;
         var keys = ["dockEnabled", "settingsEnabled", "desktopIcons", "desktopIconSize", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
                     "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "accentFromKde", "nativeText", "screenCornerRadius", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
-                    "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength"];
+                    "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "minimizedSnapshots", "glassLive", "iconTint", "iconTintColor", "iconTintStrength"];
         for (var i = 0; i < keys.length; i++) {
             if (o[keys[i]] === undefined) continue;
             try { root[keys[i]] = o[keys[i]]; } catch (err) { }
@@ -4775,12 +4788,14 @@ Scope {
 
         // window previews: one cell per open window, in their own section next to the Trash
         var winItems = [], liveWins = [];
-        if (showThumbs) {
+        if (showThumbs || snapshotCells) {
             for (var w = 0; w < tls.length; w++) {
                 var tl = tls[w];
                 if (!tl.appId || tl.title === "macshell Settings") continue;
+                // KDE with snapshots: only minimized windows get a cell (their picture), whatever app they belong to
+                if (snapshotCells) { if (tl.minimized !== true) continue; }
                 // live capture off: a preview cell is only an app icon, so a pinned app (its icon is already in the Dock) gets none; unpinned apps keep theirs
-                if (!(windowCapture && canWindowCapture) && seen[keyOf(appOf(tl))]) continue;
+                else if (!(windowCapture && canWindowCapture) && seen[keyOf(appOf(tl))]) continue;
                 var e3 = lookup(appOf(tl));
                 var wid = winIdFor(tl);
                 liveWins.push(tl);
@@ -5050,6 +5065,7 @@ Scope {
         target: root.onHyprland ? null : root.comp
         function onToplevelsChanged() { root.rebuild(); settle.restart(); tickDebounce.restart(); }
         function onClientsChanged() { busyDebounce.restart(); }
+        function onMinimizedRevChanged() { if (root.snapshotCells) root.rebuild(); }     // a window cell comes or goes
     }
     Connections {
         target: DesktopEntries.applications
@@ -5974,7 +5990,10 @@ Scope {
                                 readonly property bool closingWin: winAddr !== "" && root.hub && root.hub.closingWins[winAddr] === true
                                 onThumbWinChanged: if (thumbWin !== heldTl) heldTl = thumbWin
                                 readonly property bool useThumb: thumbWin !== null
-                                readonly property bool thumbReady: useThumb && (sv.hasContent === undefined || sv.hasContent === true)
+                                // KDE: the still picture taken when the window was minimized; "" = none (yet): the app icon shows
+                                readonly property string snapUrl: (thumbWin && thumbWin.snapshot) ? thumbWin.snapshot : ""
+                                readonly property bool thumbReady: useThumb && (root.snapshotCells ? snapImg.status === Image.Ready
+                                                                                                   : (sv.hasContent === undefined || sv.hasContent === true))
 
                                 property real dx: {
                                     if (!ui.dragging) return 0;
@@ -6063,11 +6082,13 @@ Scope {
                                     visible: cell.useThumb
                                     opacity: cell.thumbReady ? 1 : 0.01
 
+                                    // what the shadow and the frame go around: the live capture, or the still picture
+                                    readonly property Item box: root.snapshotCells ? snapImg : sv
                                     Rectangle {      // soft drop shadow
-                                        x: sv.x
-                                        y: sv.y + 3
-                                        width: sv.width
-                                        height: sv.height
+                                        x: th.box.x
+                                        y: th.box.y + 3
+                                        width: th.box.width
+                                        height: th.box.height
                                         radius: 5
                                         color: Qt.rgba(0, 0, 0, 0.32)
                                     }
@@ -6089,8 +6110,19 @@ Scope {
                                         width: Math.min(th.width, th.height * ar)
                                         height: width / ar
                                     }
+                                    Image {
+                                        id: snapImg
+                                        visible: root.snapshotCells
+                                        anchors.centerIn: parent
+                                        readonly property real ar: (implicitWidth > 0 && implicitHeight > 0) ? implicitWidth / implicitHeight : 4 / 3
+                                        width: Math.min(th.width, th.height * ar)
+                                        height: width / ar
+                                        source: cell.snapUrl
+                                        smooth: true
+                                        mipmap: true
+                                    }
                                     Rectangle {      // thin frame + pressed dimming
-                                        anchors.fill: sv
+                                        anchors.fill: th.box
                                         radius: 3
                                         color: ma.pressed ? Qt.rgba(0, 0, 0, 0.3) : "transparent"
                                         border.width: 1

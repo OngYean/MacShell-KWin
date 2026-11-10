@@ -8,7 +8,7 @@
 // Before using a feature that only one compositor has, check can("<feature>"); the keys are listed in `caps` of each backend:
 //   windows activate close minimize maximize fullscreen workspaces moveToWorkspace keyboardLayouts globalMenu sessionActions
 //   systemSettings backgroundEffect windowCapture screenCapture drawDecorations windowRules layerBlurRules windowLayout
-//   sendShortcut colorPicker nightShift monitorConfig inputConfig notificationServer minimizeTarget
+//   sendShortcut colorPicker nightShift monitorConfig inputConfig notificationServer minimizeTarget windowSnapshot
 import QtQuick
 import Quickshell
 
@@ -25,12 +25,17 @@ Scope {
 
     // set by MacBar: import the active app's real menu (KWin)
     property bool globalMenuWanted: true
+    // set by MacDock (can("windowSnapshot")): take a still picture of each window when it is minimized. A toplevel then
+    // carries it as `snapshot` (a data: URL, "" = none) until it is restored. minimizedRev counts minimize / restore changes.
+    property bool windowSnapshotsWanted: false
+    readonly property int minimizedRev: (backend && backend.minimizedRev !== undefined) ? backend.minimizedRev : 0
 
     HyprlandBackend { id: hyprland; active: root.isHyprland }
     KWinBackend {
         id: kwin
         active: root.isKWin
         globalMenu: root.globalMenuWanted && String(Quickshell.env("MACSHELL_GLOBAL_MENU") || "1") !== "0"
+        snapshotsWanted: root.windowSnapshotsWanted
     }
 
     readonly property string status: backend ? backend.status : "unsupported"
