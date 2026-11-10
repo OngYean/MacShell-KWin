@@ -8,26 +8,62 @@ Each item has an ID. Use it in commit bodies and when reporting test results.
 
 | ID | Report (user's words, shortened) | Status |
 | --- | --- | --- |
-| B1 | With "Use KWin's blur" on, the shell's surfaces turn transparent but nothing is blurred behind them. MacShell's Settings window does get force blur on its side panel. | reported |
-| B2 | MacShell freezes for 5–10 s when the Dock size is changed in Settings. | reported |
-| B3 | Log Out from the top-left menu does nothing. Plasma has its own session implementation, and some `loginctl` commands have quirks there. | reported |
-| B4 | `plasma-workspace.target: Found ordering cycle: macshell.service/start after graphical-session.target/start after plasma-workspace.target/start after macshell.service`. The splash screen stays for a long time, then a Plasma session without a shell starts. | reported |
-| B5 | After unlocking, MacShell takes a while to bring its elements back. Until then the Dock has no icons, and neither has the top bar. | reported |
-| B6 | In the Dock, a minimized window should show a small snapshot of itself as its icon by default, as on macOS. | reported |
+| B1 | With "Use KWin's blur" on, the shell's surfaces turn transparent but nothing is blurred behind them. MacShell's Settings window does get force blur on its side panel. | fix written (`b58b299`) |
+| B2 | MacShell freezes for 5–10 s when the Dock size is changed in Settings. | fix written (`c69c2ed`) |
+| B3 | Log Out from the top-left menu does nothing. Plasma has its own session implementation, and some `loginctl` commands have quirks there. | fix written (`8d2ab49`) |
+| B4 | `plasma-workspace.target: Found ordering cycle: macshell.service/start after graphical-session.target/start after plasma-workspace.target/start after macshell.service`. The splash screen stays for a long time, then a Plasma session without a shell starts. | fix written (`eccded9`) |
+| B5 | After unlocking, MacShell takes a while to bring its elements back. Until then the Dock has no icons, and neither has the top bar. | needs diagnosis |
+| B6 | In the Dock, a minimized window should show a small snapshot of itself as its icon by default, as on macOS. | not started (design below) |
 
 ## Requested features
 
 | ID | Request | Status |
 | --- | --- | --- |
-| F1 | The global menu's popover grows wider to fit its text, so labels are not cut off with "…". | requested |
-| F2 | An option to open a submenu to the right of its parent menu, instead of replacing the menu with a "back" entry. | requested |
-| F3 | Start applications as systemd units where possible, not as children of the MacShell process. | requested |
-| F4 | The Dock icon's right-click menu and Spotlight (the app launcher) offer the desktop entry's actions (freedesktop "Desktop Actions"). | requested |
-| F5 | The scroll wheel changes the volume and the brightness on their Control Center controls and their bar icons. | requested |
-| F6 | The accent colour follows KDE Plasma's. If MacShell can't set Plasma's accent, it points the user to KDE's settings and uses the accent from there. | requested |
-| F7 | Better text anti-aliasing for the UI fonts, preferably with the same settings as KDE Plasma. | requested |
-| F8 | An adjustable screen corner radius, like a MacBook's physical screen. | requested |
+| F1 | The global menu's popover grows wider to fit its text, so labels are not cut off with "…". | not started |
+| F2 | An option to open a submenu to the right of its parent menu, instead of replacing the menu with a "back" entry. | not started |
+| F3 | Start applications as systemd units where possible, not as children of the MacShell process. | written (`cf78ab7`) |
+| F4 | The Dock icon's right-click menu and Spotlight (the app launcher) offer the desktop entry's actions (freedesktop "Desktop Actions"). | written (`a3f7d92`) |
+| F5 | The scroll wheel changes the volume and the brightness on their Control Center controls and their bar icons. | not started (plan below) |
+| F6 | The accent colour follows KDE Plasma's. If MacShell can't set Plasma's accent, it points the user to KDE's settings and uses the accent from there. | not started (plan below) |
+| F7 | Better text anti-aliasing for the UI fonts, preferably with the same settings as KDE Plasma. | not started (plan below) |
+| F8 | An adjustable screen corner radius, like a MacBook's physical screen. | not started (plan below) |
 
 Statuses: `reported` / `requested` (nothing done yet), `fix written` (code committed, not run in Plasma), `needs diagnosis` (cause not established; what to collect is listed), `verified` (the user confirmed it in Plasma).
 
-The sections below are filled in as each item is worked on: cause, what changed, and how to test it.
+## State at handoff (2026-11-10)
+
+- Six code commits are on `pending-test`, **local only: not pushed, so CI has not run them**. None has run in Plasma. Push, then read the CI result at `https://api.github.com/repos/OngYean/MacShell-KWin/actions/runs?branch=pending-test`.
+- `README.md`'s list of changes from the original is **not updated yet** for F3, F4 and the fixes (`AGENTS.md` §11 rule 15). Do it before this goes to `main`.
+- The session stopped while starting F5. No uncommitted changes were left.
+- Local checks now possible on the macOS machine: `qmllint` 6.12 from the `PySide6-Essentials` wheel in a scratch virtualenv. It reports syntax errors; Quickshell imports show as warnings. `MacDock.qml` has two old `duplicated id` errors (`pillSes`, `navMa`) that predate this work.
+- Sources read for these findings: KWin, plasma-workspace `v6.8.2`, Quickshell `v0.3.2`, dbus `main`.
+
+## Done: cause, change, test
+
+**B1 blur (`b58b299`).** `GlassBlur` looked for its window's `BlurCollector` among the children of the topmost item. Quickshell parents the window's content item to the `QQuickWindow` root item once the window exists (`ProxyWindowBase`), so no collector was found and no blur region was ever sent, the bar-strip fill included. It now searches every ancestor's children. Test: [`11`](11-kwin-blur-tests.md). The regions go over `ext-background-effect-v1`; KWin's own Blur reads them (`surface->blurRegion()`). If a third-party force-blur effect is the active blur and still shows nothing, note its name.
+
+**B2 Dock size (`c69c2ed`).** Quickshell's icon provider is a pixmap provider, which Qt runs on the GUI thread, and KDE icon themes are SVG. Each slider step re-rendered every icon, twice per cell. Icon sizes are now requested in 64 px steps, and the hidden preview badge no longer loads. Test: drag Size and Magnification end to end. If it still freezes, the cause is elsewhere (not profiled).
+
+**B3 Log Out (`8d2ab49`).** `org.kde.Shutdown` is D-Bus-activated. `dbus-send` without `--print-reply` exits at once, and dbus-daemon drops a call queued for a starting service when its sender is gone. Lock worked because KWin always owns `org.freedesktop.ScreenSaver`. Restart and Shut Down in the Apple menu had the same fault. Test all three. If Log Out still fails, run `dbus-send --session --print-reply --dest=org.kde.Shutdown /Shutdown org.kde.Shutdown.logout` in a terminal and keep `journalctl --user -b | grep -i -E 'shutdown|ksmserver'`. Known limits: KWin waits 10 s for windows to close, then sends a notification with "Cancel Logout" / "Log Out Anyway" and logs out after 2 minutes; MacShell shows no action buttons. Spotlight's Restart and Shut Down still call `systemctl` directly.
+
+**B4 ordering cycle (`eccded9`).** `plasma-workspace.target` wants `macshell.service` and is ordered before `graphical-session.target`; the unit had `After=graphical-session.target`. It is now `After=plasma-core.target`, and CI asserts it. Test: rebuild, log in, `journalctl --user -b | grep -i 'ordering cycle'` is empty.
+
+**F3 systemd units (`cf78ab7`).** On KDE, `hub.launch` (`shell.qml`) runs `assets/launch-app.sh`: `systemd-run --user` starts `app-macshell-<id>@<random>.service` in `app.slice` with `ExitType=cgroup`, and falls back to a direct start. The Dock, Spotlight and desktop `.desktop` icons use it. `sh nix/test-launch-app.sh` passes. Test: `systemctl --user list-units 'app-macshell-*'`, then `systemctl --user restart macshell` leaves the app running.
+
+**F4 desktop actions (`a3f7d92`).** `MacBar.entryActions(entry)` feeds the Dock's right-click menu, Spotlight's result rows and a right-click menu in the application grid.
+
+## Open
+
+**B5 unlock: cause not found.** KWin hides every non-lock window while locked (`WindowItem::computeVisibility`), but keeps the last buffer, so an intact shell should reappear at once. Empty Dock and bar point to recreated windows or a restarted process. Collect right after an unlock: `systemctl --user status macshell` (did the PID or start time change?), `journalctl --user -b -u macshell | tail -50`, `macshell log | tail -50`, and whether an external monitor was connected or the laptop had slept.
+
+**B6 minimized snapshot: design.** In KWin 6.8.2 `org.kde.KWin.ScreenShot2.CaptureWindow(uuid, options, pipe)` has no caller check and renders hidden (minimized) windows. Plan: a `snapshot` command in the bridge (QtDBus call, read the raw image from the pipe, scale to about 256 px, send it as a PNG `data:` URL), requested by `KWinBackend` when a window becomes minimized and dropped when it is restored. In `MacDock.rebuild()`, without live capture, give minimized windows a `win` cell; the cell's `th` item shows the still image and `thumbReady` follows it. Add a setting, on by default. This corrects `05-kwin-port.md`, which says KWin offers no capture to clients.
+
+**F1 / F2 menus.** The renderer is the `menuCol` popover in `MacBar.qml` (`ui.menuModel`, rows elide with a fixed width; submenus use `ui.gmEnter` / `ui.gmBack`). F1: size the popover to the widest label plus shortcut. F2: an option for a second popover to the right of the parent row.
+
+**F5 scroll wheel.** Add `onWheel` to `CCSlider`'s `MouseArea` (`s.moved(value + angleDelta.y / 120 * 0.05)`, skip when the delta is 0 because `setVolume` unmutes). Add a `WheelHandler` with `acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad` to the Control Center's Display and Sound tiles (`tileHovDisplay`, `tileHovSound`). The bar's volume icon already scrolls. The bar has no display icon: add an optional `brightness` bar widget (sun glyph, wheel calls `setBrightness`) with a switch in Settings → Menu Bar.
+
+**F6 accent.** Read `AccentColor` from `~/.config/kdeglobals` `[General]` with a watching `FileView`; fall back to the colour scheme when it is unset. To set it, try `plasma-apply-colorscheme --accent-color` (not verified against 6.8.2); otherwise show a button that opens `systemsettings kcm_colors`.
+
+**F7 text.** Qt's default distance-field text ignores fontconfig. Native rendering honours KDE's anti-aliasing, hinting and sub-pixel settings. Quickshell has `//@ pragma NativeTextRendering` (start-up only). Plan: a setting read by `nix/macshell.sh` that exports `QT_QUICK_DEFAULT_TEXT_RENDER_TYPE=NativeRendering` (confirm Qt 6.12 reads it). Caveat: native text is blurry inside MacShell's `scale:` transforms, so at UI scales other than 100 %.
+
+**F8 screen corners.** A new `ScreenCorners.qml`: per screen, four small Overlay-layer `PanelWindow`s in the corners with an empty input mask, painting a black corner of the chosen radius; a `screenCornerRadius` setting (0 = off). They sit above fullscreen windows and prevent direct scan-out.
