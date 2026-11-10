@@ -4371,6 +4371,11 @@ Scope {
         if (icon.charAt(0) === "/") return "file://" + icon;
         return Quickshell.iconPath(icon, "application-x-executable");
     }
+    // Pixel size to ask the icon provider for, k times the largest size an icon is drawn at. Quickshell's provider renders
+    // on the GUI thread and KDE's icon themes are SVG, so a size that followed the Size / Magnification sliders exactly
+    // re-rendered every icon at each of ~100 steps of a drag and froze the shell for seconds. In 64 px steps a whole drag
+    // reloads the icons a few times; the texture is scaled down with mipmaps.
+    function iconPx(k) { return Math.ceil(iconSize * magnification * k / 64) * 64; }
     // icon of a dock cell; the Trash switches to the "full" icon while there is something in it
     function cellIconSrc(it) {
         if (it && it.special === "trash" && trashFull) {
@@ -5939,8 +5944,7 @@ Scope {
                                     anchors.bottom: parent.bottom
                                     anchors.bottomMargin: Math.round(lift)
                                     source: cell.isSep ? "" : root.cellIconSrc(cell.modelData)
-                                    sourceSize: Qt.size(Math.ceil(root.iconSize * root.magnification * 1.25),
-                                                        Math.ceil(root.iconSize * root.magnification * 1.25))
+                                    sourceSize: Qt.size(root.iconPx(1.25), root.iconPx(1.25))
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
                                     mipmap: true
@@ -6013,9 +6017,8 @@ Scope {
                                     height: width
                                     x: img.x + img.width - width + 3
                                     y: img.y + img.height - height + 3
-                                    source: img.source
-                                    sourceSize: Qt.size(Math.ceil(root.iconSize * root.magnification * 0.6),
-                                                        Math.ceil(root.iconSize * root.magnification * 0.6))
+                                    source: cell.thumbReady ? img.source : ""      // only window previews show it: no second copy of every icon
+                                    sourceSize: Qt.size(root.iconPx(0.6), root.iconPx(0.6))
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
                                     mipmap: true
