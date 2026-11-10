@@ -1838,6 +1838,12 @@ Scope {
                         SSwitch { t: pal; checked: root.bar ? root.bar.barWidgetEnabled("appMenus") : true; onToggled: v => { if (root.bar) root.bar.setBarWidget("appMenus", v); } }
                     }
                     SRow {
+                        t: pal; title: I18n.tr("Submenus open to the side")
+                        visible: !!root.comp && root.comp.can("globalMenu")
+                        subtitle: I18n.tr("A submenu of an application's menu opens next to its parent instead of replacing it")
+                        SSwitch { t: pal; checked: root.bar ? root.bar.menuCascade : false; onToggled: v => { if (root.bar) root.bar.menuCascade = v; } }
+                    }
+                    SRow {
                         t: pal; title: I18n.tr("Workspace switcher")
                         SSwitch { t: pal; checked: root.bar ? root.bar.barWidgetEnabled("workspaces") : true; onToggled: v => { if (root.bar) root.bar.setBarWidget("workspaces", v); } }
                     }

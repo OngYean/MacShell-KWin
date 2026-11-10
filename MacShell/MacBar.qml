@@ -372,6 +372,9 @@ Scope {
     property bool showTray: true
     property bool showSearch: true
     property bool weekStartsMonday: false
+    // Settings → Menu Bar → "Submenus open to the side": a submenu of an application's menu opens in its own panel next to
+    // its parent row, as in KDE and macOS, instead of replacing the menu's contents with a "back" row at the top.
+    property bool menuCascade: false
     property string terminal: "kitty"
     property string launcher: ""              // "" = built-in Spotlight; set a command (rofi, fuzzel, ...) to use an external launcher instead
     property string filesCmd: "xdg-open \"$HOME\""
@@ -408,7 +411,7 @@ Scope {
     readonly property var settingKeys: ["barEnabled", "darkMode", "appearanceMode", "accent", "fontFamily", "barHeight", "uiScaleAuto", "uiScaleManual", "glassOpacity",
         "barStyle", "barGlass", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "barBgOpacity", "glassRealtime", "liveWallGlass", "glassDebug", "wallpaperPath", "use24h", "language", "showDate",
         "showSeconds", "showBatteryPercent", "showTray", "showSearch",
-        "spotlightEnabled", "reduceMotion", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "terminal", "launcher",
+        "spotlightEnabled", "reduceMotion", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "menuCascade", "terminal", "launcher",
         "filesCmd", "clipboardCmd", "appUsage", "clipHistory", "clipAutoPaste", "emojiRecent", "screenshotDir", "screenshotSave", "screenshotClipboard", "screenshotNotify", "nightTemp", "ccControls", "ccMigRec", "wallpaperDir", "wallpaperFavs", "wallpaperCmd", "wallpaperVideo", "wpRestorePath", "uiSounds", "gamingMode", "gamingAuto", "ccMigGame", "lockArtBackground",
         "lockClockStyle", "switcherStyle", "lockClockFont", "lockClockWeight", "lockClockMaterial", "lockClockIntensity", "lockClockTint", "lockClockDate", "autoContrast", "wallpaperAppearance", "wpPairLight", "wpPairDark",
         "notifDnd", "dnd", "nightOn", "keepAwake",
@@ -5097,7 +5100,38 @@ Scope {
                 property var gmPath: []              // global menu: submenus opened inside the popover (item ids)
                 property string gmPrev: ""
                 property string gmWin: ""            // the window whose menu this popover shows
-                function gmEnter(id) {
+                // Cascading (root.menuCascade): the dropdown stays on the top menu and each open submenu gets a panel beside its
+                // parent row (see the Repeater in menuPop). gmPath holds the open submenus either way; gmRowY is each one's
+                // parent row's y inside its menu.
+                property var gmRowY: []
+                function gmTrim(depth) {                    // close the submenus from `depth` on
+                    for (var i = gmPath.length - 1; i >= depth; i--) root.gmClosed(gmPath[i], gmWin);
+                    if (gmPath.length > depth) { gmPath = gmPath.slice(0, depth); gmRowY = gmRowY.slice(0, depth); }
+                }
+                function gmEnterAt(depth, id, rowY) {       // open submenu `id` from a row of the menu at `depth` (0 = the dropdown)
+                    cascT.stop();
+                    if (gmPath[depth] === id) return;
+                    gmTrim(depth);
+                    gmRowY = gmRowY.concat([rowY]);
+                    gmPath = gmPath.concat([id]);
+                    root.gmOpened(id, gmWin);
+                }
+                // The pointer is on a row of the menu at `depth`: open its submenu, or close the submenus beside it. After a
+                // moment only, because the pointer crosses other rows on its way into an open submenu.
+                function gmHover(depth, item, rowY) {
+                    cascT.depth = depth; cascT.subId = item.sub === true ? item.gmId : -1; cascT.rowY = rowY;
+                    cascT.restart();
+                }
+                Timer {
+                    id: cascT
+                    interval: 200
+                    property int depth: 0
+                    property int subId: -1
+                    property real rowY: 0
+                    onTriggered: { if (subId >= 0) ui.gmEnterAt(depth, subId, rowY); else ui.gmTrim(depth); }
+                }
+                function gmEnter(id, rowY) {
+                    if (root.menuCascade) { gmEnterAt(0, id, rowY || 0); return; }
                     gmPath = gmPath.concat([id]);
                     root.gmOpened(id, gmWin);
                     menuModel = root.gmPathModel(gmPath, Number(pop.substring(3)));
@@ -5114,8 +5148,8 @@ Scope {
                     function onGmChanged() {
                         if (!root.isGm(ui.pop)) return;
                         if (!root.gmActive || root.gm.windowId !== ui.gmWin) { ui.pop = ""; return; }
-                        var m = root.gmPathModel(ui.gmPath, Number(ui.pop.substring(3)));
-                        if (m.length === 0 && ui.gmPath.length === 0) ui.pop = ""; else ui.menuModel = m;
+                        var m = root.gmPathModel(root.menuCascade ? [] : ui.gmPath, Number(ui.pop.substring(3)));
+                        if (m.length === 0 && (root.menuCascade || ui.gmPath.length === 0)) ui.pop = ""; else ui.menuModel = m;
                     }
                 }
                 property string armed: ""
@@ -5291,7 +5325,9 @@ Scope {
                     var gw = root.isGm(pop) && root.gm ? root.gm.windowId : "";
                     root.gmTransition(gmPrev, pop, gmPath, gmWin, gw);
                     gmPrev = pop;
+                    cascT.stop();
                     gmPath = [];
+                    gmRowY = [];
                     gmWin = gw;
                     if (pop !== "" && pop !== "spot") toneT.restart();
                     if (pop === "spot" && ui.toastScreen) spotToneT.restart();      // measured once the open animation is over (see spotToneT)
@@ -7083,17 +7119,166 @@ Scope {
                                     anchors.fill: parent
                                     enabled: !it.isSep && !it.off
                                     hoverEnabled: true
+                                    onEntered: if (root.menuCascade && root.isGm(ui.pop)) ui.gmHover(0, it.modelData, it.y)
                                     onClicked: {
                                         if (it.modelData.confirm === true && ui.armed !== it.modelData.label) {
                                             ui.armed = it.modelData.label;
                                             return;
                                         }
-                                        if (it.modelData.sub === true) { ui.gmEnter(it.modelData.gmId); return; }
+                                        if (it.modelData.sub === true) { ui.gmEnter(it.modelData.gmId, it.y); return; }
                                         if (it.modelData.back === true) { ui.gmBack(); return; }
                                         var run = it.modelData.run;
                                         if (it.modelData.raw === true) { if (run) run(); ui.pop = ""; return; }   // clicked, then closed (as KDE does)
                                         ui.pop = "";
                                         if (run) run();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── cascading submenus: one panel per open submenu, beside its parent row ──
+                    // Children of the dropdown, so they share its scale and fade. The rows repeat the dropdown's look; they
+                    // need no confirm step, glyphs or "back" row, which only the generic menus and the drill-down have.
+                    Repeater {
+                        id: subRep
+                        model: (root.menuCascade && root.isGm(ui.pop)) ? ui.gmPath.length : 0
+                        delegate: Item {
+                            id: sub
+                            required property int index
+                            readonly property var rows: root.gmModel(ui.gmPath[index])
+                            readonly property bool lead: {
+                                for (var i = 0; i < rows.length; i++) if (rows[i].checked !== undefined || rows[i].icon) return true;
+                                return false;
+                            }
+                            // the menu it hangs off: the dropdown, or the submenu before it (created first)
+                            readonly property Item from: index === 0 ? null : subRep.itemAt(index - 1)
+                            readonly property real fromX: from ? from.x : 0
+                            readonly property real fromY: from ? from.y : 0
+                            readonly property real fromW: from ? from.width : menuPop.width
+                            // room to the right and below, in the dropdown's own (scaled) coordinates
+                            readonly property real roomW: (ui.width - 6 - menuPop.x) / root.barPopupScale
+                            readonly property real roomH: (ui.height - 6 - menuPop.y) / root.barPopupScale
+                            z: 20 + index
+                            width: Math.max(180, Math.min(root.menuFitWidth(rows, lead, menuFm, menuScFm), 640))
+                            height: subCol.height + 14
+                            // to the right of its parent, or to the left when the screen ends there; level with the parent row
+                            x: (fromX + fromW - 4 + width <= roomW) ? fromX + fromW - 4 : fromX - width + 4
+                            y: Math.max(0, Math.min(fromY + (ui.gmRowY[index] || 0), roomH - height))
+
+                            LGlass {
+                                anchors.fill: parent
+                                backdrop: ui.glassSrc
+                                shaderUrl: root.glassShaderUrl
+                                liquid: root.liquidActive
+                                dark: root.panelDarkMode
+                                bx: menuPop.x + sub.x * root.barPopupScale; by: menuPop.y + sub.y * root.barPopupScale
+                                capScale: root.barPopupScale
+                                magnifyMul: 0
+                                refreshOnResize: true
+                                shadowAmt: 0
+                                flatInner: 1
+                                rimTint: 1
+                                ringW: 1.4
+                                cornerR: 14
+                                tint: root.panelDarkMode ? Math.max(root.glassOpacity, 0.55) : root.glassOpacity
+                                thickness: 22
+                                strength: 0.55 * root.glassLiquid
+                                rim: root.glassRim
+                                grain: root.glassGrain
+                                blur: 41
+                                debug: root.glassDebug
+                                onShaderError: root.glassState = "failed"
+                            }
+                            Rectangle {
+                                visible: root.panelDarkMode
+                                anchors.fill: parent
+                                radius: 14
+                                gradient: Gradient {
+                                    GradientStop { position: 0.0; color: Qt.rgba(56 / 255, 56 / 255, 62 / 255, 0.34) }
+                                    GradientStop { position: 1.0; color: Qt.rgba(30 / 255, 30 / 255, 34 / 255, 0.38) }
+                                }
+                            }
+                            MenuBorder { z: 2; anchors.fill: parent; cornerR: 14; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                            MouseArea { anchors.fill: parent }      // a click between rows doesn't fall through and close the menu
+                            Column {
+                                id: subCol
+                                x: 6; y: 7
+                                width: parent.width - 12
+                                Repeater {
+                                    model: sub.rows
+                                    delegate: Item {
+                                        id: srow
+                                        required property var modelData
+                                        readonly property bool isSep: modelData.kind === "sep"
+                                        readonly property bool off: !isSep && modelData.disabled === true
+                                        readonly property bool hot: !isSep && !off && sma2.containsMouse
+                                        width: subCol.width
+                                        height: isSep ? 11 : 26
+                                        Rectangle {
+                                            visible: srow.isSep
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            x: 8; width: parent.width - 16; height: 1
+                                            color: panelPal.sep
+                                        }
+                                        Rectangle { visible: srow.hot; anchors.fill: parent; radius: 6; color: root.accent }
+                                        Image {
+                                            visible: !srow.isSep && !!srow.modelData.icon
+                                            x: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 16; height: 16
+                                            source: srow.isSep ? "" : (srow.modelData.icon || "")
+                                            sourceSize: Qt.size(32, 32)
+                                            fillMode: Image.PreserveAspectFit
+                                            opacity: srow.off ? 0.4 : 1
+                                        }
+                                        Text {
+                                            visible: !srow.isSep && srow.modelData.checked === true
+                                            x: 11
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "\u2713"
+                                            color: srow.hot ? "white" : panelPal.fg
+                                            font.family: Fonts.forWeight(Font.Normal, "Open Runde")
+                                            font.pixelSize: 13
+                                            font.weight: Font.Normal
+                                        }
+                                        Text {
+                                            visible: !srow.isSep
+                                            x: sub.lead ? 28 : 12
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width - x - 12 - (ssc.visible ? ssc.implicitWidth + 12 : 0)
+                                            elide: Text.ElideRight
+                                            text: srow.isSep ? "" : srow.modelData.label
+                                            color: srow.hot ? "white" : (srow.off ? panelPal.fg2 : panelPal.fg)
+                                            font.family: Fonts.forWeight(Font.Normal, "Open Runde")
+                                            font.pixelSize: 13
+                                            font.weight: Font.Normal
+                                        }
+                                        Text {
+                                            id: ssc
+                                            visible: !srow.isSep && !!srow.modelData.shortcut
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: 12
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: srow.isSep ? "" : (srow.modelData.shortcut || "")
+                                            color: srow.hot ? Qt.rgba(1, 1, 1, 0.8) : panelPal.fg2
+                                            font.family: Fonts.forWeight(Font.Normal, "Open Runde")
+                                            font.pixelSize: 12
+                                            font.weight: Font.Normal
+                                        }
+                                        MouseArea {
+                                            id: sma2
+                                            anchors.fill: parent
+                                            enabled: !srow.isSep && !srow.off
+                                            hoverEnabled: true
+                                            onEntered: ui.gmHover(sub.index + 1, srow.modelData, srow.y)
+                                            onClicked: {
+                                                if (srow.modelData.sub === true) { ui.gmEnterAt(sub.index + 1, srow.modelData.gmId, srow.y); return; }
+                                                var run = srow.modelData.run;
+                                                if (run) run();
+                                                ui.pop = "";        // clicked, then closed (as KDE does)
+                                            }
+                                        }
                                     }
                                 }
                             }
