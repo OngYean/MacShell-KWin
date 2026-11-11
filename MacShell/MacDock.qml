@@ -207,12 +207,12 @@ Scope {
     property bool showLabels: true       // hover tooltips
     property bool showIndicators: true   // dots under running apps
     property bool bounceOnLaunch: true
-    property bool showThumbs: true       // open windows get a live preview cell next to the Trash
+    property bool showThumbs: true       // windows get a preview cell next to the Trash: live previews of open windows, or (KDE) still pictures of minimized ones
     property bool windowCapture: true    // live window capture for those previews (off: the cells show the app icon, nothing is captured). Liquid Glass is not affected
-    // KDE: a minimized window sits next to the Trash as a small picture of itself, as on macOS. KWin takes the picture once,
-    // when the window is minimized (KWinBackend / the bridge's `snapshot`); nothing is captured live.
-    property bool minimizedSnapshots: true
-    readonly property bool snapshotCells: minimizedSnapshots && !!comp && comp.can("windowSnapshot")
+    // KDE: KWin has no live capture, so "Show window previews" means a minimized window sits next to the Trash as a small
+    // picture of itself, as on macOS. KWin takes the picture once, when the window is minimized (KWinBackend / the bridge's
+    // `snapshot`); nothing is captured live.
+    readonly property bool snapshotCells: showThumbs && !!comp && comp.can("windowSnapshot")
     Binding { target: root.comp; property: "windowSnapshotsWanted"; value: root.snapshotCells && root.dockEnabled; when: root.comp !== null }
     onSnapshotCellsChanged: rebuild()
     property int hideDelay: 450          // ms before the dock hides after the pointer leaves
@@ -2552,18 +2552,14 @@ Scope {
                     SRow {
                         t: pal
                         title: I18n.tr("Show window previews")
-                        subtitle: I18n.tr("Open windows appear as live previews next to the Trash, each with its app's icon")
+                        subtitle: !!root.comp && root.comp.can("windowSnapshot")
+                                  ? I18n.tr("A minimized window sits next to the Trash as a small picture of itself, taken once when it is minimized")
+                                  : I18n.tr("Open windows appear as live previews next to the Trash, each with its app's icon")
                         SSwitch { t: pal; checked: root.showThumbs; onToggled: v => root.showThumbs = v }
                     }
                     SRow {
                         t: pal
-                        visible: !!root.comp && root.comp.can("windowSnapshot")
-                        title: I18n.tr("Minimized windows as pictures")
-                        subtitle: I18n.tr("A minimized window sits next to the Trash as a small picture of itself, taken once when it is minimized")
-                        SSwitch { t: pal; checked: root.minimizedSnapshots; onToggled: v => root.minimizedSnapshots = v }
-                    }
-                    SRow {
-                        t: pal
+                        visible: root.canWindowCapture       // KWin offers none: the switch would do nothing there
                         title: I18n.tr("Live window capture")
                         subtitle: I18n.tr("Capture open windows for the previews. Turn off and the previews show the app icon instead (Liquid Glass is not affected)")
                         SSwitch { t: pal; checked: root.windowCapture; onToggled: v => root.windowCapture = v }
@@ -4386,13 +4382,13 @@ Scope {
         darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accentFromKde = true; nativeText = false; screenCornerRadius = 0; accent = "#0a84ff"; fontFamily = "Open Runde";
         iconTint = false; iconTintColor = "#0a84ff"; iconTintStrength = 1.0;
         hideMode = "smart"; hideDelay = 450; monitor = "";
-        showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; minimizedSnapshots = true; glassLive = true;
+        showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; glassLive = true;
     }
 
     // ── settings persistence (~/.config/macdock/settings.json) ──
     readonly property string settingsSig: [dockEnabled, settingsEnabled, desktopIcons, desktopIconSize, iconSize, magnification, magnificationEnabled, spacing, margin,
         cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, accentFromKde, nativeText, screenCornerRadius, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
-        showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, minimizedSnapshots, glassLive, iconTint, iconTintColor, iconTintStrength].join("|")
+        showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength].join("|")
     property bool settingsReady: false
     onSettingsSigChanged: if (settingsReady) saveTimer.restart()
     onShowTrashChanged: { rebuild(); if (showTrash) trashCheck(); }
@@ -4408,7 +4404,7 @@ Scope {
             accent: String(accent), fontFamily: fontFamily,
             hideMode: hideMode, hideDelay: hideDelay, monitor: monitor,
             showTrash: showTrash, showLabels: showLabels, showIndicators: showIndicators,
-            bounceOnLaunch: bounceOnLaunch, showThumbs: showThumbs, windowCapture: windowCapture, minimizedSnapshots: minimizedSnapshots, glassLive: glassLive,
+            bounceOnLaunch: bounceOnLaunch, showThumbs: showThumbs, windowCapture: windowCapture, glassLive: glassLive,
             iconTint: iconTint, iconTintColor: iconTintColor, iconTintStrength: iconTintStrength
         };
         settingsStore.setText(JSON.stringify(o, null, 2));
@@ -4418,7 +4414,7 @@ Scope {
         if (!o || typeof o !== "object") return;
         var keys = ["dockEnabled", "settingsEnabled", "desktopIcons", "desktopIconSize", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
                     "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "accentFromKde", "nativeText", "screenCornerRadius", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
-                    "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "minimizedSnapshots", "glassLive", "iconTint", "iconTintColor", "iconTintStrength"];
+                    "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength"];
         for (var i = 0; i < keys.length; i++) {
             if (o[keys[i]] === undefined) continue;
             try { root[keys[i]] = o[keys[i]]; } catch (err) { }
@@ -4802,7 +4798,7 @@ Scope {
 
         // window previews: one cell per open window, in their own section next to the Trash
         var winItems = [], liveWins = [];
-        if (showThumbs || snapshotCells) {
+        if (showThumbs) {
             for (var w = 0; w < tls.length; w++) {
                 var tl = tls[w];
                 if (!tl.appId || tl.title === "macshell Settings") continue;
