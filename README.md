@@ -66,16 +66,23 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 - **Wallpaper and login splash without `plasmashell`.** In replace mode MacShell draws the wallpaper itself (your
   last pick in its picker, otherwise the picture Plasma is set to) and tells Plasma's login splash screen that the
   desktop is ready, which `plasmashell` normally does. Not yet tested in Plasma.
-- **Use KWin's blur** (Settings → Appearance). Every glass surface becomes a see-through tint and KWin blurs what's
-  behind it, instead of MacShell's own Liquid Glass. See [KWin's blur](#kwins-blur). Not yet tested in Plasma.
+- **KWin's blur, per panel** (Settings → Appearance → Panels). Each panel (Dock, menu bar, menus and popovers,
+  Control Center, notifications, Spotlight, switcher and pop-ups, desktop, widgets) can be a see-through tint with
+  KWin's blur behind it, or keep MacShell's own glass ("Stock blur"). See [KWin's blur](#kwins-blur). Seen working
+  in Plasma with one switch for everything; the per-panel choice and the fixes that followed that test (blur out of
+  place after an opening animation, the Dock's blur redrawn while hovered) are not yet tested.
+- **Transparency per panel** (Settings → Appearance → Panels): a Clear-to-Solid slider for each of the same panels.
+  The original has one translucency value for everything, and no control for it in Settings. Not yet tested.
+- **Title without a window** (Settings → Menu Bar): the name the menu bar shows while no window is active, instead
+  of "Desktop". Not yet tested.
 - **Minimizing into the Dock.** KWin's Magic Lamp effect animates a minimized window into its Dock icon (or its own
   window cell) instead of towards the pointer. Restoring it comes out of the same place, whether you click the Dock,
   use Alt+Tab or a shortcut. Not yet tested in Plasma; a CI check against a headless KWin covers only that KWin
   receives the target, not the animation.
-- **Minimized windows as pictures in the Dock** (Settings → Desktop & Dock, on by default on KDE). A minimized
-  window sits next to the Trash as a small picture of itself with its app's icon as a badge, as on macOS. KWin takes
-  the picture once, when the window is minimized; nothing is captured live. Not yet tested in Plasma, and the
-  bridge code for it has not been compiled yet.
+- **Minimized windows as pictures in the Dock** (Settings → Desktop & Dock → "Show window previews", on by
+  default). On KDE a minimized window sits next to the Trash as a small picture of itself with its app's icon as a
+  badge, as on macOS. KWin takes the picture once, when the window is minimized; nothing is captured live. Not yet
+  tested in Plasma, and the bridge code for it has not been compiled yet.
 - **Applications start as their own systemd units** on KDE (`app-macshell-<id>@….service` in `app.slice`), like
   Plasma's own launchers, so they are not children of MacShell and survive a restart of it. Falls back to a direct
   start. Not yet tested in Plasma.
@@ -112,7 +119,9 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Display, keyboard, mouse, trackpad and Night Shift settings | `hyprctl`, `hyprsunset` | Open the matching page of KDE System Settings |
 | Screen brightness | `brightnessctl` / `ddcutil` | PowerDevil (also controls DDC monitors) |
 | Wallpaper | Set with `awww` / `swww` / `hyprpaper` | While `plasmashell` runs, Plasma's wallpaper: the glass follows it, and the picker sets it. Without `plasmashell`, MacShell draws the picker's choice itself |
-| Blur behind the bar | Hyprland layer rules | KWin's blur, requested for the bar strip only; with "Use KWin's blur", for every glass surface |
+| Blur behind the bar | Hyprland layer rules | KWin's blur, requested for the bar strip only; for every panel set to "KWin blur" (Appearance → Panels) |
+| "Show window previews" (Desktop & Dock) | Live previews of open windows | Still pictures of minimized windows. "Live window capture" is hidden: KWin offers none |
+| Dock Size and Magnification sliders | Applied at every step of a drag | Applied at most every 150 ms during a drag: each step resizes the Dock's window, which froze the shell. Not yet tested |
 | Liquid Glass refraction | Live windows and the wallpaper | The wallpaper only |
 | Shortcut items in the generic File/Edit menus | `hyprctl sendshortcut` / `wtype` | `ydotool`, if installed |
 | Game Mode | Also tunes Hyprland, the power profile and the video wallpaper | Quiets MacShell's own effects only |
@@ -137,8 +146,8 @@ No upstream code has been deleted; the Hyprland path is kept, but untested. On K
   Nix or git (see [Install](#install)).
 - **Hyprland keybinds and layer rules.** Bind keys in KDE's Shortcuts settings instead
   ([below](#keyboard-shortcuts)).
-- **Blur behind the Dock and popovers in the Normal Blur style**, unless "Use KWin's blur" is on. Without it they're
-  a plain tint on KWin.
+- **Blur behind the Dock and popovers in the Normal Blur style**, unless the panel is set to "KWin blur". Without
+  it they're a plain tint on KWin.
 - **A window list on other wlroots compositors** (Sway, niri, river). They now get no compositor backend.
 - **MacShell's notification list while Plasma's tray serves notifications.** They appear in Plasma instead.
 
@@ -305,28 +314,35 @@ KWin's own task switcher stays on Alt+Tab.
 ### KWin's blur
 
 By default MacShell draws its glass itself. Liquid Glass blurs and bends a picture of the wallpaper, and the Normal
-Blur style is a plain tint on KWin, so the windows behind a menu or the Dock don't show through. Turn on
-**Settings → Appearance → Use KWin's blur** (shown on KWin only) to hand the blur to KWin instead:
+Blur style is a plain tint on KWin, so the windows behind a menu or the Dock don't show through.
+**Settings → Appearance → Panels** (the blur choice is shown on KWin only) lets each panel hand the blur to KWin
+instead. You can mix them: for example "Stock blur" for the Dock and "KWin blur" for everything else.
 
-- These become a see-through tint:
-  - the bar strip (when "Liquid Glass bar" is on);
-  - menus and popovers, notification banners, the Control Center and Spotlight;
-  - the window switcher, the wallpaper picker and the volume/brightness pop-up;
-  - the Dock, its labels and its right-click menu;
-  - the desktop's right-click menu and its Rename, Quick Preview and Add Folder sheets;
-  - Liquid Glass desktop widgets.
-- MacShell asks KWin to blur what's behind each of them, cut to its rounded corners, the same way KDE's own apps ask
-  for blur (the `ext-background-effect` Wayland protocol).
-- The strength of the blur is KWin's: System Settings → Desktop Effects → Blur must be enabled. A replacement blur
-  effect such as Better Blur should work too if it honours what apps request. Keep its force-blur of docks off for
-  MacShell, or it blurs the whole screen (see [Troubleshooting](#troubleshooting)).
-- **Translucency** (Appearance) still sets how strong the tint is. The Liquid Glass sliders, Menu Bar style and Dock
-  style don't apply while the option is on.
-- MacShell's own glass rendering (wallpaper capture, blur passes, refraction shaders) is switched off.
+- The panels:
+  - Dock: the Dock, its labels and its right-click menu;
+  - Menu bar: the bar strip (when "Liquid Glass bar" is on);
+  - Menus and popovers: app menus, tray menus, calendar, keyboard layout, sound, Wi-Fi and Bluetooth;
+  - Control Center;
+  - Notifications: banners and the notification centre;
+  - Spotlight;
+  - Switcher and pop-ups: the window switcher, the wallpaper picker and the volume/brightness pop-up;
+  - Desktop: the right-click menu and the Rename, Quick Preview and Add Folder sheets;
+  - Widgets: Liquid Glass desktop widgets.
+- A panel set to "KWin blur" becomes a see-through tint. MacShell asks KWin to blur what's behind it, cut to its
+  rounded corners, the same way KDE's own apps ask for blur (the `ext-background-effect` Wayland protocol), and
+  doesn't run its own glass rendering (wallpaper capture, blur passes, refraction shaders) for that panel.
+- The slider next to each panel sets how strong its tint is, from Clear to Solid, with either blur.
+- The strength, saturation and brightness of the blur are KWin's: System Settings → Desktop Effects → Blur must be
+  enabled. A replacement blur effect such as Better Blur should work too if it honours what apps request. Keep its
+  force-blur of docks off for MacShell, or it blurs the whole screen (see [Troubleshooting](#troubleshooting)).
+- The Liquid Glass sliders, Menu Bar style and Dock style only apply to panels on "Stock blur".
 
 Not affected: the Settings window's frosted scroll edge and the Clock app's tab marker, which blur MacShell's own
 content rather than what's behind the window; the small pointer under Dock labels; and photo or solid-style widgets.
-The option is stored as `kwinBlur` in `~/.config/macdock/settings.json`.
+
+The choices are stored in `~/.config/macdock/settings.json` as `panelBlur` (panel → `true` for KWin's blur) and
+`panelTint` (panel → 0 to 1). A panel that was never picked follows the older `kwinBlur` switch for everything and
+the global `glassOpacity`.
 
 ### Where settings are stored
 
@@ -347,6 +363,7 @@ The option is stored as `kwinBlur` in `~/.config/macdock/settings.json`.
 | No notifications | `busctl --user status org.freedesktop.Notifications` shows who owns them. MacShell takes them only when nobody else has for 15 s. |
 | No bar, Dock or wallpaper after login | MacShell didn't start and `plasmashell` was skipped. Open KRunner (`Alt+Space`) or a terminal and run `macshell-session stop` to get Plasma's shell; `journalctl --user -u macshell -b` shows why. |
 | The whole screen is blurred | A force-blur KWin effect (e.g. Better Blur) with "Blur docks" enabled. Turn that option off: MacShell asks KWin for blur where it needs it. |
+| Panels on "KWin blur" look yellowish | MacShell paints only a grey or white tint there. KWin's blur raises the saturation of what it blurs (150 % by default), and Better Blur's brightness setting multiplies it; with Night Light on, everything behind the panel is already warm, so both push it towards yellow. Set the blur effect's saturation and brightness to 100 %, or compare with Night Light off. Not confirmed on a real session. |
 | Brightness slider does nothing | `busctl --user status org.kde.ScreenBrightness` must show PowerDevil. |
 | The glass shows another picture than the desktop | MacShell reads Plasma's wallpaper from `~/.config/plasma-org.kde.plasma.desktop-appletsrc`; with different wallpapers per screen only the first is used. |
 | Bar and Dock overlap Plasma's panels | See [Running it](#running-it-next-to-plasma). |
@@ -357,8 +374,8 @@ The option is stored as `kwinBlur` in `~/.config/macdock/settings.json`.
 - **Unverified fixes:** the latest fixes for the bar background, force-blur effects, brightness, notifications
   without a tray, wallpaper sync and menu icons haven't been run in a live Plasma session yet
   (`handoff/08-plasma-fixes-tests.md` is the test plan). Neither has the wallpaper and splash handling without
-  `plasmashell` (`handoff/10-replace-wallpaper-splash-tests.md`), nor "Use KWin's blur"
-  (`handoff/11-kwin-blur-tests.md`), nor minimizing into the Dock (`handoff/13-magic-lamp-tests.md`).
+  `plasmashell` (`handoff/10-replace-wallpaper-splash-tests.md`), nor the per-panel blur and transparency
+  (`handoff/16-blur-panels-report.md`), nor minimizing into the Dock (`handoff/13-magic-lamp-tests.md`).
 - **Minimizing into the Dock:** windows whose app has no Dock icon still fly towards the pointer. The target is
   where the icon rests, so the animation ignores magnification and ends where the Dock appears when it's hidden.
   When running next to `plasmashell`, a Plasma task manager registers its own targets, and KWin uses whichever
