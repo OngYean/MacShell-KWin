@@ -5080,7 +5080,12 @@ Scope {
 
         PanelWindow {
             id: win
-            BlurCollector { window: win; compositor: root.comp }    // the Dock, its labels and its right-click menu
+            // the Dock, its labels and its right-click menu. The Dock widens under magnification and labels come and go:
+            // the blur's box is held at the strip they move in (everything below the room kept for the right-click menu)
+            BlurCollector {
+                window: win; compositor: root.comp
+                holdRect: Qt.rect(0, root.menuRoom, win.width, root.windowHeight - root.menuRoom)
+            }
             required property var modelData
             screen: modelData
             visible: root.monitor === "" || modelData.name === root.monitor
