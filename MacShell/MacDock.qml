@@ -1885,6 +1885,40 @@ Scope {
                         SSwitch { t: pal; checked: root.bar ? root.bar.menuCascade : false; onToggled: v => { if (root.bar) root.bar.menuCascade = v; } }
                     }
                     SRow {
+                        t: pal; title: I18n.tr("Title without a window")
+                        subtitle: I18n.tr("Shown as the app name while no window is active. Leave empty for “Desktop”")
+                        Rectangle {
+                            width: 200; height: 24; radius: 6
+                            color: pal.ctrl
+                            border.width: 1
+                            border.color: pal.cardBorder
+                            TextInput {
+                                id: deskTitleInput
+                                anchors.fill: parent
+                                anchors.leftMargin: 8; anchors.rightMargin: 8
+                                verticalAlignment: TextInput.AlignVCenter
+                                clip: true
+                                selectByMouse: true
+                                maximumLength: 40
+                                color: pal.text
+                                selectionColor: pal.accent
+                                font.family: root.fontForWeight(Font.Normal, pal.fam)
+                                font.pixelSize: 12
+                                text: root.bar ? root.bar.desktopTitle : ""
+                                onTextEdited: { if (root.bar) root.bar.desktopTitle = text; }
+                            }
+                            Text {
+                                visible: deskTitleInput.text === ""
+                                x: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: I18n.tr("Desktop")
+                                color: pal.text3
+                                font.family: root.fontForWeight(Font.Normal, pal.fam)
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+                    SRow {
                         t: pal; title: I18n.tr("Workspace switcher")
                         SSwitch { t: pal; checked: root.bar ? root.bar.barWidgetEnabled("workspaces") : true; onToggled: v => { if (root.bar) root.bar.setBarWidget("workspaces", v); } }
                     }

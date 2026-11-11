@@ -375,6 +375,8 @@ Scope {
     // Settings → Menu Bar → "Submenus open to the side": a submenu of an application's menu opens in its own panel next to
     // its parent row, as in KDE and macOS, instead of replacing the menu's contents with a "back" row at the top.
     property bool menuCascade: false
+    // Settings → Menu Bar → "Title without a window": what the bar shows as the app name while no window is active; "" = "Desktop"
+    property string desktopTitle: ""
     property string terminal: "kitty"
     property string launcher: ""              // "" = built-in Spotlight; set a command (rofi, fuzzel, ...) to use an external launcher instead
     property string filesCmd: "xdg-open \"$HOME\""
@@ -411,7 +413,7 @@ Scope {
     readonly property var settingKeys: ["barEnabled", "darkMode", "appearanceMode", "accent", "fontFamily", "barHeight", "uiScaleAuto", "uiScaleManual", "glassOpacity",
         "barStyle", "barGlass", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "barBgOpacity", "glassRealtime", "liveWallGlass", "glassDebug", "wallpaperPath", "use24h", "language", "showDate",
         "showSeconds", "showBatteryPercent", "showTray", "showSearch",
-        "spotlightEnabled", "reduceMotion", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "menuCascade", "terminal", "launcher",
+        "spotlightEnabled", "reduceMotion", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "menuCascade", "desktopTitle", "terminal", "launcher",
         "filesCmd", "clipboardCmd", "appUsage", "clipHistory", "clipAutoPaste", "emojiRecent", "screenshotDir", "screenshotSave", "screenshotClipboard", "screenshotNotify", "nightTemp", "ccControls", "ccMigRec", "wallpaperDir", "wallpaperFavs", "wallpaperCmd", "wallpaperVideo", "wpRestorePath", "uiSounds", "gamingMode", "gamingAuto", "ccMigGame", "lockArtBackground",
         "lockClockStyle", "switcherStyle", "lockClockFont", "lockClockWeight", "lockClockMaterial", "lockClockIntensity", "lockClockTint", "lockClockDate", "autoContrast", "wallpaperAppearance", "wpPairLight", "wpPairDark",
         "notifDnd", "dnd", "nightOn", "keepAwake",
@@ -1985,7 +1987,7 @@ Scope {
     readonly property var activeTl: comp ? comp.activeToplevel : null
     readonly property string activeAppId: activeTl ? (activeTl.appId || "") : ""
     readonly property string appName: {
-        if (activeAppId === "") return I18n.tr("Desktop");
+        if (activeAppId === "") return desktopTitle.trim() !== "" ? desktopTitle.trim() : I18n.tr("Desktop");
         // MacShell's own windows (all "org.quickshell")
         if (activeAppId === "org.quickshell") return (activeTl.title === "Clock" || activeTl.title === "App Store") ? I18n.tr(activeTl.title)
                                                      : (activeTl.title === "macshell Settings" ? I18n.tr("System Settings") : "MacShell");
@@ -4240,7 +4242,7 @@ Scope {
         barLogoMode = "arch"; barCustomLogoPath = "";
         barWidgets = ["appleMenu", "appMenus", "workspaces", "volume", "keyboard", "notifications", "wifi", "bluetooth", "privacy", "controlCenter", "clock"];
         ccControls = ccDefault.slice();
-        uiScaleAuto = true; uiScaleManual = 1.0;
+        uiScaleAuto = true; uiScaleManual = 1.0; desktopTitle = "";
     }
 
     // inherit look from macdock first, then macbar's own file wins
