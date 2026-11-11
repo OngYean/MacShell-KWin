@@ -22,6 +22,7 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import "backends/compositor"
 import "CaptureGate.js" as CaptureGate
+import "PanelLook.js" as PanelLook
 
 ShellRoot {
     // The UI font ("Open Runde") ships with MacShell: registered here, first, so every Text below can use it
@@ -42,9 +43,14 @@ ShellRoot {
         Binding { target: sharedHub; property: "monData"; value: facade.monitors; when: facade.isKWin }
         Binding { target: sharedHub; property: "glassClients"; value: facade.clients; when: facade.isKWin }
         property var wallpaperMap: ({})
-        // Settings → Appearance → "Use KWin's blur": every glass surface turns into a translucent tint and KWin blurs what is
-        // behind it (GlassBlur.qml / BlurCollector.qml) instead of MacShell's own Liquid Glass pipeline. KWin only.
-        readonly property bool kwinBlur: macDock.kwinBlur && facade.can("backgroundEffect")
+        // Settings → Appearance → Panels: each panel has its own blur and its own tint, stored by the Dock (panelBlur, panelTint).
+        // zone = dock | bar | menus | cc | notifs | spotlight | overlays | desktop | widgets.
+        // KWin's blur: the panel turns into a translucent tint and KWin blurs what is behind it (GlassBlur.qml /
+        // BlurCollector.qml) instead of MacShell's own Liquid Glass pipeline. KWin only. A zone that was never picked
+        // follows the old all-or-nothing switch (kwinBlur in settings.json).
+        function kwinBlurFor(zone) { return facade.can("backgroundEffect") && PanelLook.kwin(macDock.panelBlur, zone, macDock.kwinBlur); }
+        // the panel's own tint, 0 (clear) to 1 (solid); undefined = not set, the caller uses the global one
+        function panelTint(zone) { return PanelLook.tint(macDock.panelTint, zone); }
         // KDE: plasmashell draws the desktop, so the glass refracts Plasma's wallpaper, also after it is changed in Plasma's
         // settings, rather than MacShell's saved pick. Right after a pick of MacShell's (MacBar sets plasmaWallpaperAtPick)
         // the pick shows until Plasma's config reports a different wallpaper: Plasma writes its config with a delay.

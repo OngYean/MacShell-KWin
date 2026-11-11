@@ -20,7 +20,8 @@ Item {
     property string source: ""
     property bool dark: true
     property var backdrop: null             // desktop glass backdrop (frozen snapshot, not live)
-    property bool kwinBlur: false           // Settings → Appearance → "Use KWin's blur": no glass of our own, KWin blurs behind
+    property bool kwinBlur: false           // Settings → Appearance → Panels → Desktop, "KWin blur": no glass of our own, KWin blurs behind
+    property real tintK: 1                  // the panel's tint setting / the default 0.42
     property string fam: "Open Runde"
     property real k: 1
     property real maxW: 900
@@ -61,6 +62,7 @@ Item {
         backdrop: ps.backdrop
         live: !ps.kwinBlur      // the blur objects stay built (shaders compiled, textures allocated); the capture itself only runs while visible
         kwinBlur: ps.kwinBlur
+        tintK: ps.tintK
         frozen: ps.visible
         dark: ps.dark
         k: ps.k

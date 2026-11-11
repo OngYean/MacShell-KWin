@@ -15,7 +15,8 @@ Item {
     property bool warm: false               // set briefly after start-up: builds the glass once, invisibly, so the first real open is not a hitch
     property string title: ""
     property var backdrop: null
-    property bool kwinBlur: false           // Settings → Appearance → "Use KWin's blur": no glass of our own, KWin blurs behind
+    property bool kwinBlur: false           // Settings → Appearance → Panels → Desktop, "KWin blur": no glass of our own, KWin blurs behind
+    property real tintK: 1                  // the panel's tint setting / the default 0.42
     property bool dark: true
     property string fam: "Open Runde"
     property real k: 1
@@ -49,6 +50,7 @@ Item {
         backdrop: sh.backdrop
         live: !sh.kwinBlur      // the blur objects stay built (shaders compiled, textures allocated); the capture itself only runs while visible
         kwinBlur: sh.kwinBlur
+        tintK: sh.tintK
         frozen: sh.visible      // one blur snapshot when it opens, then no re-capture: not real-time
         dark: sh.dark
         k: sh.k

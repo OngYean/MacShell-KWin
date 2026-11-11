@@ -1099,15 +1099,17 @@ Scope {
         // true: when the menu bar changes size the capture is dropped, re-attached and every stage re-rendered (the Control Center's method),
         // because the capture used to stay stuck on the old rectangle
         property bool refreshOnResize: false
+        property string zone: "menus"       // which panel this is (Settings → Appearance → Panels): its blur and its tint
+        readonly property bool kwin: root.kwinOf(zone)
         signal shaderError()
 
-        GlassBlur { target: g; on: root.kwinBlurOn; cornerR: g.cornerR }
+        GlassBlur { target: g; on: g.kwin; cornerR: g.cornerR }
         Rectangle {
             visible: !g.liquid
             anchors.fill: parent
             radius: g.cornerR
             // KWin's blur: the same see-through tint as GGlass / the Dock's Normal Blur, so the blur shows
-            color: root.kwinBlurOn ? (g.dark ? Qt.rgba(0.10, 0.10, 0.11, g.tint) : Qt.rgba(1, 1, 1, g.tint * 0.55))
+            color: g.kwin ? (g.dark ? Qt.rgba(0.10, 0.10, 0.11, g.tint) : Qt.rgba(1, 1, 1, g.tint * 0.55))
                  : (g.dark ? Qt.rgba(0.12, 0.12, 0.13, 0.30 + g.tint * 0.9) : Qt.rgba(1, 1, 1, 0.30 + g.tint * 0.7))
             border.width: 1
             border.color: g.dark ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.55)
@@ -1240,6 +1242,7 @@ Scope {
         property var src: null                          // the ShaderEffectSource holding the backdrop
         property rect srcRect: Qt.rect(0, 0, 1, 1)      // where that texture sits, in `frame` coordinates
         property Item frame: null                       // coordinate space of srcRect (the popover layer)
+        property string zone: "menus"                   // which panel this is (Settings → Appearance → Panels)
         property bool liquid: false
         property url shaderUrl: ""
         property bool dark: true
@@ -1272,6 +1275,7 @@ Scope {
         property real fullW: pop.width
         property real fullH: pop.height
         property bool fromCC: false                 // opened from the Control Center: keeps the global blur setting
+        property string zone: "menus"               // which panel this is (Settings → Appearance → Panels)
         readonly property real topBarBlur: 42       // opened from the top bar: the stronger blur of the old version
         property alias ctx: pgc
         readonly property real m: 64
@@ -1311,14 +1315,15 @@ Scope {
         }
         GlassCtx {
             id: pgc
+            zone: pg.zone
             src: pgBlur
             srcRect: pg.capLocal
             magnifyMul: 0          // popovers: no vertical lens, the backdrop stays exactly where it really is
             frame: pg.frame
-            liquid: root.liquidActive
+            liquid: root.liquidOf(zone)
             shaderUrl: root.glassShaderUrl
             dark: root.effDark
-            tint: root.glassOpacity
+            tint: root.tintOf(zone)
             strength: root.glassLiquid
             rim: root.glassRim * 0.25
             rimTint: 1
@@ -1353,7 +1358,7 @@ Scope {
         }
         readonly property point fp: framePos()
 
-        GlassBlur { target: gg; on: root.kwinBlurOn; cornerR: gg.cornerR }
+        GlassBlur { target: gg; on: root.kwinOf(gg.gx.zone); cornerR: gg.cornerR }
         Rectangle {
             visible: !gg.gx.liquid
             anchors.fill: parent
@@ -4278,11 +4283,22 @@ Scope {
 
     // ═════════════ LIQUID GLASS BACKEND (same pipeline as macdock) ═════════════
     property string glassState: "idle"       // idle → building → ready | failed
-    // Settings → Appearance → "Use KWin's blur" (stored by the Dock): no Liquid Glass at all, the flat panes + KWin's blur instead
-    readonly property bool kwinBlurOn: !!hub && hub.kwinBlur
+    // Per-panel look (Settings → Appearance → Panels, stored by the Dock): which blur a panel uses and how see-through it is.
+    // The bar's zones: bar (the strip), menus (menus and popovers), cc (Control Center), notifs (banners and the notification
+    // centre), spotlight, overlays (window switcher, wallpaper picker, volume / brightness pop-up).
+    readonly property var glassZones: ["bar", "menus", "cc", "notifs", "spotlight", "overlays"]
+    function kwinOf(zone) { return !!hub && hub.kwinBlurFor(zone); }
+    function liquidOf(zone) { return liquidActive && !kwinOf(zone); }
+    // 0 = clear, 1 = solid. A panel without a value of its own uses the global one, and only then the caller's floor
+    // (dark menus stay readable by default; a value picked for the panel is taken as it is)
+    function tintOf(zone, floor) {
+        var v = hub ? hub.panelTint(zone) : undefined;
+        return v !== undefined ? v : Math.max(glassOpacity, floor || 0);
+    }
+    readonly property bool kwinBlurOn: glassZones.every(z => kwinOf(z))     // KWin blurs every bar surface: no glass pipeline of our own
     readonly property bool liquidActive: barStyle === "liquid" && glassState === "ready" && !gaming && !kwinBlurOn
     // the bar strip is glass: Liquid Glass, or a flat pane with KWin's blur behind it
-    readonly property bool barGlassOn: barGlass && (liquidActive || kwinBlurOn)
+    readonly property bool barGlassOn: barGlass && (liquidActive || kwinOf("bar"))
     readonly property string glassShaderSrc: decodeURIComponent(Qt.resolvedUrl("liquidglass.frag").toString().replace("file://", ""))
     readonly property string glassShaderOut: configDir + "/liquidglass.frag.qsb"
     readonly property url glassShaderUrl: "file://" + glassShaderOut
@@ -5801,7 +5817,7 @@ Scope {
                     width: ui.width
                     height: root.barH
                     color: root.darkMode ? Qt.rgba(0.10, 0.10, 0.11, root.barBgOpacity) : Qt.rgba(1, 1, 1, root.barBgOpacity)
-                    GlassBlur { target: barFillIn; on: barFillIn.fillOn }     // with or without "Use KWin's blur"
+                    GlassBlur { target: barFillIn; on: barFillIn.fillOn }     // with or without "KWin blur" (Appearance → Panels)
                 }
 
                 // Liquid Glass menu bar strip: the bar itself refracts the live backdrop (wallpaper + windows), like the popovers.
@@ -5814,11 +5830,12 @@ Scope {
                     height: root.barH
                     backdrop: ui.glassSrc
                     shaderUrl: root.glassShaderUrl
-                    liquid: root.liquidActive
+                    zone: "bar"
+                    liquid: root.liquidOf(zone)
                     dark: !root.barTextDark
                     bx: 0; by: 0
                     cornerR: 0
-                    tint: root.glassOpacity * 0.6
+                    tint: root.tintOf(zone) * 0.6
                     thickness: 16
                     strength: 0.9 * root.glassLiquid
                     rim: root.glassRim
@@ -6488,11 +6505,11 @@ Scope {
                         anchors.fill: parent
                         backdrop: ui.glassSrc
                         shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
+                        liquid: root.liquidOf(zone)
                         dark: root.effDark
                         bx: kbPop.x; by: kbPop.y
                         cornerR: 22
-                        tint: root.glassOpacity
+                        tint: root.tintOf(zone)
                         thickness: 22
                         strength: 0.55 * root.glassLiquid
                         rim: root.glassRim
@@ -6647,11 +6664,12 @@ Scope {
                                     x: toast.width - width + slide
                                     backdrop: ui.glassSrc
                                     shaderUrl: root.glassShaderUrl
-                                    liquid: root.liquidActive
+                                    zone: "notifs"
+                                    liquid: root.liquidOf(zone)
                                     dark: root.effDark
                                     bx: toastArea.x + toast.x + tslab.x; by: toastArea.y + toast.y
                                     cornerR: Math.min(24 + (1 - toast.tc) * 40, height / 2)
-                                    tint: root.glassOpacity
+                                    tint: root.tintOf(zone)
                                     thickness: 22
                                     strength: 0.7 * root.glassLiquid
                                     rim: root.glassRim
@@ -6768,7 +6786,7 @@ Scope {
                     }
 
                     // exactly the glass + border of the Wi-Fi / Bluetooth / audio popovers (same context, blur, rim, no drop shadow, no inner shading)
-                    PopGlassCtx { id: notifPopGlass; pop: notifPop; frame: ui; source: ui.glassSrc; fullW: notifPop.fullW; fullH: notifPop.fullH }
+                    PopGlassCtx { id: notifPopGlass; zone: "notifs"; pop: notifPop; frame: ui; source: ui.glassSrc; fullW: notifPop.fullW; fullH: notifPop.fullH }
                     GGlass {
                         anchors.fill: parent
                         opacity: notifPop.merging ? notifPop.chromeM : 1
@@ -6996,7 +7014,7 @@ Scope {
                         anchors.fill: parent
                         backdrop: ui.glassSrc
                         shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
+                        liquid: root.liquidOf(zone)
                         dark: root.panelDarkMode
                         bx: menuPop.x; by: menuPop.y
                         capScale: root.barPopupScale
@@ -7007,7 +7025,7 @@ Scope {
                         rimTint: 1
                         ringW: 1.4
                         cornerR: 14
-                        tint: root.panelDarkMode ? Math.max(root.glassOpacity, 0.55) : root.glassOpacity
+                        tint: root.tintOf(zone, root.panelDarkMode ? 0.55 : 0)
                         thickness: 22
                         strength: 0.55 * root.glassLiquid
                         rim: root.glassRim
@@ -7170,7 +7188,7 @@ Scope {
                                 anchors.fill: parent
                                 backdrop: ui.glassSrc
                                 shaderUrl: root.glassShaderUrl
-                                liquid: root.liquidActive
+                                liquid: root.liquidOf(zone)
                                 dark: root.panelDarkMode
                                 bx: menuPop.x + sub.x * root.barPopupScale; by: menuPop.y + sub.y * root.barPopupScale
                                 capScale: root.barPopupScale
@@ -7181,7 +7199,7 @@ Scope {
                                 rimTint: 1
                                 ringW: 1.4
                                 cornerR: 14
-                                tint: root.panelDarkMode ? Math.max(root.glassOpacity, 0.55) : root.glassOpacity
+                                tint: root.tintOf(zone, root.panelDarkMode ? 0.55 : 0)
                                 thickness: 22
                                 strength: 0.55 * root.glassLiquid
                                 rim: root.glassRim
@@ -7319,7 +7337,7 @@ Scope {
                         anchors.fill: parent
                         backdrop: ui.glassSrc
                         shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
+                        liquid: root.liquidOf(zone)
                         dark: root.panelDarkMode
                         bx: trayPop.x; by: trayPop.y
                         capScale: root.barPopupScale
@@ -7330,7 +7348,7 @@ Scope {
                         rimTint: 1
                         ringW: 0
                         cornerR: 14
-                        tint: root.glassOpacity
+                        tint: root.tintOf(zone)
                         thickness: 22
                         strength: 0.55 * root.glassLiquid
                         rim: root.glassRim
@@ -8148,11 +8166,11 @@ Scope {
                         anchors.fill: parent
                         backdrop: ui.glassSrc
                         shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
+                        liquid: root.liquidOf(zone)
                         dark: root.effDark
                         bx: cal.x; by: cal.y
                         cornerR: 24
-                        tint: root.glassOpacity
+                        tint: root.tintOf(zone)
                         thickness: 22
                         strength: 0.55 * root.glassLiquid
                         rim: root.glassRim
@@ -8384,11 +8402,12 @@ Scope {
                         src: (blur * blurMul) * 1.4 / 64.0 > 1.0 ? ccBlur2 : ccBlur
                         srcRect: cc.capLocal
                         frame: ui
-                        liquid: root.liquidActive
+                        zone: "cc"
+                        liquid: root.liquidOf(zone)
                         shaderUrl: root.glassShaderUrl
                         dark: root.ccDark
                         // macOS style: the panel is the glass, so each control only keeps a faint shape on top of it
-                        tint: root.ccStyle === "macos" ? root.glassOpacity * 0.30 : root.glassOpacity
+                        tint: root.ccStyle === "macos" ? root.tintOf(zone) * 0.30 : root.tintOf(zone)
                         strength: root.ccStyle === "macos" ? root.glassLiquid * 0.30 : root.glassLiquid
                         rim: root.ccStyle === "macos" ? root.glassRim * 0.10 : root.glassRim * 0.25
                         rimTint: 1
@@ -9157,7 +9176,7 @@ Scope {
 
                 Loader {
                     id: swBackdrop
-                    active: root.liquidActive          // stays loaded (warm) so the window opens on ready-made frames
+                    active: root.liquidOf("overlays")          // stays loaded (warm) so the window opens on ready-made frames
                     sourceComponent: backdropComp
                     onLoaded: { item.hostShown = Qt.binding(function () { return swWin.visible; });
                                 item.region = Qt.binding(function () { return Qt.rect(swPanel.x - 96, swPanel.y - 96, swPanel.width + 192, swPanel.height + 192); }); }
@@ -9196,12 +9215,13 @@ Scope {
                         visible: swPanel.style !== "opaque"
                         backdrop: swBackdrop.item
                         shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
+                        zone: "overlays"
+                        liquid: root.liquidOf(zone)
                         dark: root.effDark
                         bx: swPanel.x; by: swPanel.y
                         cornerR: 26
                         // frosted: the same glass with no refraction, a heavier blur and more tint
-                        tint: swPanel.style === "frosted" ? Math.max(0.5, root.glassOpacity) : root.glassOpacity
+                        tint: root.tintOf(zone, swPanel.style === "frosted" ? 0.5 : 0)
                         thickness: swPanel.style === "frosted" ? 6 : 20
                         strength: swPanel.style === "frosted" ? 0.0 : 0.75 * root.glassLiquid
                         rim: swPanel.style === "frosted" ? 0.15 : root.glassRim
@@ -9331,7 +9351,7 @@ Scope {
 
                 Loader {
                     id: wpBackdrop
-                    active: root.liquidActive          // stays loaded (warm) so the window opens on ready-made frames
+                    active: root.liquidOf("overlays")          // stays loaded (warm) so the window opens on ready-made frames
                     sourceComponent: backdropComp
                     onLoaded: { item.hostShown = Qt.binding(function () { return wpWin.visible; });
                                 item.region = Qt.binding(function () { return Qt.rect(wpPanel.x - 96, wpPanel.y - 96, wpPanel.width + 192, wpPanel.height + 192); }); }
@@ -9356,11 +9376,12 @@ Scope {
                         anchors.fill: parent
                         backdrop: wpBackdrop.item
                         shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
+                        zone: "overlays"
+                        liquid: root.liquidOf(zone)
                         dark: root.effDark
                         bx: wpPanel.x; by: wpPanel.y
                         cornerR: 28
-                        tint: root.glassOpacity
+                        tint: root.tintOf(zone)
                         thickness: 22
                         strength: 0.75 * root.glassLiquid
                         rim: root.glassRim
@@ -9715,7 +9736,7 @@ Scope {
 
                 Loader {
                     id: osdBackdrop
-                    active: root.liquidActive
+                    active: root.liquidOf("overlays")
                     sourceComponent: backdropComp
                     onLoaded: { item.hostShown = Qt.binding(function () { return osdWin.visible; });
                                 item.region = Qt.binding(function () { return Qt.rect(levelOsd.x - 96, levelOsd.y - 96, levelOsd.width + 192, levelOsd.height + 192); }); }
@@ -9737,11 +9758,12 @@ Scope {
                         anchors.fill: parent
                         backdrop: osdBackdrop.item
                         shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
+                        zone: "overlays"
+                        liquid: root.liquidOf(zone)
                         dark: root.effDark
                         bx: levelOsd.x; by: levelOsd.y
                         cornerR: height / 2
-                        tint: root.glassOpacity
+                        tint: root.tintOf(zone)
                         thickness: 22
                         strength: 0.8 * root.glassLiquid
                         rim: root.glassRim
@@ -9844,7 +9866,7 @@ Scope {
 
                 Loader {
                     id: spotBackdrop
-                    active: root.liquidActive          // stays loaded (warm) so the window opens on ready-made frames
+                    active: root.liquidOf("spotlight")          // stays loaded (warm) so the window opens on ready-made frames
                     sourceComponent: backdropComp
                     onLoaded: { item.hostShown = Qt.binding(function () { return !root.gaming; });
                                 item.region = Qt.binding(function () { return Qt.rect(spot.x - 128, spot.y - 128, spot.width + 256, spot.height + 256); }); }
@@ -9964,11 +9986,12 @@ Scope {
                     src: spBlur
                     srcRect: spotRoot.spCapLocal
                     frame: spotRoot
-                    liquid: root.liquidActive
+                    zone: "spotlight"
+                    liquid: root.liquidOf(zone)
                     shaderUrl: root.glassShaderUrl
                     dark: root.panelDarkMode
                     veil: root.panelDarkMode ? 0.6 : 0
-                    tint: root.glassOpacity
+                    tint: root.tintOf(zone)
                     strength: root.glassLiquid * 0.6         // gentler refraction: a flatter, less 3D pane
                     rim: root.glassRim * 0.35                // softer rim
                     rimTint: 1

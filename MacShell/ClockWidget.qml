@@ -26,7 +26,7 @@ Item {
 
     // Liquid Glass inputs shared with Weather / Calendar.
     property bool glassReady: false
-    property bool kwinBlur: false       // "Use KWin's blur": the frosted card turns see-through, KWin blurs behind it
+    property bool kwinBlur: false       // "KWin blur" (Appearance → Panels): the frosted card turns see-through, KWin blurs behind it
     property url shaderUrl: ""
     property url wallUrl: ""
     property string wallVideo: ""        // animated wallpaper to play behind the glass ("" = none / real-time glass off)

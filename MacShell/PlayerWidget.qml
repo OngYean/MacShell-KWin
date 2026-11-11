@@ -63,7 +63,7 @@ Item {
 
     // ── liquid glass inputs (the Appearance sliders), same as the other widgets ──
     property bool glassReady: false
-    property bool kwinBlur: false       // "Use KWin's blur": the frosted card turns see-through, KWin blurs behind it
+    property bool kwinBlur: false       // "KWin blur" (Appearance → Panels): the frosted card turns see-through, KWin blurs behind it
     property url shaderUrl: ""
     property url wallUrl: ""
     property string wallVideo: ""        // animated wallpaper to play behind the glass ("" = none / real-time glass off)

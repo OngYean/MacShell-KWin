@@ -22,7 +22,9 @@ Scope {
     readonly property string fam: dock ? dock.fontFamily : "Open Runde"
     readonly property color accent: dock ? dock.accent : "#0A84FF"
     readonly property bool darkMode: dock ? dock.darkMode : true
-    readonly property bool kwinBlurOn: !!hub && hub.kwinBlur     // Settings → Appearance → "Use KWin's blur"
+    // Settings → Appearance → Panels → Desktop: KWin's blur for the right-click menu and the sheets, and their tint
+    readonly property bool kwinBlurOn: !!hub && hub.kwinBlurFor("desktop")
+    readonly property real tintK: { var v = hub ? hub.panelTint("desktop") : undefined; return v !== undefined ? v / 0.42 : (dock ? dock.glassOpacity / 0.42 : 1); }
     readonly property int iconSize: dock ? Math.max(32, Math.min(128, Math.round(dock.desktopIconSize || 48))) : 48
     readonly property string home: Quickshell.env("HOME")
     property string xdgDesktop: ""
@@ -777,6 +779,7 @@ Scope {
                     backdrop: desktopGlassBackdrop
                     live: visible && !root.kwinBlurOn
                     kwinBlur: root.kwinBlurOn
+                    tintK: root.tintK
                     frozen: false
                     dark: root.darkMode
                     k: menuScale
@@ -944,6 +947,7 @@ Scope {
                     title: I18n.tr("Rename")
                     backdrop: desktopGlassBackdrop
                     kwinBlur: root.kwinBlurOn
+                    tintK: root.tintK
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
@@ -994,6 +998,7 @@ Scope {
                     title: I18n.tr("Quick Preview")
                     backdrop: desktopGlassBackdrop
                     kwinBlur: root.kwinBlurOn
+                    tintK: root.tintK
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
@@ -1110,6 +1115,7 @@ Scope {
                     z: 60
                     backdrop: desktopGlassBackdrop
                     kwinBlur: root.kwinBlurOn
+                    tintK: root.tintK
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
@@ -1160,6 +1166,7 @@ Scope {
                     title: I18n.tr("Folder Icon")
                     backdrop: desktopGlassBackdrop
                     kwinBlur: root.kwinBlurOn
+                    tintK: root.tintK
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1
@@ -1225,6 +1232,7 @@ Scope {
                     title: I18n.tr("Add Folder to Desktop")
                     backdrop: desktopGlassBackdrop
                     kwinBlur: root.kwinBlurOn
+                    tintK: root.tintK
                     dark: root.darkMode
                     fam: root.fam
                     k: root.dock ? root.dock.labelK : 1

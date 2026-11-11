@@ -38,9 +38,10 @@ Scope {
     readonly property string configDir: Quickshell.env("HOME") + "/.config/macwidgets"
 
     // Liquid Glass look = the Appearance sliders (Translucency / Blur / Liquid strength) of the Dock + Menu Bar
-    readonly property real glassOpacity: dock ? dock.glassOpacity : 0.42
-    // Settings → Appearance → "Use KWin's blur": Liquid Glass widgets draw their frosted card, see-through, and KWin blurs behind
-    readonly property bool kwinBlurOn: !!hub && hub.kwinBlur
+    // Translucency: the widgets' own (Settings → Appearance → Panels → Widgets), else the global one
+    readonly property real glassOpacity: { var v = hub ? hub.panelTint("widgets") : undefined; return v !== undefined ? v : (dock ? dock.glassOpacity : 0.42); }
+    // Panels → Widgets, "KWin blur": Liquid Glass widgets draw their frosted card, see-through, and KWin blurs behind
+    readonly property bool kwinBlurOn: !!hub && hub.kwinBlurFor("widgets")
     readonly property real glassBlur: (dock ? dock.glassBlur : 5) + 11     // the Appearance blur slider, plus 11 more for widgets
     readonly property real glassLiquid: dock ? dock.glassLiquid : 1.0
     readonly property real glassRim: dock ? dock.glassRim : 0.45

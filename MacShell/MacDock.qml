@@ -178,9 +178,30 @@ Scope {
     readonly property bool dockDark: true
     property string appearanceMode: "dark"      // light | dark | auto (kept in step with the Menu Bar, see setAppearance)
     property string dockStyle: "blur"   // "blur" = Normal Blur, "liquid" = Apple Liquid Glass
-    // KWin: every glass surface (Dock, menus, popovers, widgets…) becomes a translucent tint and KWin blurs what's behind it,
-    // instead of MacShell's own Liquid Glass. Stored here with the other look settings; hub.kwinBlur is the effective value.
+    // KWin's blur for a panel: it becomes a translucent tint and KWin blurs what's behind it, instead of MacShell's own
+    // Liquid Glass. Picked per panel (Settings → Appearance → Panels) and stored here with the other look settings:
+    //   panelBlur: zone → true (KWin's blur) / false (MacShell's own); a zone not listed follows kwinBlur, the old switch
+    //              for everything at once (kept so a saved "on" still means every panel)
+    //   panelTint: zone → 0 (clear) .. 1 (solid); a zone not listed uses glassOpacity
+    // hub.kwinBlurFor(zone) / hub.panelTint(zone) are the effective values.
     property bool kwinBlur: false
+    property var panelBlur: ({})
+    property var panelTint: ({})
+    readonly property var panelZones: [
+        { key: "dock",      name: "Dock",                  hint: "The Dock, its labels and its right-click menu" },
+        { key: "bar",       name: "Menu bar",              hint: "The bar itself, with “Liquid Glass bar” on" },
+        { key: "menus",     name: "Menus and popovers",    hint: "App menus, tray menus, calendar, sound, Wi-Fi, Bluetooth" },
+        { key: "cc",        name: "Control Center",        hint: "" },
+        { key: "notifs",    name: "Notifications",         hint: "Banners and the notification centre" },
+        { key: "spotlight", name: "Spotlight",             hint: "" },
+        { key: "overlays",  name: "Switcher and pop-ups",  hint: "Window switcher, wallpaper picker, volume and brightness pop-up" },
+        { key: "desktop",   name: "Desktop",               hint: "The desktop's right-click menu and sheets" },
+        { key: "widgets",   name: "Widgets",               hint: "Liquid Glass widgets" }
+    ]
+    function setPanel(map, zone, v) { var o = Object.assign({}, root[map]); o[zone] = v; root[map] = o; }
+    // the Dock's own tint, and the same as a factor on the fixed tints of its labels and menu (1 at the default 0.42)
+    readonly property real dockTint: { var v = hub ? hub.panelTint("dock") : undefined; return v !== undefined ? v : glassOpacity; }
+    readonly property real dockTintK: dockTint / 0.42
     // Liquid Glass tuning (settings.json): rim = edge highlight, grain = noise, liquid = refraction depth
     property real glassRim: 0.45
     property real glassGrain: 0.03
@@ -1615,7 +1636,7 @@ Scope {
                     SRow {
                         t: pal
                         title: I18n.tr("Menu Bar style")
-                        subtitle: root.kwinBlurOn ? I18n.tr("Not used while “Use KWin's blur” is on (Appearance)")
+                        subtitle: (root.bar && root.bar.kwinBlurOn) ? I18n.tr("Not used while every bar panel uses KWin's blur (Appearance → Panels)")
                                   : (root.bar && root.bar.barStyle === "liquid" && root.bar.glassState === "failed")
                                   ? I18n.tr("Liquid Glass couldn't start (install qt6-shadertools)")
                                   : I18n.tr("Style of the menus and popovers")
@@ -2080,8 +2101,8 @@ Scope {
                         width: prow.width + 16
                         height: pv.base + 14
                         radius: root.cornerRadius * 0.6
-                        color: root.dockDark ? Qt.rgba(0.10, 0.10, 0.11, root.glassOpacity)
-                                             : Qt.rgba(1, 1, 1, root.glassOpacity * 0.55)
+                        color: root.dockDark ? Qt.rgba(0.10, 0.10, 0.11, root.dockTint)
+                                             : Qt.rgba(1, 1, 1, root.dockTint * 0.55)
                         border.width: 1
                         border.color: root.dockDark ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.45)
                     }
@@ -2387,24 +2408,51 @@ Scope {
                     }
                 }
 
-                // KWin only: hand the blur to the compositor (GlassBlur.qml / BlurCollector.qml)
+                // Per panel: how see-through it is and, on KWin, who blurs what is behind it: MacShell's own glass ("Stock") or
+                // the compositor (GlassBlur.qml / BlurCollector.qml)
+                SLabel { t: pal; header: true; text: I18n.tr("Panels") }
                 SCard {
                     t: pal
-                    visible: !!root.comp && root.comp.can("backgroundEffect")
-                    SRow {
-                        t: pal
-                        title: I18n.tr("Use KWin's blur")
-                        subtitle: I18n.tr("Menus, popovers, the Dock and widgets become a see-through tint and KWin's blur effect blurs what's behind them, instead of Liquid Glass")
-                        SSwitch { t: pal; checked: root.kwinBlur; onToggled: v => root.kwinBlur = v }
+                    Repeater {
+                        model: root.panelZones
+                        delegate: SRow {
+                            id: pz
+                            required property var modelData
+                            t: pal
+                            title: I18n.tr(modelData.name)
+                            subtitle: modelData.hint !== "" ? I18n.tr(modelData.hint) : ""
+                            Column {
+                                spacing: 6
+                                SSegmented {
+                                    t: pal
+                                    visible: !!root.comp && root.comp.can("backgroundEffect")
+                                    anchors.right: parent.right
+                                    model: ["Stock blur", "KWin blur"]
+                                    segWidth: 96
+                                    current: (root.hub && root.hub.kwinBlurFor(pz.modelData.key)) ? 1 : 0
+                                    onPicked: i => root.setPanel("panelBlur", pz.modelData.key, i === 1)
+                                }
+                                SSlider {
+                                    t: pal
+                                    from: 0; to: 1; stepSize: 0.01
+                                    value: { var v = root.hub ? root.hub.panelTint(pz.modelData.key) : undefined; return v !== undefined ? v : root.glassOpacity; }
+                                    leftLabel: I18n.tr("Clear"); rightLabel: I18n.tr("Solid")
+                                    resetValue: root.glassOpacity
+                                    onMoved: v => root.setPanel("panelTint", pz.modelData.key, v)
+                                }
+                            }
+                        }
                     }
                 }
+                SLabel { t: pal; visible: !!root.comp && root.comp.can("backgroundEffect")
+                         text: I18n.tr("KWin blur needs a blur effect switched on in System Settings → Desktop Effects. Its strength, saturation and brightness are set there.") }
 
                 SCard {
                     t: pal
                     SRow {
                         t: pal
                         title: I18n.tr("Dock style")
-                        subtitle: root.kwinBlurOn ? I18n.tr("Not used while “Use KWin's blur” is on")
+                        subtitle: root.kwinBlurOn ? I18n.tr("Not used while the Dock uses KWin's blur (Panels, below)")
                                   : root.dockStyle === "liquid" && root.glassState === "failed"
                                   ? I18n.tr("Liquid Glass couldn't start (install qt6-shadertools) – using Normal Blur")
                                   : (root.dockStyle === "liquid" && root.glassState === "building"
@@ -2422,7 +2470,7 @@ Scope {
 
                 SCard {
                     t: pal
-                    visible: root.dockStyle === "liquid" && !root.kwinBlurOn     // both rows below are Liquid Glass only: no empty card in Normal Blur
+                    visible: root.dockStyle === "liquid" && !root.kwinBlurAll    // both rows below are Liquid Glass only: no empty card in Normal Blur
                     SRow {
                         t: pal
                         visible: root.dockStyle === "liquid"
@@ -2479,7 +2527,7 @@ Scope {
                     }
                 }
                 SLabel { t: pal; text: root.kwinBlurOn
-                                       ? I18n.tr("The blur comes from KWin: System Settings → Desktop Effects → Blur (or another blur effect). Translucency still sets the tint.")
+                                       ? I18n.tr("The Dock's blur comes from KWin: System Settings → Desktop Effects → Blur (or another blur effect). Its tint is set under Panels.")
                                        : root.dockStyle === "liquid"
                                        ? I18n.tr("Liquid Glass refracts the wallpaper and windows behind the Dock in real time. Corner radius also shapes the glass.")
                                        : I18n.tr("The blur behind the Dock comes from your Hyprland layer rule.") }
@@ -4382,13 +4430,13 @@ Scope {
         darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accentFromKde = true; nativeText = false; screenCornerRadius = 0; accent = "#0a84ff"; fontFamily = "Open Runde";
         iconTint = false; iconTintColor = "#0a84ff"; iconTintStrength = 1.0;
         hideMode = "smart"; hideDelay = 450; monitor = "";
-        showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; glassLive = true;
+        showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; panelBlur = ({}); panelTint = ({}); glassLive = true;
     }
 
     // ── settings persistence (~/.config/macdock/settings.json) ──
     readonly property string settingsSig: [dockEnabled, settingsEnabled, desktopIcons, desktopIconSize, iconSize, magnification, magnificationEnabled, spacing, margin,
         cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, accentFromKde, nativeText, screenCornerRadius, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
-        showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength].join("|")
+        showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength, JSON.stringify(panelBlur), JSON.stringify(panelTint)].join("|")
     property bool settingsReady: false
     onSettingsSigChanged: if (settingsReady) saveTimer.restart()
     onShowTrashChanged: { rebuild(); if (showTrash) trashCheck(); }
@@ -4405,7 +4453,8 @@ Scope {
             hideMode: hideMode, hideDelay: hideDelay, monitor: monitor,
             showTrash: showTrash, showLabels: showLabels, showIndicators: showIndicators,
             bounceOnLaunch: bounceOnLaunch, showThumbs: showThumbs, windowCapture: windowCapture, glassLive: glassLive,
-            iconTint: iconTint, iconTintColor: iconTintColor, iconTintStrength: iconTintStrength
+            iconTint: iconTint, iconTintColor: iconTintColor, iconTintStrength: iconTintStrength,
+            panelBlur: panelBlur, panelTint: panelTint
         };
         settingsStore.setText(JSON.stringify(o, null, 2));
     }
@@ -4414,9 +4463,10 @@ Scope {
         if (!o || typeof o !== "object") return;
         var keys = ["dockEnabled", "settingsEnabled", "desktopIcons", "desktopIconSize", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
                     "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "accentFromKde", "nativeText", "screenCornerRadius", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
-                    "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength"];
+                    "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength", "panelBlur", "panelTint"];
         for (var i = 0; i < keys.length; i++) {
             if (o[keys[i]] === undefined) continue;
+            if (keys[i].indexOf("panel") === 0 && (o[keys[i]] === null || typeof o[keys[i]] !== "object" || Array.isArray(o[keys[i]]))) continue;     // the two maps: plain objects only
             try { root[keys[i]] = o[keys[i]]; } catch (err) { }
         }
     }
@@ -4892,7 +4942,8 @@ Scope {
     // ═════════════ LIQUID GLASS BACKEND ═════════════
     // glassState: "idle" → "building" (qsb running) → "ready" | "failed". "failed" falls back to Normal Blur.
     property string glassState: "idle"
-    readonly property bool kwinBlurOn: !!hub && hub.kwinBlur
+    readonly property bool kwinBlurOn: !!hub && hub.kwinBlurFor("dock")
+    readonly property bool kwinBlurAll: !!hub && panelZones.every(z => hub.kwinBlurFor(z.key))     // no panel uses MacShell's own glass
     readonly property bool liquidActive: dockStyle === "liquid" && glassState === "ready" && !(bar && bar.gaming) && !kwinBlurOn
     // Settings' own glass (back / forward pill, knobs of switches and sliders): available whenever the shader is built,
     // whatever the Dock style is
@@ -5852,7 +5903,7 @@ Scope {
                                 property real rim: root.glassRim * 0.20
                                 property real grain: root.glassGrain * 0.3     // quieter noise on the Dock glass
                                 property real blurPx: 1.5            // tiny residual smoothing; the real blur is the MultiEffect pre-pass
-                                property real tintMix: root.glassOpacity * 0.55
+                                property real tintMix: root.dockTint * 0.55
                                 property real saturation: 1.25
                                 property real dark: root.dockDark ? 1 : 0
                                 property real debug: root.glassDebug ? 1 : 0
@@ -5870,8 +5921,8 @@ Scope {
                         GlassBlur { target: normalPane; on: root.kwinBlurOn; cornerR: root.cornerRadius }
                         anchors.fill: parent
                         radius: root.cornerRadius
-                        color: root.dockDark ? Qt.rgba(0.10, 0.10, 0.11, root.glassOpacity)
-                                             : Qt.rgba(1, 1, 1, root.glassOpacity * 0.55)
+                        color: root.dockDark ? Qt.rgba(0.10, 0.10, 0.11, root.dockTint)
+                                             : Qt.rgba(1, 1, 1, root.dockTint * 0.55)
                         border.width: 0      // dark outer border removed
 
                         Rectangle {
@@ -6236,6 +6287,7 @@ Scope {
                                         backdrop: glassBackdrop.item
                                         live: root.liquidActive && glassBackdrop.item !== null
                                         kwinBlur: root.kwinBlurOn
+                                        tintK: root.dockTintK
                                         dark: root.darkMode
                                         k: root.labelK
                                         radius: Math.min(11.7 * k, bodyH / 2)
@@ -6358,6 +6410,7 @@ Scope {
                     backdrop: glassBackdrop.item
                     live: root.liquidActive && glassBackdrop.item !== null
                     kwinBlur: root.kwinBlurOn
+                    tintK: root.dockTintK
                     frozen: ui.menuOpen      // the menu's glass stops updating while it is open
                     dark: root.darkMode
                     k: root.labelK
