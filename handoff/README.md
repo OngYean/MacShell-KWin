@@ -36,7 +36,9 @@ What changed for anyone reading older briefs:
 - "Use KWin's blur" is no longer one switch. Each panel has its own blur choice and its own transparency under Settings → Appearance → Panels (`panelBlur`, `panelTint` in `~/.config/macdock/settings.json`; `hub.kwinBlurFor(zone)`, `hub.panelTint(zone)`). [`11`](11-kwin-blur-tests.md) describes the mechanism, which is otherwise unchanged; its "Following moves" paragraph is superseded by B8 in [`16`](16-blur-panels-report.md).
 - `minimizedSnapshots` is gone: "Show window previews" (`showThumbs`) covers minimized-window pictures on KDE.
 
-Next: read the CI result of that push, then run the tests in [`16`](16-blur-panels-report.md) on the Plasma host. B5 from [`15`](15-plasma-test-report.md) is still open.
+CI did not run for that push, nor for the one on 2026-11-10: GitHub refused to start the jobs because the account is locked over a billing issue. Nothing since `3a1e8a9` (2026-11-05) has been built by CI.
+
+Next: get CI running again and re-run it, then run the tests in [`16`](16-blur-panels-report.md) on the Plasma host. B5 from [`15`](15-plasma-test-report.md) is still open.
 
 ## Update (2026-11-10, branch `pending-test`)
 
