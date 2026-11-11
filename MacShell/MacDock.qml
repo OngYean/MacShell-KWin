@@ -434,6 +434,20 @@ Scope {
         }
     }
 
+    // A slider for a setting that is slow to apply (the Dock's size: every step resizes the Dock's window on each screen and
+    // lays everything out again, which froze the shell during a drag). The knob follows the pointer; `apply` is sent at most
+    // every 150 ms. `target` is the setting's current value.
+    component LazySlider: SSlider {
+        id: lz
+        property real target: 0
+        property real pending: 0
+        signal apply(real v)
+        value: (pressed || lzT.running) ? pending : target
+        onPressedChanged: if (pressed && !lzT.running) pending = target
+        onMoved: v => { pending = v; if (!lzT.running) lzT.start(); }
+        Timer { id: lzT; interval: 150; onTriggered: lz.apply(lz.pending) }
+    }
+
     // macOS segmented control: capsule track, dividers between the options, and a marker that turns into Liquid Glass while it
     // slides to the chosen option (see GlassSegmented.qml)
     component SSegmented: GlassSegmented {
@@ -2120,13 +2134,13 @@ Scope {
                     SRow {
                         t: pal
                         title: I18n.tr("Size")
-                        SSlider {
+                        LazySlider {
                             t: pal
                             from: 32; to: 128; stepSize: 1
-                            value: root.iconSize
+                            target: root.iconSize
                             leftLabel: I18n.tr("Small"); rightLabel: I18n.tr("Large")
                             resetValue: 52
-                            onMoved: v => root.iconSize = Math.round(v)
+                            onApply: v => root.iconSize = Math.round(v)
                         }
                     }
                     SRow {
@@ -2143,14 +2157,14 @@ Scope {
                         t: pal
                         title: I18n.tr("Magnification amount")
                         opacity: root.magnificationEnabled ? 1 : 0.45
-                        SSlider {
+                        LazySlider {
                             t: pal
                             enabled: root.magnificationEnabled
                             from: 1.1; to: 2.5; stepSize: 0.05
-                            value: root.magnification
+                            target: root.magnification
                             leftLabel: I18n.tr("Min"); rightLabel: I18n.tr("Max")
                             resetValue: 1.7
-                            onMoved: v => root.magnification = v
+                            onApply: v => root.magnification = v
                         }
                     }
                 }
