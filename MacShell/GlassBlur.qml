@@ -1,4 +1,4 @@
-// GlassBlur — the outline of one glass surface, for KWin's blur (Settings → Appearance → "Use KWin's blur").
+// GlassBlur — the outline of one glass surface, for KWin's blur (Settings → Appearance → Panels, "KWin blur").
 //
 // Put it inside the surface with `target` = the item whose (rounded) rectangle is the glass. It hands itself to the
 // BlurCollector of its window (found by objectName among the window's top-level items), which gives KWin the union of all
@@ -12,25 +12,35 @@ Region {
     property bool on: false
     property real cornerR: 0
 
-    // Region follows only its item's own x / y / size. This reads every ancestor's position, scale and opacity (only while
-    // on), so it re-runs whenever a popover slides, scales or fades.
+    // Where the target is in the window, and how visible. Region only watches its item's own x / y / size, so this reads
+    // everything else that can move it (only while on): every ancestor's position, size, scale and opacity, and the entries
+    // of its `transform` list (a slide-in Translate, a pop-in Scale). It re-runs when any of them changes.
     readonly property var probe: {
         if (!on || !target) return null;
-        var o = 1, s = 1, px = 0, py = 0;
-        for (var it = target; it; it = it.parent) { o *= it.opacity; s *= it.scale; px += it.x; py += it.y; }
-        return { opacity: o, scale: s, x: px, y: py };
+        var o = 1, watched = 0;
+        for (var it = target; it; it = it.parent) {
+            o *= it.opacity;
+            watched += it.x + it.y + it.width + it.height + it.scale;
+            var tf = it.transform;
+            for (var i = 0; i < tf.length; i++) {
+                var t = tf[i];
+                watched += (t.x || 0) + (t.y || 0) + (t.xScale || 0) + (t.yScale || 0) + (t.angle || 0);
+            }
+        }
+        var r = target.mapToItem(null, 0, 0, target.width, target.height);
+        return { opacity: o, x: r.x, y: r.y, w: r.width, h: r.height, watched: watched };
     }
     // hidden, faded out, or warmed up invisibly at opacity 0.01: no blur
-    readonly property bool shown: probe !== null && target.visible && target.width > 0 && target.height > 0 && probe.opacity > 0.05
+    readonly property bool shown: probe !== null && target.visible && probe.w > 0 && probe.h > 0 && probe.opacity > 0.05
     item: shown ? target : null
-    // x / y / width / height are ignored while `item` is set, but each change rebuilds the region. They carry the ancestors'
-    // position, scale and opacity, so the blur follows a surface that moves, scales or fades (also through `transform: Scale`,
-    // which Region maps correctly but doesn't watch: the animations that drive it change the opacity too).
-    x: shown ? Math.round(probe.x) : 0
-    y: shown ? Math.round(probe.y) : 0
-    width: shown ? Math.round(probe.scale * 1000) : 0
-    height: shown ? Math.round(probe.opacity * 100) : 0
-    radius: shown ? Math.round(cornerR * probe.scale) : 0
+    // x / y / width / height are ignored while `item` is set, but each change rebuilds the region. They carry the rectangle
+    // Region will compute for the item (same rounding), so the region is rebuilt exactly when the surface moves or resizes
+    // on screen, and not while it only fades: every rebuild makes KWin's blur redo its work.
+    x: shown ? Math.floor(probe.x) : 0
+    y: shown ? Math.floor(probe.y) : 0
+    width: shown ? Math.ceil(probe.w) : 0
+    height: shown ? Math.ceil(probe.h) : 0
+    radius: shown ? Math.round(cornerR * probe.w / target.width) : 0
 
     // registration: the BlurCollector declared directly in this surface's window, found among the children of one of the
     // target's ancestors. Not only the topmost one's: the window's content item is the top of the tree until Quickshell
