@@ -25,7 +25,18 @@ These handoffs let an agent start from the repository without access to the orig
 - [`12-replace-default-tests.md`](12-replace-default-tests.md) — replacing `plasmashell` is the default launch (`macshell-session start`, Home Manager `mode = "replace"`), running side by side is `coexist`. How login skips `plasmashell`, the fallback, and the test plan.
 - [`13-magic-lamp-tests.md`](13-magic-lamp-tests.md) — branch `kwin-magic-lamp`: KWin's Magic Lamp minimizes windows into their Dock icon instead of towards the pointer (bridge anchor surfaces + `set_minimized_geometry`). How it works and the test plan.
 - [`14-sharp-bar-icons-tests.md`](14-sharp-bar-icons-tests.md) — on `pending-test`: the menu bar's icons stay sharp at any UI scale, bar height and display scale. Cause, fix and test plan.
-- [`15-plasma-test-report.md`](15-plasma-test-report.md) — **the current work list**: the six bugs (B1–B6) and eight feature requests (F1–F8) from the user's Plasma 6.8 test without `plasmashell` on 2026-11-10, with each item's status, cause, change and test steps.
+- [`15-plasma-test-report.md`](15-plasma-test-report.md) — the six bugs (B1–B6) and eight feature requests (F1–F8) from the user's Plasma 6.8 test without `plasmashell` on 2026-11-10, with each item's status, cause, change and test steps.
+- [`16-blur-panels-report.md`](16-blur-panels-report.md) — **the current work list**: the next test's five bugs (B7–B11: Dock size freeze, KWin blur out of place, the Dock's blur re-rendering, a yellow tint, a duplicate setting) and three requests (F9–F11: blur and transparency per panel, a custom title without a window), with cause, change and test steps.
+
+## Update (2026-11-11, branch `pending-test`)
+
+The user tested again and reported five bugs and three requests; [`16-blur-panels-report.md`](16-blur-panels-report.md) has them. Seven have code and one (the yellow tint with KWin's blur, B10) has a source-based diagnosis and three checks to run, with no code change. It is committed on `pending-test` (`0ed468c` to `329d6df`, then two docs commits) and pushed. Checked locally with `qmllint` (syntax) and `node nix/test-panel-look.js`; nothing has run in Plasma.
+
+What changed for anyone reading older briefs:
+- "Use KWin's blur" is no longer one switch. Each panel has its own blur choice and its own transparency under Settings → Appearance → Panels (`panelBlur`, `panelTint` in `~/.config/macdock/settings.json`; `hub.kwinBlurFor(zone)`, `hub.panelTint(zone)`). [`11`](11-kwin-blur-tests.md) describes the mechanism, which is otherwise unchanged; its "Following moves" paragraph is superseded by B8 in [`16`](16-blur-panels-report.md).
+- `minimizedSnapshots` is gone: "Show window previews" (`showThumbs`) covers minimized-window pictures on KDE.
+
+Next: read the CI result of that push, then run the tests in [`16`](16-blur-panels-report.md) on the Plasma host. B5 from [`15`](15-plasma-test-report.md) is still open.
 
 ## Update (2026-11-10, branch `pending-test`)
 

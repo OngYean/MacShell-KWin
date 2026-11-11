@@ -30,6 +30,7 @@ This section supersedes older status lines further down where they disagree. The
 - **Since then, on `pending-test`, untested in Plasma:**
   - KWin's Magic Lamp animates into each window's Dock icon instead of towards the pointer. The bridge (0.2.0) registers the targets against its own invisible per-output layer surfaces. CI confirms that KWin reports them as `iconGeometry` ([`13`](13-magic-lamp-tests.md)).
   - The menu bar's Canvas icons are painted at the scale they're shown at, and repainted when the display scale changes, so they're no longer blurry at UI scales other than 100 % ([`14`](14-sharp-bar-icons-tests.md)).
+- **2026-11-10 and 2026-11-11, on `pending-test`:** the user tested twice in Plasma without `plasmashell`. The reports, with what was done for each item, are [`15`](15-plasma-test-report.md) (B1–B6, F1–F8) and [`16`](16-blur-panels-report.md) (B7–B11, F9–F11), all committed and pushed. KWin's blur is now chosen per panel, with a transparency slider per panel. None of the fixes has been confirmed in Plasma yet.
 - **Still missing without `plasmashell`** (checked against the Plasma 6.8.2 sources; none of it ported yet):
   - **Tray entries:**
     - Night Light on/off (the button only opens System Settings), keyboard backlight, the list of apps blocking sleep;

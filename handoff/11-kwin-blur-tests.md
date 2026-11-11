@@ -2,6 +2,8 @@
 
 `AGENTS.md` remains the authority, and [`06-kwin-testing-guide.md`](06-kwin-testing-guide.md) has the general runbook and rollback. This covers the option **Settings → Appearance → Use KWin's blur**, requested by the user on 2026-11-05. With it on, every glass surface becomes a see-through tint, and KWin blurs what's behind each one, instead of MacShell's own Liquid Glass pipeline. It was written on macOS without Nix, Quickshell or Plasma. **Nothing has run in Plasma, and the QML has not been linted** (no `qmllint` on the development machine).
 
+**Update 2026-11-11:** the option is no longer one switch. Each panel has its own "Stock blur / KWin blur" choice and transparency slider under Settings → Appearance → Panels, and how a surface's outline follows animations changed. See B8, B9, F9 and F10 in [`16-blur-panels-report.md`](16-blur-panels-report.md). To run the checks below, set every panel to KWin blur.
+
 ## How it works (decisions)
 
 - **Protocol.** Each surface's outline goes to KWin as the window's blur region. Quickshell's `BackgroundEffect.blurRegion` sends it over `ext-background-effect-v1`, which is what the bar-strip fill already used. This is a public Wayland protocol, not a KWin script or private interface.

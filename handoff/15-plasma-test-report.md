@@ -4,6 +4,8 @@
 
 Each item has an ID. Use it in commit bodies and when reporting test results.
 
+**Continued in [`16-blur-panels-report.md`](16-blur-panels-report.md)** (2026-11-11): the user's next test confirmed that KWin's blur shows (B1) and that the Dock size change is better but still slow (B2, continued as B7), and found that B6 added a setting that duplicates an existing one (B11: `minimizedSnapshots` is removed, "Show window previews" covers it).
+
 ## Reported bugs
 
 | ID | Report (user's words, shortened) | Status |
