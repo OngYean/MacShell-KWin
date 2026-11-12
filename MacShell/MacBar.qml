@@ -1986,13 +1986,38 @@ Scope {
     }
     readonly property var activeTl: comp ? comp.activeToplevel : null
     readonly property string activeAppId: activeTl ? (activeTl.appId || "") : ""
-    readonly property string appName: {
-        if (activeAppId === "") return desktopTitle.trim() !== "" ? desktopTitle.trim() : I18n.tr("Desktop");
+    readonly property string appName: appNameFor(activeTl)
+    function appNameFor(tl) {       // tl: a toplevel, or null for the desktop
+        var id = tl ? (tl.appId || "") : "";
+        if (id === "") return desktopTitle.trim() !== "" ? desktopTitle.trim() : I18n.tr("Desktop");
         // MacShell's own windows (all "org.quickshell")
-        if (activeAppId === "org.quickshell") return (activeTl.title === "Clock" || activeTl.title === "App Store") ? I18n.tr(activeTl.title)
-                                                     : (activeTl.title === "macshell Settings" ? I18n.tr("System Settings") : "MacShell");
-        var e = lookup(activeAppId);
-        return e ? e.name : activeAppId;
+        if (id === "org.quickshell") return (tl.title === "Clock" || tl.title === "App Store") ? I18n.tr(tl.title)
+                                            : (tl.title === "macshell Settings" ? I18n.tr("System Settings") : "MacShell");
+        var e = lookup(id);
+        return e ? e.name : id;
+    }
+    // ── one title and menu per screen (KWin) ──
+    // Each screen's bar describes the window last active on that screen: the active window on the screen in use, elsewhere
+    // the one that was active there last, while it is still shown there (else the desktop). Hyprland keeps one shared title.
+    property var screenWinIds: ({})           // screen name → address of the window last active on it
+    onActiveWinChanged: {
+        var w = activeWin, s = Quickshell.screens;
+        if (onHyprland || !w || !s[w.monitor] || screenWinIds[s[w.monitor].name] === w.address) return;
+        var m = Object.assign({}, screenWinIds);
+        m[s[w.monitor].name] = w.address;
+        screenWinIds = m;
+    }
+    function barTlFor(screenName) {
+        var s = Quickshell.screens;
+        if (onHyprland || s.length < 2 || comp.focusedScreenName === screenName) return activeTl;
+        var id = screenWinIds[screenName], cl = comp.clients, tls = comp.toplevels;
+        for (var i = 0; id && i < cl.length; i++) {
+            var c = cl[i];
+            if (c.address !== id) continue;
+            if (c.hidden || !s[c.monitor] || s[c.monitor].name !== screenName || c.workspace.id !== comp.activeWorkspaceId) return null;
+            for (var j = 0; j < tls.length; j++) if (tls[j].address === id) return tls[j];
+        }
+        return null;
     }
     // the focused window as `hyprctl -j activewindow` describes it (floating / fullscreen / pinned / pid ...), from the backend;
     // Hyprland refreshes it when a menu opens, KWin pushes it
@@ -2103,14 +2128,15 @@ Scope {
         var base = [{ id: "apple", label: "" }, { id: "app", label: appName, bold: true }];
         if (gmActive) return base.concat(gmTitles);        // the app's own menus
         if (gmLoading) return base;                        // they are on the way: no generic menus flashing in first
-        return base.concat([
-            { id: "file", label: I18n.tr("File") },
-            { id: "edit", label: I18n.tr("Edit") },
-            { id: "view", label: I18n.tr("View") },
-            { id: "window", label: I18n.tr("Window") },
-            { id: "help", label: I18n.tr("Help") }
-        ]);
+        return base.concat(genericTitles);
     }
+    readonly property var genericTitles: [
+        { id: "file", label: I18n.tr("File") },
+        { id: "edit", label: I18n.tr("Edit") },
+        { id: "view", label: I18n.tr("View") },
+        { id: "window", label: I18n.tr("Window") },
+        { id: "help", label: I18n.tr("Help") }
+    ]
 
     // audio
     readonly property var sink: Pipewire.defaultAudioSink
@@ -3640,7 +3666,8 @@ Scope {
         return out.slice(0,8);
     }
 
-    function menuModelFor(name) {
+    // desktop: the menus of a bar whose screen shows no window, whatever is active on another screen
+    function menuModelFor(name, desktop) {
         if (isGm(name)) return gmPathModel([], Number(name.substring(3)));
         var m = [], i;
         if (name === "apple") {
@@ -3658,7 +3685,7 @@ Scope {
             m.push(ico(mi("Lock Screen", "", function () { root.lockScreen(); }), "m_lock"));
             m.push(ico(mc("Log Out\u2026", function () { root.logOut(); }), "m_logout"));
         } else {
-            var id = activeAppId.toLowerCase(), kind = appKind(id), has = activeAppId !== "";
+            var id = desktop ? "" : activeAppId.toLowerCase(), kind = appKind(id), has = id !== "";
             var aw = (has && activeWin && String(activeWin["class"]).toLowerCase() === id) ? activeWin : null;
             var term = kind === "terminal", browser = kind === "browser", files = kind === "files", editor = kind === "editor";
             var floating = aw ? aw.floating === true : false, fsMode = aw ? Number(aw.fullscreen) : 0;
@@ -5118,6 +5145,18 @@ Scope {
                 property var gmPath: []              // global menu: submenus opened inside the popover (item ids)
                 property string gmPrev: ""
                 property string gmWin: ""            // the window whose menu this popover shows
+                // the window this screen's bar describes (see root.barTlFor). parked: it is not the active one, so the bar
+                // shows its name only and a click on the name activates it, which brings its menus
+                // (typed, so it only changes when the window does: the titles below are not rebuilt on every window event)
+                readonly property QtObject barTl: root.barTlFor(win.modelData.name)
+                readonly property bool live: barTl === root.activeTl
+                readonly property bool parked: barTl !== null && !live
+                onParkedChanged: if (parked && isMenu && pop !== "apple") pop = ""
+                readonly property var menuTitles: {
+                    if (live) return root.menuTitles;
+                    var base = [{ id: "apple", label: "" }, { id: "app", label: root.appNameFor(barTl), bold: true }];
+                    return barTl ? base : base.concat(root.genericTitles);
+                }
                 // Cascading (root.menuCascade): the dropdown stays on the top menu and each open submenu gets a panel beside its
                 // parent row (see the Repeater in menuPop). gmPath holds the open submenus either way; gmRowY is each one's
                 // parent row's y inside its menu.
@@ -5323,7 +5362,7 @@ Scope {
                 }
                 Connections {
                     target: root
-                    function onActiveWinChanged() { if (ui.isMenu && !root.isGm(ui.pop)) ui.menuModel = root.menuModelFor(ui.pop); }
+                    function onActiveWinChanged() { if (ui.isMenu && !root.isGm(ui.pop)) ui.menuModel = root.menuModelFor(ui.pop, !ui.barTl); }
                 }
                 // bounding box of all glass that is on screen right now (popovers, notification popups) + a refraction margin
                 readonly property rect glassRect: {
@@ -5396,19 +5435,20 @@ Scope {
                     }
                 }
                 function openPop(name, x) {
+                    if (name === "app" && parked) { pop = ""; barTl.activate(); return; }
                     if (pop === name) { pop = ""; return; }
                     if (name === "spot") { spCalm = spReqCalm; spReqCalm = false; }
                     menuX = x;
                     if (root.isMenuName(name)) menuDropX = x;
                     if (root.isMenuName(name)) root.refreshActive();
-                    if (root.isMenuName(name)) menuModel = root.menuModelFor(name);
+                    if (root.isMenuName(name)) menuModel = root.menuModelFor(name, !barTl);
                     if (name === "cal") { var d = new Date(); calYear = d.getFullYear(); calMonth = d.getMonth(); }
                     pop = name;
                 }
                 function hoverPop(name, x) {
-                    if (!isMenu || name === pop) return;
+                    if (!isMenu || name === pop || (name === "app" && parked)) return;
                     menuX = x; menuDropX = x;
-                    menuModel = root.menuModelFor(name);
+                    menuModel = root.menuModelFor(name, !barTl);
                     pop = name;
                 }
                 function calCells() {
@@ -5900,7 +5940,7 @@ Scope {
                         transformOrigin: Item.Left
                         scale: root.barWidgetScale
                         Repeater {
-                            model: root.menuTitles.filter(function (item) {
+                            model: ui.menuTitles.filter(function (item) {
                                 return item.id === "apple" ? root.barWidgetEnabled("appleMenu") : root.barWidgetEnabled("appMenus");
                             })
                             delegate: Item {
@@ -5959,6 +5999,7 @@ Scope {
                                     anchors.centerIn: parent
                                     text: mt.modelData.raw === true ? mt.modelData.label : I18n.tr(mt.modelData.label)
                                     color: bpal.fg
+                                    opacity: ui.parked ? 0.55 : 1          // dimmed: not the active window
                                     font.family: mt.activeApp ? Fonts.forWeight((mt.activeApp ? Font.DemiBold : Font.Normal), root.boldFontFamily)
                                                               : Fonts.forWeight((mt.activeApp ? Font.DemiBold : Font.Normal), "Open Runde")
                                     font.pixelSize: 14
