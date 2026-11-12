@@ -129,6 +129,8 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Menu popovers | Always 260 px wide; long entries cut off with "…" | As wide as the longest entry needs (up to 640 px). Not yet tested |
 | Dock icons | Loaded at exactly the Dock's icon size, again at every step of the Size slider | Loaded in 64 px steps, so dragging Size or Magnification no longer freezes the shell with SVG icon themes. Not yet tested |
 | Terminal apps started from the Dock | Started without a terminal | Open in the configured terminal, as from Spotlight (also on Hyprland). Not yet tested |
+| Desktop widgets | On the first screen only | On any screen (also on Hyprland): a new widget goes on the screen the Settings window is on, and in edit mode a widget can be dragged onto another screen. The widgets of an unplugged screen are kept and come back with it. Not yet tested |
+| App name and menus in the menu bar | The active window's, the same on every screen | One per screen: each screen's bar shows the window that was last active on that screen. On a screen you aren't working on, the name is dimmed and shown without menus, and a click on it activates that window. A screen without such a window shows the desktop's name and menus. Hyprland keeps the shared title. Not yet tested |
 | Menu bar and popover icons | Drawn at 100 % and stretched by the UI scale and bar height, so blurry at other sizes | Drawn at the size they're shown at, and again when the display scale changes; tray icons loaded at 64 px. Not yet tested in Plasma |
 
 ### Removed or unavailable on KDE Plasma
@@ -375,7 +377,11 @@ the global `glassOpacity`.
   without a tray, wallpaper sync and menu icons haven't been run in a live Plasma session yet
   (`handoff/08-plasma-fixes-tests.md` is the test plan). Neither has the wallpaper and splash handling without
   `plasmashell` (`handoff/10-replace-wallpaper-splash-tests.md`), nor the per-panel blur and transparency
-  (`handoff/16-blur-panels-report.md`), nor minimizing into the Dock (`handoff/13-magic-lamp-tests.md`).
+  (`handoff/16-blur-panels-report.md`), nor minimizing into the Dock (`handoff/13-magic-lamp-tests.md`), nor
+  widgets on other screens and the per-screen title and menus (`handoff/17-per-screen-tests.md`).
+- **Title and menus per screen:** a screen's bar only knows the windows that have been active since MacShell
+  started, so a window you haven't clicked yet shows as the desktop on a screen you aren't working on. Only the
+  active window's menus are loaded, so the other screens show a name without menus until you click it.
 - **Minimizing into the Dock:** windows whose app has no Dock icon still fly towards the pointer. The target is
   where the icon rests, so the animation ignores magnification and ends where the Dock appears when it's hidden.
   When running next to `plasmashell`, a Plasma task manager registers its own targets, and KWin uses whichever
