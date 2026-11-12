@@ -3055,9 +3055,10 @@ Scope {
                     SRow {
                         t: pal
                         title: I18n.tr("Arrange widgets")
-                        subtitle: wgPane.editing
+                        subtitle: (wgPane.editing
                                   ? I18n.tr("Editing is on: drag a widget to move it, use the \u2212 badge to remove it, then click Stop Editing.")
-                                  : I18n.tr("Drag a widget to move it (it snaps to the grid). Use the \u2212 badge on a widget to remove it.")
+                                  : I18n.tr("Drag a widget to move it (it snaps to the grid). Use the \u2212 badge on a widget to remove it."))
+                                  + (Quickshell.screens.length > 1 ? " " + I18n.tr("A new widget goes on the screen this window is on. While editing, drag a widget onto another screen to move it there.") : "")
                         SButton {
                             t: pal
                             text: wgPane.editing ? I18n.tr("Stop Editing") : I18n.tr("Edit on Desktop")

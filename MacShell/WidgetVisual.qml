@@ -40,7 +40,7 @@ Item {
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
                 wallVideo: host.liveWallVideo
-                wallPaused: host.liveWallPaused
+                wallPaused: host.liveWallPaused(v.sname)
                 screenW: v.sw
                 screenH: v.sh
                 glassOpacity: host.glassOpacity
@@ -69,7 +69,7 @@ Item {
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
                 wallVideo: host.liveWallVideo
-                wallPaused: host.liveWallPaused
+                wallPaused: host.liveWallPaused(v.sname)
                 screenW: v.sw
                 screenH: v.sh
                 glassOpacity: host.glassOpacity
@@ -97,7 +97,7 @@ Item {
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
                 wallVideo: host.liveWallVideo
-                wallPaused: host.liveWallPaused
+                wallPaused: host.liveWallPaused(v.sname)
                 screenW: v.sw
                 screenH: v.sh
                 glassOpacity: host.glassOpacity
@@ -144,7 +144,7 @@ Item {
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
                 wallVideo: host.liveWallVideo
-                wallPaused: host.liveWallPaused
+                wallPaused: host.liveWallPaused(v.sname)
                 screenW: v.sw
                 screenH: v.sh
                 glassOpacity: host.glassOpacity

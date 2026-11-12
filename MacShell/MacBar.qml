@@ -5573,13 +5573,14 @@ Scope {
                         // the desktop widgets (they sit on the desktop layer, below every window), drawn from the same
                         // content as the real ones, so the glass shows them under the live windows
                         Repeater {
-                            model: (root.hub && root.hub.widgets && Quickshell.screens.length > 0 && win.modelData.name === Quickshell.screens[0].name)
-                                   ? root.hub.widgets.model : null
+                            model: (root.hub && root.hub.widgets) ? root.hub.widgets.model : null
                             delegate: Item {
                                 id: mw
                                 required property string wid
                                 required property string wtype
                                 required property string wsrc
+                                required property string wscreen
+                                visible: root.hub.widgets.scrOf(wscreen) === win.modelData.name      // this screen's widgets only
                                 required property string wstyle
                                 required property string wsize
                                 required property string wmode
@@ -5589,12 +5590,15 @@ Scope {
                                 x: wx; y: wy
                                 width: root.hub.widgets.dims(wsize)[0]
                                 height: root.hub.widgets.dims(wsize)[1]
-                                WidgetVisual {
+                                Loader {
                                     anchors.fill: parent
-                                    host: root.hub.widgets
-                                    wtype: mw.wtype; wstyle: mw.wstyle; wsize: mw.wsize; wmode: mw.wmode; wsrc: mw.wsrc
-                                    sx: mw.x; sy: mw.y
-                                    sname: win.modelData.name; sw: win.modelData.width; sh: win.modelData.height
+                                    active: mw.visible
+                                    sourceComponent: WidgetVisual {
+                                        host: root.hub.widgets
+                                        wtype: mw.wtype; wstyle: mw.wstyle; wsize: mw.wsize; wmode: mw.wmode; wsrc: mw.wsrc
+                                        sx: mw.x; sy: mw.y
+                                        sname: win.modelData.name; sw: win.modelData.width; sh: win.modelData.height
+                                    }
                                 }
                             }
                         }

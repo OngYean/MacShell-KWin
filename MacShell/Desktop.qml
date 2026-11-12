@@ -72,8 +72,7 @@ Scope {
     // a Player widget's button area (the only part of the widgets layer that takes clicks); 0 when not on this screen
     function playerRect(screenName, i, k) {
         var wd = hub ? hub.widgets : null;
-        if (!wd || Quickshell.screens.length === 0 || screenName !== Quickshell.screens[0].name) return 0;
-        return wd.pr(i, k);
+        return wd ? wd.pr(i, k, screenName) : 0;
     }
 
     Process {
@@ -89,11 +88,11 @@ Scope {
             && y < r.y + r.height + g && y + height + g > r.y;
     }
     function widgetRects(screenName) {
-        var w = hub ? hub.widgets : null, screens = Quickshell.screens, out = [];
-        // Widgets are currently hosted on the primary screen; other monitors have no widget footprint to reserve.
-        if (!w || !w.model || screens.length === 0 || screenName !== screens[0].name) return out;
+        var w = hub ? hub.widgets : null, out = [];
+        if (!w || !w.model) return out;
         for (var i = 0; i < w.model.count; i++) {
             var m = w.model.get(i), d = w.dims(m.wsize);
+            if (w.scrOf(m.wscreen) !== screenName) continue;
             out.push({ x: m.wx, y: m.wy, width: d[0], height: d[1] });
         }
         return out;

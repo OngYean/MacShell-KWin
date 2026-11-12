@@ -1,6 +1,6 @@
 // Desktop widgets (macOS Tahoe style) for macshell.
 //
-//   * one full-screen layer window on the first monitor, BELOW normal windows (WlrLayer.Bottom, namespace "macwidgets")
+//   * one full-screen layer window on each monitor that holds widgets, BELOW normal windows (WlrLayer.Bottom, namespace "macwidgets")
 //   * click-through while you are not editing; edit mode shows free grid slots and snaps widget moves / sizes without overlap
 //   * Weather data from Open-Meteo, a local-date Calendar, a live local-time Clock, and a Music player (MPRIS) widget
 //   * settings + placed widgets are saved to ~/.config/macwidgets/settings.json
@@ -51,7 +51,8 @@ Scope {
     // Control Center border colour (follows the wallpaper's dominant colour)
     readonly property color borderTint: (hub && hub.bar) ? hub.bar.menuBorderColor : "#8A9AB5"
 
-    // placed widgets: roles wid, wtype (weather | calendar | clock | player), wstyle, wsize, wmode (calendar: auto | light | dark), wx, wy
+    // placed widgets: roles wid, wtype (weather | calendar | clock | player), wstyle, wsize, wmode (calendar: auto | light | dark),
+    // wscreen (the name of the screen it is on; "" = the first screen), wx, wy (within that screen)
     property alias model: wmodel
     ListModel { id: wmodel }
     readonly property int widgetCount: wmodel.count
@@ -75,9 +76,31 @@ Scope {
     readonly property int gridTop: 56
     readonly property int gridRight: 21
     readonly property int gridBottom: 24
-    function screenSize() {
-        var scr = Quickshell.screens.length > 0 ? Quickshell.screens[0] : null;
-        return [scr ? scr.width : 1920, scr ? scr.height : 1080];
+    // ── screens: every widget lives on one screen; the functions below take that screen's name (scr) ──
+    function scrOf(wscreen) { return wscreen !== "" ? wscreen : (Quickshell.screens.length > 0 ? Quickshell.screens[0].name : ""); }
+    function screenNamed(name) {
+        var s = Quickshell.screens;
+        for (var i = 0; i < s.length; i++) if (s[i].name === name) return s[i];
+        return null;
+    }
+    function screenAt(x, y) {      // global position → screen
+        var s = Quickshell.screens;
+        for (var i = 0; i < s.length; i++) if (x >= s[i].x && x < s[i].x + s[i].width && y >= s[i].y && y < s[i].y + s[i].height) return s[i];
+        return null;
+    }
+    // where a new widget goes: the screen in use, which is the one Settings is on when its "+" is clicked
+    function targetScreen() {
+        var c = hub ? hub.compositor : null, n = c ? c.focusedScreenName : "";
+        return screenNamed(n) ? n : scrOf("");
+    }
+    function countOn(scr) {
+        var n = 0;
+        for (var i = 0; i < wmodel.count; i++) if (scrOf(wmodel.get(i).wscreen) === scr) n++;
+        return n;
+    }
+    function screenSize(scr) {
+        var s = screenNamed(scr);
+        return [s ? s.width : 1920, s ? s.height : 1080];
     }
     function gridInfo(screenW, screenH) {
         var availW = screenW - gridLeft - gridRight;
@@ -105,47 +128,47 @@ Scope {
         }
         return n;
     }
-    function overlaps(x, y, d, skipId) {
+    function overlaps(x, y, d, skipId, scr) {
         for (var i = 0; i < wmodel.count; i++) {
             var m = wmodel.get(i);
-            if (m.wid === skipId) continue;
+            if (m.wid === skipId || scrOf(m.wscreen) !== scr) continue;
             var md = dims(m.wsize);
             if (x < m.wx + md[0] && x + d[0] > m.wx && y < m.wy + md[1] && y + d[1] > m.wy) return true;
         }
         return false;
     }
-    function validSlot(size, col, row, skipId, g, screenW, screenH) {
+    function validSlot(size, col, row, skipId, g, screenW, screenH, scr) {
         var d = dims(size), p = [g.left + col * g.pitchX, g.top + row * g.pitchY];
         return p[0] >= gridLeft && p[1] >= gridTop
             && p[0] + d[0] <= screenW - gridRight && p[1] + d[1] <= screenH - gridBottom
-            && !overlaps(p[0], p[1], d, skipId) ? p : null;
+            && !overlaps(p[0], p[1], d, skipId, scr) ? p : null;
     }
-    function firstFreeSlot(size, skipId) {
-        var ss = screenSize(), g = gridInfo(ss[0], ss[1]), span = spans(size);
+    function firstFreeSlot(size, skipId, scr) {
+        var ss = screenSize(scr), g = gridInfo(ss[0], ss[1]), span = spans(size);
         for (var row = 0; row <= g.rows - span[1]; row++)
             for (var col = g.cols - span[0]; col >= 0; col--) {
-                var p = validSlot(size, col, row, skipId, g, ss[0], ss[1]);
+                var p = validSlot(size, col, row, skipId, g, ss[0], ss[1], scr);
                 if (p) return p;
             }
         return null;
     }
-    function nearestFreeSlot(id, x, y, size) {
-        var ss = screenSize(), g = gridInfo(ss[0], ss[1]), span = spans(size);
+    function nearestFreeSlot(id, x, y, size, scr) {
+        var ss = screenSize(scr), g = gridInfo(ss[0], ss[1]), span = spans(size);
         var best = null, bestDistance = Infinity;
         for (var row = 0; row <= g.rows - span[1]; row++)
             for (var col = 0; col <= g.cols - span[0]; col++) {
-                var p = validSlot(size, col, row, id, g, ss[0], ss[1]);
+                var p = validSlot(size, col, row, id, g, ss[0], ss[1], scr);
                 if (!p) continue;
                 var dx = p[0] - x, dy = p[1] - y, distance = dx * dx + dy * dy;
                 if (distance < bestDistance) { best = p; bestDistance = distance; }
             }
         return best;
     }
-    function gridSlots(screenW, screenH) {
+    function gridSlots(screenW, screenH, scr) {
         var g = gridInfo(screenW, screenH), slots = [];
         for (var row = 0; row < g.rows; row++)
             for (var col = 0; col < g.cols; col++) {
-                var p = validSlot("small", col, row, "", g, screenW, screenH);
+                var p = validSlot("small", col, row, "", g, screenW, screenH, scr);
                 if (p) slots.push({ x: p[0], y: p[1] });
             }
         return slots;
@@ -153,15 +176,15 @@ Scope {
     function normalizePositions() {
         var old = [];
         for (var i = 0; i < wmodel.count; i++) {
-            var m = wmodel.get(i);
-            old.push({ id: m.wid, x: m.wx, y: m.wy, size: m.wsize });
+            var m = wmodel.get(i), scr = scrOf(m.wscreen);
+            if (!screenNamed(scr)) continue;        // its screen is unplugged: it keeps its place for when the screen is back
+            old.push({ id: m.wid, x: m.wx, y: m.wy, size: m.wsize, scr: scr });
             wmodel.setProperty(i, "wx", -100000);
             wmodel.setProperty(i, "wy", -100000);
         }
-        var ss = screenSize();
         for (var j = 0; j < old.length; j++) {
-            var item = old[j], p = nearestFreeSlot(item.id, item.x, item.y, item.size);
-            if (!p) p = firstFreeSlot(item.size, item.id);
+            var item = old[j], ss = screenSize(item.scr), p = nearestFreeSlot(item.id, item.x, item.y, item.size, item.scr);
+            if (!p) p = firstFreeSlot(item.size, item.id, item.scr);
             if (!p) p = [Math.max(gridLeft, Math.min(ss[0] - gridRight - dims(item.size)[0], item.x)),
                          Math.max(gridTop, Math.min(ss[1] - gridBottom - dims(item.size)[1], item.y))];
             for (var k = 0; k < wmodel.count; k++)
@@ -169,11 +192,11 @@ Scope {
         }
     }
     function addWidget(type, style, size, src) {
-        var sz = size || "small";
-        var p = firstFreeSlot(sz, "");
+        var sz = size || "small", scr = targetScreen();
+        var p = firstFreeSlot(sz, "", scr);
         if (!p) return false;
         wmodel.append({ wid: "w" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
-                        wtype: type, wstyle: style, wsize: sz, wmode: "auto", wsrc: src || "", wx: p[0], wy: p[1] });
+                        wtype: type, wstyle: style, wsize: sz, wmode: "auto", wsrc: src || "", wscreen: scr, wx: p[0], wy: p[1] });
         recount(); scheduleSave();
         if (type === "weather") refreshSoon();
         return true;
@@ -211,7 +234,7 @@ Scope {
     function setSize(id, size) {
         for (var i = 0; i < wmodel.count; i++) {
             if (wmodel.get(i).wid !== id) continue;
-            var p = nearestFreeSlot(id, wmodel.get(i).wx, wmodel.get(i).wy, size);
+            var p = nearestFreeSlot(id, wmodel.get(i).wx, wmodel.get(i).wy, size, scrOf(wmodel.get(i).wscreen));
             if (!p) return;
             wmodel.setProperty(i, "wsize", size);
             wmodel.setProperty(i, "wx", p[0]);
@@ -220,11 +243,13 @@ Scope {
         }
         recount(); scheduleSave();
     }
-    function moveWidget(id, x, y) {
+    // scr: the screen it was dropped on (x, y are within that screen)
+    function moveWidget(id, x, y, scr) {
         for (var i = 0; i < wmodel.count; i++)
             if (wmodel.get(i).wid === id) {
-                var p = nearestFreeSlot(id, x, y, wmodel.get(i).wsize);
+                var p = nearestFreeSlot(id, x, y, wmodel.get(i).wsize, scr);
                 if (!p) return;
+                wmodel.setProperty(i, "wscreen", scr);
                 wmodel.setProperty(i, "wx", p[0]);
                 wmodel.setProperty(i, "wy", p[1]);
                 break;
@@ -286,7 +311,7 @@ Scope {
         var list = [];
         for (var i = 0; i < wmodel.count; i++) {
             var m = wmodel.get(i);
-            list.push({ id: m.wid, type: m.wtype, style: m.wstyle, size: m.wsize, mode: m.wmode || "auto", src: m.wsrc || "", x: m.wx, y: m.wy });
+            list.push({ id: m.wid, type: m.wtype, style: m.wstyle, size: m.wsize, mode: m.wmode || "auto", src: m.wsrc || "", screen: m.wscreen || "", x: m.wx, y: m.wy });
         }
         store.setText(JSON.stringify({ tempUnit: tempUnit, locMode: locMode, cityName: cityName, widgetScale: widgetScale, widgets: list }, null, 2));
     }
@@ -308,6 +333,7 @@ Scope {
                                 wsize: (w.size === "medium" || w.size === "large") ? w.size : "small",
                                 wmode: (w.mode === "light" || w.mode === "dark") ? w.mode : "auto",
                                 wsrc: typeof w.src === "string" ? w.src : "",
+                                wscreen: typeof w.screen === "string" ? w.screen : "",
                                 wx: Number(w.x) || 0, wy: Number(w.y) || 0 });
             }
         }
@@ -346,18 +372,17 @@ Scope {
         running: root.player !== null && root.player.isPlaying && root.count("player") > 0
         onTriggered: { try { root.player.positionChanged(); } catch (err) { } }
     }
-    // screen rectangles of the Player widgets: they stay clickable while the rest of the layer is click-through
-    readonly property var playerRects: {
-        var r = rev, out = [];
-        for (var i = 0; i < wmodel.count; i++) {
-            var m = wmodel.get(i);
-            if (m.wtype !== "player") continue;
-            var d = dims(m.wsize);
-            out.push([m.wx, m.wy, d[0], d[1]]);
+    // rectangle i (k: 0 x, 1 y, 2 width, 3 height) of the Player widgets on screen scr: they stay clickable while the rest
+    // of the layer is click-through
+    function pr(i, k, scr) {
+        var r = rev, n = 0;
+        for (var j = 0; j < wmodel.count; j++) {
+            var m = wmodel.get(j);
+            if (m.wtype !== "player" || scrOf(m.wscreen) !== scr) continue;
+            if (n++ === i) return k < 2 ? (k === 0 ? m.wx : m.wy) : dims(m.wsize)[k - 2];
         }
-        return out;
+        return 0;
     }
-    function pr(i, k) { var r = playerRects[i]; return r ? r[k] : 0; }
 
     // ───────────── lyrics (LRCLIB synced first; Genius plain-text fallback) ─────────────
     property bool lyricsWanted: false
@@ -617,11 +642,10 @@ Scope {
 
     // animated wallpaper the widget glass plays behind itself: only while the Dock's "Real-time glass" AND "Animated wallpaper in glass" are on
     readonly property string liveWallVideo: (dock && dock.glassLive && hub && hub.bar) ? hub.bar.glassVideo : ""
-    // the widgets sit on the first screen's desktop: their video pauses while windows cover it (or in Game Mode)
-    readonly property bool liveWallPaused: {
+    // the widgets sit on a screen's desktop: their video pauses while windows cover it (or in Game Mode)
+    function liveWallPaused(screenName) {
         if (!hub || !hub.bar) return false;
-        if (hub.bar.gaming) return true;
-        return Quickshell.screens.length > 0 && hub.bar.screenCovered[Quickshell.screens[0].name] === true;
+        return hub.bar.gaming || hub.bar.screenCovered[screenName] === true;
     }
     // wallpaper behind the widgets (same lookup as the Dock's Liquid Glass)
     readonly property var wallpaperMap: hub ? hub.wallpaperMap : ({})
@@ -640,7 +664,11 @@ Scope {
 
     // ───────────── the desktop layer ─────────────
     Variants {
-        model: (root.ready && Quickshell.screens.length > 0 && (root.widgetCount > 0 || root.editing)) ? [Quickshell.screens[0]] : []
+        model: {      // the screens that hold widgets; every screen while editing, so a widget can be dropped on any of them
+            var r = root.rev, s = Quickshell.screens, out = [];
+            for (var i = 0; root.ready && i < s.length; i++) if (root.editing || root.countOn(s[i].name) > 0) out.push(s[i]);
+            return out;
+        }
 
         PanelWindow {
             id: win
@@ -665,10 +693,10 @@ Scope {
                 id: ui
                 anchors.fill: parent
 
-                Item { id: hit0; x: root.pr(0, 0); y: root.pr(0, 1); width: root.pr(0, 2); height: root.pr(0, 3) }
-                Item { id: hit1; x: root.pr(1, 0); y: root.pr(1, 1); width: root.pr(1, 2); height: root.pr(1, 3) }
-                Item { id: hit2; x: root.pr(2, 0); y: root.pr(2, 1); width: root.pr(2, 2); height: root.pr(2, 3) }
-                Item { id: hit3; x: root.pr(3, 0); y: root.pr(3, 1); width: root.pr(3, 2); height: root.pr(3, 3) }
+                Item { id: hit0; x: root.pr(0, 0, win.modelData.name); y: root.pr(0, 1, win.modelData.name); width: root.pr(0, 2, win.modelData.name); height: root.pr(0, 3, win.modelData.name) }
+                Item { id: hit1; x: root.pr(1, 0, win.modelData.name); y: root.pr(1, 1, win.modelData.name); width: root.pr(1, 2, win.modelData.name); height: root.pr(1, 3, win.modelData.name) }
+                Item { id: hit2; x: root.pr(2, 0, win.modelData.name); y: root.pr(2, 1, win.modelData.name); width: root.pr(2, 2, win.modelData.name); height: root.pr(2, 3, win.modelData.name) }
+                Item { id: hit3; x: root.pr(3, 0, win.modelData.name); y: root.pr(3, 1, win.modelData.name); width: root.pr(3, 2, win.modelData.name); height: root.pr(3, 3, win.modelData.name) }
 
                 Rectangle {   // slight dim while editing
                     anchors.fill: parent
@@ -680,7 +708,7 @@ Scope {
                 Repeater {   // free Small-sized grid cells; Medium and Large snap across 2-cell footprints
                     model: {
                         var revision = root.rev;
-                        return root.editing ? root.gridSlots(win.modelData.width, win.modelData.height) : [];
+                        return root.editing ? root.gridSlots(win.modelData.width, win.modelData.height, win.modelData.name) : [];
                     }
                     delegate: Rectangle {
                         required property var modelData
@@ -705,8 +733,12 @@ Scope {
                         required property string wsize
                         required property string wmode
                         required property string wsrc
+                        required property string wscreen
                         required property real wx
                         required property real wy
+                        // every screen's window lists every widget; only the widget's own screen builds and shows it
+                        readonly property bool mine: root.scrOf(wscreen) === win.modelData.name
+                        visible: mine
 
                         property real dragDX: 0
                         property real dragDY: 0
@@ -717,15 +749,17 @@ Scope {
                         width: baseDims[0]
                         height: baseDims[1]
                         // only the Liquid Glass style is glass; the solid styles and photos stay as they are
-                        GlassBlur { target: ww; on: root.kwinBlurOn && ww.wstyle === "liquid" && ww.wtype !== "image"; cornerR: ww.radiusPx }
+                        GlassBlur { target: ww; on: ww.mine && root.kwinBlurOn && ww.wstyle === "liquid" && ww.wtype !== "image"; cornerR: ww.radiusPx }
 
-                        WidgetVisual {
-                            id: visual
+                        Loader {
                             anchors.fill: parent
-                            host: root
-                            wtype: ww.wtype; wstyle: ww.wstyle; wsize: ww.wsize; wmode: ww.wmode; wsrc: ww.wsrc
-                            sx: ww.x; sy: ww.y
-                            sname: win.modelData.name; sw: win.modelData.width; sh: win.modelData.height
+                            active: ww.mine
+                            sourceComponent: WidgetVisual {
+                                host: root
+                                wtype: ww.wtype; wstyle: ww.wstyle; wsize: ww.wsize; wmode: ww.wmode; wsrc: ww.wsrc
+                                sx: ww.x; sy: ww.y
+                                sname: win.modelData.name; sw: win.modelData.width; sh: win.modelData.height
+                            }
                         }
 
                         scale: dragArea.pressed ? 1.03 : 1.0
@@ -752,13 +786,14 @@ Scope {
                             onPositionChanged: mouse => {
                                 if (!pressed) return;
                                 var p = mapToItem(ui, mouse.x, mouse.y);
-                                var nx = Math.max(0, Math.min(ui.width - ww.width, ww.wx + (p.x - px)));
-                                var ny = Math.max(0, Math.min(ui.height - ww.height, ww.wy + (p.y - py)));
-                                ww.dragDX = nx - ww.wx;
-                                ww.dragDY = ny - ww.wy;
+                                ww.dragDX = p.x - px;      // not kept inside this screen: it can be dropped on another one
+                                ww.dragDY = p.y - py;
                             }
                             onReleased: {
-                                root.moveWidget(ww.wid, ww.wx + ww.dragDX, ww.wy + ww.dragDY);
+                                // the screen under the pointer takes the widget (this window keeps getting the pointer during a
+                                // drag, with positions beyond its own edges); ui fills the screen, so its coordinates are the screen's
+                                var here = win.modelData, to = root.screenAt(here.x + px + ww.dragDX, here.y + py + ww.dragDY) || here;
+                                root.moveWidget(ww.wid, here.x + ww.wx + ww.dragDX - to.x, here.y + ww.wy + ww.dragDY - to.y, to.name);
                                 ww.dragDX = 0; ww.dragDY = 0;
                             }
                         }
