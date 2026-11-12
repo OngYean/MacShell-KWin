@@ -28,6 +28,8 @@ These handoffs let an agent start from the repository without access to the orig
 - [`15-plasma-test-report.md`](15-plasma-test-report.md) — the six bugs (B1–B6) and eight feature requests (F1–F8) from the user's Plasma 6.8 test without `plasmashell` on 2026-11-10, with each item's status, cause, change and test steps.
 - [`16-blur-panels-report.md`](16-blur-panels-report.md) — **the current work list**: the next test's five bugs (B7–B11: Dock size freeze, KWin blur out of place, the Dock's blur re-rendering, a yellow tint, a duplicate setting) and three requests (F9–F11: blur and transparency per panel, a custom title without a window), with cause, change and test steps.
 
+- [`17-per-screen-tests.md`](17-per-screen-tests.md) — on `pending-test` (2026-11-12): desktop widgets on any screen (B12) and a title and menu per screen (F12). Design, limits and test plan.
+
 ## Update (2026-11-11, branch `pending-test`)
 
 The user tested again and reported five bugs and three requests; [`16-blur-panels-report.md`](16-blur-panels-report.md) has them. Seven have code and one (the yellow tint with KWin's blur, B10) has a source-based diagnosis and three checks to run, with no code change. It is committed on `pending-test` (`0ed468c` to `329d6df`, then two docs commits) and pushed. Checked locally with `qmllint` (syntax) and `node nix/test-panel-look.js`; nothing has run in Plasma.
