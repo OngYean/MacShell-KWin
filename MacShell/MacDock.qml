@@ -188,7 +188,8 @@ Scope {
     property var panelBlur: ({})
     property var panelTint: ({})
     readonly property var panelZones: [
-        { key: "dock",      name: "Dock",                  hint: "The Dock, its labels and its right-click menu" },
+        { key: "dock",      name: "Dock",                  hint: "" },
+        { key: "dockmenus", name: "Dock labels and menu",  hint: "The Dock's hover labels and its right-click menu" },
         { key: "bar",       name: "Menu bar",              hint: "The bar itself, with “Liquid Glass bar” on" },
         { key: "menus",     name: "Menus and popovers",    hint: "App menus, tray menus, calendar, sound, Wi-Fi, Bluetooth" },
         { key: "cc",        name: "Control Center",        hint: "" },
@@ -199,9 +200,9 @@ Scope {
         { key: "widgets",   name: "Widgets",               hint: "Liquid Glass widgets" }
     ]
     function setPanel(map, zone, v) { var o = Object.assign({}, root[map]); o[zone] = v; root[map] = o; }
-    // the Dock's own tint, and the same as a factor on the fixed tints of its labels and menu (1 at the default 0.42)
+    // the Dock's own tint, and the one of its labels and menu as a factor on their fixed tints (1 at the default 0.42)
     readonly property real dockTint: { var v = hub ? hub.panelTint("dock") : undefined; return v !== undefined ? v : glassOpacity; }
-    readonly property real dockTintK: dockTint / 0.42
+    readonly property real tipsTintK: { var v = hub ? hub.panelTint("dockmenus") : undefined; return (v !== undefined ? v : glassOpacity) / 0.42; }
     // Liquid Glass tuning (settings.json): rim = edge highlight, grain = noise, liquid = refraction depth
     property real glassRim: 0.45
     property real glassGrain: 0.03
@@ -2486,7 +2487,7 @@ Scope {
                     SRow {
                         t: pal
                         title: I18n.tr("Dock style")
-                        subtitle: root.kwinBlurOn ? I18n.tr("Not used while the Dock uses KWin's blur (Panels, below)")
+                        subtitle: (root.kwinBlurOn && root.kwinBlurTips) ? I18n.tr("Not used while the Dock uses KWin's blur (Panels, below)")
                                   : root.dockStyle === "liquid" && root.glassState === "failed"
                                   ? I18n.tr("Liquid Glass couldn't start (install qt6-shadertools) – using Normal Blur")
                                   : (root.dockStyle === "liquid" && root.glassState === "building"
@@ -2552,7 +2553,7 @@ Scope {
                 }
                 SCard {
                     t: pal
-                    visible: root.dockStyle === "liquid" && !root.kwinBlurOn
+                    visible: root.dockStyle === "liquid" && !(root.kwinBlurOn && root.kwinBlurTips)
                     SRow {
                         t: pal
                         title: I18n.tr("Real-time glass")
@@ -4977,9 +4978,14 @@ Scope {
     // ═════════════ LIQUID GLASS BACKEND ═════════════
     // glassState: "idle" → "building" (qsb running) → "ready" | "failed". "failed" falls back to Normal Blur.
     property string glassState: "idle"
+    // Two panels with a blur choice each (Appearance → Panels): the Dock itself, and its hover labels and right-click menu
     readonly property bool kwinBlurOn: !!hub && hub.kwinBlurFor("dock")
+    readonly property bool kwinBlurTips: !!hub && hub.kwinBlurFor("dockmenus")
     readonly property bool kwinBlurAll: !!hub && panelZones.every(z => hub.kwinBlurFor(z.key))     // no panel uses MacShell's own glass
-    readonly property bool liquidActive: dockStyle === "liquid" && glassState === "ready" && !(bar && bar.gaming) && !kwinBlurOn
+    readonly property bool glassReady: dockStyle === "liquid" && glassState === "ready" && !(bar && bar.gaming)
+    readonly property bool liquidActive: glassReady && !kwinBlurOn       // the Dock itself is Liquid Glass
+    readonly property bool tipsLive: glassReady && !kwinBlurTips         // its labels and menu are
+    readonly property bool glassPipe: liquidActive || tipsLive           // the wallpaper, window positions and backdrop both use
     // Settings' own glass (back / forward pill, knobs of switches and sliders): available whenever the shader is built,
     // whatever the Dock style is
     readonly property bool settingsGlass: glassState === "ready" && !(bar && bar.gaming)
@@ -5041,7 +5047,7 @@ Scope {
     // wallpaper the glass refracts. Sources, in order: Plasma's while it draws the desktop, wallpaperPath override, Noctalia's settings.toml
     // ([wallpaper.monitors.<name>] → [wallpaper.last] → [wallpaper.default]), then awww/swww/hyprpaper.
     readonly property var wallpaperMap: hub ? hub.wallpaperMap : ({})
-    Binding { target: root.hub; property: "dockWantsWallpaper"; value: root.liquidActive }
+    Binding { target: root.hub; property: "dockWantsWallpaper"; value: root.glassPipe }
     onWallpaperMapChanged: console.log("[macdock-glass] wallpaper sources:", JSON.stringify(wallpaperMap))
     function wallpaperFor(screenName) {
         var p = (hub && hub.plasmaWallpaper) ? hub.plasmaWallpaper : wallpaperPath !== "" ? wallpaperPath
@@ -5058,7 +5064,7 @@ Scope {
 
     // live window geometry for the backdrop compositor (polled only while Liquid Glass is on)
     readonly property var glassClients: hub ? hub.glassClients : []
-    Binding { target: root.hub; property: "dockWantsGeo"; value: root.liquidActive && (root.dockEnabled || prefsWindow.visible) }
+    Binding { target: root.hub; property: "dockWantsGeo"; value: root.glassPipe && (root.dockEnabled || prefsWindow.visible) }
     // window captures are admitted by the shared gate in shell.qml (hub.tlFor): 0.2 s after a window appears, one every 110 ms
 
     // ── smart hide: which monitors have a non-floating window on their active workspace ──
@@ -5605,7 +5611,7 @@ Scope {
                 // Built from per-window captures (not a screen capture) so the Dock never ends up refracting itself.
                 Loader {
                     id: glassBackdrop
-                    active: root.liquidActive
+                    active: root.glassPipe
                     // opaque wrapper: translucent windows (btop in a transparent terminal, Settings...) leave alpha < 1 in the backdrop,
                     // which made the Dock's hover label / right-click menu see-through to the REAL screen (sharp, weakly blurred).
                     // The backdrop is rendered once into the wrapper over an opaque base, so the glass always gets alpha 1.
@@ -6323,9 +6329,9 @@ Scope {
                                         readonly property string sub: (!cell.isSep && cell.modelData.kind === "win" && cell.modelData.name && cell.modelData.name !== title) ? cell.modelData.name : ""
                                         readonly property real fs: Math.max(9, Math.round(13 * k))
                                         backdrop: glassBackdrop.item
-                                        live: root.liquidActive && glassBackdrop.item !== null
-                                        kwinBlur: root.kwinBlurOn
-                                        tintK: root.dockTintK
+                                        live: root.tipsLive && glassBackdrop.item !== null
+                                        kwinBlur: root.kwinBlurTips
+                                        tintK: root.tipsTintK
                                         dark: root.darkMode
                                         k: root.labelK
                                         radius: Math.min(11.7 * k, bodyH / 2)
@@ -6447,9 +6453,9 @@ Scope {
                     Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
 
                     backdrop: glassBackdrop.item
-                    live: root.liquidActive && glassBackdrop.item !== null
-                    kwinBlur: root.kwinBlurOn
-                    tintK: root.dockTintK
+                    live: root.tipsLive && glassBackdrop.item !== null
+                    kwinBlur: root.kwinBlurTips
+                    tintK: root.tipsTintK
                     frozen: ui.menuOpen      // the menu's glass stops updating while it is open
                     dark: root.darkMode
                     k: root.labelK
