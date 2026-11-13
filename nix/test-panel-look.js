@@ -20,4 +20,13 @@ assert.strictEqual(lib.tint({ dock: -1 }, "dock"), 0, "clamped to 0");
 assert.strictEqual(lib.tint({ dock: "0.5" }, "dock"), undefined, "not a number");
 assert.strictEqual(lib.tint({ dock: NaN }, "dock"), undefined, "NaN");
 assert.strictEqual(lib.tint(null, "dock"), undefined, "no map at all");
+
+// the Dock's labels and menu have their own row, and follow the Dock's until it is used
+assert.strictEqual(lib.kwin({ dock: true }, "dockmenus", false), true, "labels and menu never picked: the Dock's choice");
+assert.strictEqual(lib.kwin({ dock: true, dockmenus: false }, "dockmenus", true), false, "picked: their own, whatever the Dock uses");
+assert.strictEqual(lib.kwin({ dockmenus: true }, "dock", false), false, "the Dock does not follow its labels");
+assert.strictEqual(lib.kwin({}, "dockmenus", true), true, "neither picked: the old switch");
+assert.strictEqual(lib.tint({ dock: 0.2 }, "dockmenus"), 0.2, "no tint of their own: the Dock's");
+assert.strictEqual(lib.tint({ dock: 0.2, dockmenus: 0 }, "dockmenus"), 0, "their own tint, 0 included");
+assert.strictEqual(lib.tint({}, "dockmenus"), undefined, "neither has one");
 console.log("ok: PanelLook.js");
