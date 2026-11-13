@@ -66,12 +66,12 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 - **Wallpaper and login splash without `plasmashell`.** In replace mode MacShell draws the wallpaper itself (your
   last pick in its picker, otherwise the picture Plasma is set to) and tells Plasma's login splash screen that the
   desktop is ready, which `plasmashell` normally does. Not yet tested in Plasma.
-- **KWin's blur, per panel** (Settings → Appearance → Panels). Each panel (Dock, menu bar, menus and popovers,
-  Control Center, notifications, Spotlight, switcher and pop-ups, desktop, widgets) can be a see-through tint with
+- **KWin's blur, per panel** (Settings → Appearance → Panels). Each panel (Dock, Dock labels and menu, menu bar,
+  menus and popovers, Control Center, notifications, Spotlight, switcher and pop-ups, desktop, widgets) can be a see-through tint with
   KWin's blur behind it, or keep MacShell's own glass ("Stock blur"). See [KWin's blur](#kwins-blur). Seen working
   in Plasma with one switch for everything; the per-panel choice and the fixes that followed that test (blur out of
-  place after an opening animation, the Dock's blur redrawn while hovered or when its right-click menu opens) are not
-  yet tested.
+  place after an opening animation, the Dock's blur redrawn while hovered or when its right-click menu opens) and the
+  separate row for the Dock's labels and menu are not yet tested.
 - **Transparency per panel** (Settings → Appearance → Panels): a Clear-to-Solid slider for each of the same panels.
   The original has one translucency value for everything, and no control for it in Settings. Not yet tested.
 - **Title without a window** (Settings → Menu Bar): the name the menu bar shows while no window is active, instead
@@ -323,7 +323,9 @@ Blur style is a plain tint on KWin, so the windows behind a menu or the Dock don
 instead. You can mix them: for example "Stock blur" for the Dock and "KWin blur" for everything else.
 
 - The panels:
-  - Dock: the Dock, its labels and its right-click menu;
+  - Dock: the Dock itself;
+  - Dock labels and menu: the Dock's hover labels and its right-click menu. Until this row is used they follow the
+    Dock's row;
   - Menu bar: the bar strip (when "Liquid Glass bar" is on);
   - Menus and popovers: app menus, tray menus, calendar, keyboard layout, sound, Wi-Fi and Bluetooth;
   - Control Center;
