@@ -28,11 +28,13 @@ These handoffs let an agent start from the repository without access to the orig
 - [`15-plasma-test-report.md`](15-plasma-test-report.md) — the six bugs (B1–B6) and eight feature requests (F1–F8) from the user's Plasma 6.8 test without `plasmashell` on 2026-11-10, with each item's status, cause, change and test steps.
 - [`16-blur-panels-report.md`](16-blur-panels-report.md) — **the current work list**: the next test's five bugs (B7–B11: Dock size freeze, KWin blur out of place, the Dock's blur re-rendering, a yellow tint, a duplicate setting) and three requests (F9–F11: blur and transparency per panel, a custom title without a window), with cause, change and test steps. Also B13 (2026-11-13): the Dock's blur re-rendering on right-click.
 
-- [`17-per-screen-tests.md`](17-per-screen-tests.md) — on `pending-test` (2026-11-12): desktop widgets on any screen (B12) and a title and menu per screen (F12). Design, limits and test plan.
+- [`17-per-screen-tests.md`](17-per-screen-tests.md) — on `pending-test` (2026-11-12): desktop widgets on any screen (B12) and a title and menu per screen (F12); from 2026-11-13 also one popover or menu at a time on all screens (F13). Design, limits and test plan.
 
 ## Update (2026-11-13, branch `pending-test`)
 
-The user reported that with KWin's blur chosen for the Dock, right-clicking a Dock icon still makes the Dock's blur re-render. It is B13 in [`16-blur-panels-report.md`](16-blur-panels-report.md): the limit B9 had left open (the right-click menu changed the blur's bounding box). The Dock now holds the box at its whole window (`holdRect` in `MacDock.qml`, one line). Checked with `qmllint` (syntax) only; not run in Plasma, and the extra GPU work it may cost is described there, not measured.
+The user reported that with KWin's blur chosen for the Dock, right-clicking a Dock icon still makes the Dock's blur re-render. It is B13 in [`16-blur-panels-report.md`](16-blur-panels-report.md): the limit B9 had left open (the right-click menu changed the blur's bounding box). The Dock now holds the box at its whole window (`holdRect` in `MacDock.qml`, one line). Checked with `qmllint` (syntax) only; not run in Plasma, and the extra GPU work it may cost is described there, not measured. Committed and pushed (`dc52473`, `2eac97a`, `83eddc5`).
+
+The same day the user asked for extended screens to act as one working area: opening the Control Center on one screen closes the one open on another. It is F13 in [`17-per-screen-tests.md`](17-per-screen-tests.md): one popover or menu at a time across every screen's bar, Dock and desktop (`popWho` on the hub in `shell.qml`), and a click on another screen closes what is open. Committed as `wip(shell)` and pushed; checked with `qmllint` only, never seen on two screens.
 
 ## Update (2026-11-11, branch `pending-test`)
 

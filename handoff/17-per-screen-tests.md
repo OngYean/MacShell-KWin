@@ -1,13 +1,14 @@
-# Widgets on any screen, and a title and menu per screen (2026-11-12)
+# Widgets on any screen, a title and menu per screen, one popover on all screens (2026-11-12, 2026-11-13)
 
 `AGENTS.md` remains the authority. This file continues [`16-blur-panels-report.md`](16-blur-panels-report.md) with one bug and one request the user sent on 2026-11-12 for branch `pending-test`.
 
-**State: committed on `pending-test` as `wip` commits and pushed on 2026-11-12. Nothing has run in Plasma, and nothing here has been seen on two screens.**
+**State: committed on `pending-test` as `wip` commits and pushed on 2026-11-12 (B12, F12) and 2026-11-13 (F13). Nothing has run in Plasma, and nothing here has been seen on two screens.**
 
 | ID | Report or request (user's words) | Status |
 | --- | --- | --- |
 | B12 | Currently unable to add widgets to other screens. | fix written |
 | F12 | Make the global menu and window title show per screen, instead of shared universally. | written |
+| F13 | (2026-11-13) Treat extended screens as one contiguous working area: opening the Control Center on screen 2 should close the one that is open on screen 1. | written |
 
 ## What was checked
 
@@ -66,3 +67,42 @@ With a single screen nothing changes.
 6. While a terminal on screen 1 keeps changing its title, the names on bar 2 do not flicker and a menu open on bar 2 stays open.
 7. Qt, GTK, Electron, Firefox, VS Code: the active one's real menu still appears on its own screen and nowhere else.
 8. One screen only: title and menus behave as before.
+
+## F13: one popover or menu at a time, on all screens (2026-11-13)
+
+**Before.** Each screen's bar keeps its own open popover (`ui.pop` in `MacBar.qml`), each screen's Dock its own right-click menu (`ui.menuItem` in `MacDock.qml`) and each screen's desktop its own right-click menu (`dctx.item` in `Desktop.qml`). Nothing told one about another, so a Control Center could be open on every screen at once, and a click on another screen closed nothing.
+
+**Change (both compositors).** The hub in `shell.qml` has `popWho` (whoever has something open, or null) and `popScreen` (that screen's name), with `popSet(who, screen)` and `popClear(who)`. Each of the three holders sets itself when it opens something, clears itself when it closes (and when its screen is unplugged), and closes its own when `popWho` becomes anyone else. Setting `popWho` to null therefore closes whatever is open.
+
+1. **Opening closes the rest.** Covers everything a bar's `pop` holds (Apple and app menus, the tray menu, Control Center, calendar, Wi-Fi, Bluetooth, sound, keyboard layout, the notification centre, Spotlight), the Dock's right-click menu and the desktop's right-click menu. The bar sets `popWho` at the start of `onPopChanged`, so the popover elsewhere closes (and tells its app's menu so) before the new one opens.
+2. **A click on another screen closes it** (the user confirmed on 2026-11-13 that the click may be used up, "just like on mac"):
+   - while something is open on another screen (`ui.popElsewhere`), a bar's window takes the pointer over its whole height (the bar plus `popRoom`, 900 px) and its click-away area closes what is open. The click goes no further, as beside a popover on its own screen;
+   - a press on a Dock icon closes what is open and then does its own job (activate, right-click menu, drag);
+   - a press on the desktop closes what is open and then does its own job (select, right-click menu);
+   - a click on an empty part of any bar closes what is open.
+
+**Decisions.**
+- One rule for screens and for parts: the rule is "anyone else", so a Dock menu also closes a Control Center on the same screen. Before, that depended on which layer happened to take the click.
+- A bar's window does not widen for its own screen's Dock menu or desktop menu: it overlaps both and would take the clicks meant for their rows.
+- No separate full-screen layer for catching clicks: it would have to sit under the popovers, which live in the bar's window, and KWin does not keep one layer of a level under another (see the bar-background note in `MacBar.qml`).
+- The Dock's window is not widened: that would change when its hover, magnification and auto-hide react. The icons close on press instead.
+- Left out: the desktop's sheets (Rename, Quick Preview and the others), which are dialogs and stay until dismissed; the window switcher, wallpaper picker and volume pop-up, which already show on one screen only; notification banners.
+
+**Known limits.**
+- On another screen, a click on a window lower than about 900 px under the bar closes nothing. A screen up to about 930 px high (logical) is covered completely; on a 1080 px one the lowest 150 px of windows are not.
+- On the popover's own screen nothing changed for clicks on windows: a bar popover closes on a click in the bar's window (the top 900 px), a Dock menu on a click in the Dock's window, a desktop menu on a click on the desktop. A click on a window outside those leaves it open, as before.
+- While something is open on another screen, the screen snapshots a bar takes under the pointer are paused there (otherwise the wider input area would start them).
+
+**Checked.** `qmllint` 6.12 (syntax only) on the four files: the same 732 findings as before the change, among them `MacDock.qml`'s two old `duplicated id` errors. Nothing at run time, and never seen on two screens.
+
+**Test (two screens).**
+1. Open the Control Center on screen 1, then on screen 2: the one on screen 1 closes. The same with the calendar, Wi-Fi, an app menu and the Apple menu, in any mix.
+2. Control Center open on screen 1; right-click a Dock icon on screen 2, then right-click the desktop on screen 2: each time the earlier one closes, and the new menu's rows work.
+3. A global menu open on screen 1, open the Apple menu on screen 2, then go back and open the same global menu on screen 1: its entries are filled in and work (the app was told its menu closed).
+4. Spotlight (`macshell ipc call spotlight toggle`) with a popover open on the other screen: the popover closes, Spotlight opens once.
+5. Control Center open on screen 1. On screen 2, one at a time: click a window near the top, click an empty part of the bar, click the empty desktop, left-click a Dock icon. Each closes the Control Center. The window does not get the first click; the Dock icon still activates its app.
+6. The same as 5 with a Dock right-click menu open on screen 1, and with a desktop right-click menu open on screen 1. While either is open, its own rows and the bar on screen 1 work as usual.
+7. With something open on screen 1, move the pointer over screen 2's bar and Dock without clicking: tooltips, magnification and auto-hide behave as usual.
+8. A Rename or Quick Preview sheet stays open when a popover opens or a click lands on either screen.
+9. Unplug a screen while its Control Center is open: on the remaining screen the first click on a window near the top reaches the window (nothing is left "open").
+10. One screen only: popovers behave as before, except that a Dock or desktop right-click menu now always closes an open bar popover and the other way round, and so does a press on a Dock icon or the desktop.
