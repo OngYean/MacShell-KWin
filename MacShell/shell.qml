@@ -87,6 +87,14 @@ ShellRoot {
             return true;
         }
 
+        // One popover or menu at a time, on all screens together. popWho is whoever has one open (a screen's bar, its Dock or
+        // its desktop menu) and popScreen that screen's name. Each sets itself when it opens, clears itself when it closes,
+        // and closes its own when popWho becomes anyone else: setting popWho to null closes whatever is open.
+        property var popWho: null
+        property string popScreen: ""
+        function popSet(who, screen) { popScreen = screen; popWho = who; }
+        function popClear(who) { if (popWho === who) popWho = null; }
+
         // set by MacBar / MacDock (Binding elements) when their glass needs live data
         property bool barWantsGeo: false
         property bool dockWantsGeo: false

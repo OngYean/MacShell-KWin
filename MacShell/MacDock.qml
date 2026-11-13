@@ -5378,6 +5378,9 @@ Scope {
                     updateMenuTail();
                 }
                 readonly property bool menuOpen: menuItem !== null
+                onMenuOpenChanged: if (root.hub) { if (menuOpen) root.hub.popSet(ui, win.modelData.name); else root.hub.popClear(ui); }
+                Connections { target: root.hub; function onPopWhoChanged() { if (root.hub.popWho !== ui) ui.menuItem = null; } }
+                Component.onDestruction: if (root.hub) root.hub.popClear(ui)     // its screen was unplugged
                 readonly property bool wantsHide: root.hideMode === "always"
                     || (root.hideMode === "smart" && root.busyMonitors[win.modelData.name] === true)
                 property bool dragging: false
@@ -6374,6 +6377,7 @@ Scope {
 
                                     property real pressY: 0
                                     onPressed: mouse => {
+                                        if (root.hub && root.hub.popWho !== ui) root.hub.popWho = null;      // closes what is open elsewhere
                                         if (mouse.button === Qt.LeftButton) {
                                             var pp = ma.mapToItem(ui, mouse.x, mouse.y);
                                             pressX = pp.x; pressY = pp.y;

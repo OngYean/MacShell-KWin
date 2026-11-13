@@ -5378,7 +5378,15 @@ Scope {
                 readonly property bool isMenu: root.isMenuName(pop)
                 readonly property bool anyVisible: menuPop.visible || cc.visible || cal.visible || wifiPop.visible || btPop.visible || trayPop.visible || notifPop.visible || toastArea.visible || volPop.visible || kbPop.visible
                 onAnyVisibleChanged: root.popCount += (anyVisible ? 1 : -1)
+                // something is open on another screen: this bar's window takes the pointer too, and a click closes it (as a
+                // click beside a popover does on its own screen). Not for this screen's Dock or desktop menu: the bar's
+                // window would take the clicks meant for them
+                readonly property bool popElsewhere: !!root.hub && root.hub.popWho !== null && root.hub.popScreen !== win.modelData.name
+                Connections { target: root.hub; function onPopWhoChanged() { if (root.hub.popWho !== ui) ui.pop = ""; } }
+                Component.onDestruction: if (root.hub) root.hub.popClear(ui)     // its screen was unplugged
                 onPopChanged: {
+                    // first, so the others close before this one opens
+                    if (root.hub) { if (pop !== "") root.hub.popSet(ui, win.modelData.name); else root.hub.popClear(ui); }
                     var gw = root.isGm(pop) && root.gm ? root.gm.windowId : "";
                     root.gmTransition(gmPrev, pop, gmPath, gmWin, gw);
                     gmPrev = pop;
@@ -5522,10 +5530,10 @@ Scope {
                 readonly property Item glassSrc: glassBackdrop.item ? glassBackdrop.item : ((snapFresh && screenSnap.hasContent) ? screenSnap : null)
                 HoverHandler {
                     id: barHover
-                    onHoveredChanged: if (hovered && ui.pop === "") screenSnap.grab()
+                    onHoveredChanged: if (hovered && ui.pop === "" && !ui.popElsewhere) screenSnap.grab()
                 }
                 // refresh while the pointer rests on the bar with nothing open; a snapshot is "fresh" for 3 s
-                Timer { interval: 600; repeat: true; running: barHover.hovered && ui.pop === ""; onTriggered: screenSnap.grab() }
+                Timer { interval: 600; repeat: true; running: barHover.hovered && ui.pop === "" && !ui.popElsewhere; onTriggered: screenSnap.grab() }
                 Timer { interval: 250; repeat: true; running: root.liquidActive; onTriggered: ui.snapFresh = (Date.now() - screenSnap.takenAt) < 3000 || (ui.pop !== "" && ui.snapFresh) }
 
                 // keeps the (otherwise unseen) backdrop rendering so its window captures stay valid; draws one 1%-opaque pixel
@@ -5851,7 +5859,7 @@ Scope {
                     id: maskItem
                     x: 0; y: 0
                     width: ui.width
-                    height: (ui.pop !== "" && ui.pop !== "spot") ? ui.height : root.barH
+                    height: ((ui.pop !== "" && ui.pop !== "spot") || ui.popElsewhere) ? ui.height : root.barH
                 }
 
                 // Bar background without its own layer (KWin): the same fill, drawn under every bar item, with KWin's blur behind it
@@ -5915,9 +5923,9 @@ Scope {
                 MouseArea {
                     anchors.fill: parent
                     z: 5
-                    visible: ui.pop !== "" && ui.pop !== "spot"
+                    visible: (ui.pop !== "" && ui.pop !== "spot") || ui.popElsewhere
                     acceptedButtons: Qt.AllButtons
-                    onPressed: ui.pop = ""
+                    onPressed: { ui.pop = ""; if (root.hub) root.hub.popWho = null; }
                 }
 
                 // ═════════ the bar itself ═════════
@@ -5929,7 +5937,7 @@ Scope {
                     width: ui.width
                     height: root.barH
                     color: "transparent"      // Tahoe: the bar is fully clear, no fill and no border on any side
-                    MouseArea { anchors.fill: parent; onClicked: ui.pop = "" }
+                    MouseArea { anchors.fill: parent; onClicked: { ui.pop = ""; if (root.hub) root.hub.popWho = null; } }
 
                     // ── left: Apple menu + app menus ──
                     Row {

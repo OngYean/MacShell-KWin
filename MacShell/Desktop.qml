@@ -663,6 +663,7 @@ Scope {
                     property bool ignoring: false         // the press landed on a widget: the desktop does nothing (no menu, no selection)
 
                     onPressed: mouse => {
+                        if (root.hub && root.hub.popWho) root.hub.popWho = null;      // a click on the desktop closes what is open, on any screen
                         ignoring = root.pointOverWidget(mouse.x, mouse.y, w.modelData.name);
                         if (ignoring) {
                             // on a widget the desktop does nothing, except offering its settings
@@ -763,6 +764,9 @@ Scope {
                     id: dctx
                     property var item: undefined
                     readonly property bool open: item !== undefined
+                    onOpenChanged: if (dctx.app.hub) { if (open) dctx.app.hub.popSet(dctx, w.modelData.name); else dctx.app.hub.popClear(dctx); }
+                    Connections { target: dctx.app.hub; function onPopWhoChanged() { if (dctx.app.hub.popWho !== dctx) dctx.item = undefined; } }
+                    Component.onDestruction: if (dctx.app.hub) dctx.app.hub.popClear(dctx)     // its screen was unplugged
                     // native-feeling pop: a quick fade and a small grow out of the pointer; leaves with a short plain fade
                     property real prog: open ? 1 : 0
                     Behavior on prog { NumberAnimation { duration: dctx.open ? 105 : 60; easing.type: Easing.OutQuad } }
