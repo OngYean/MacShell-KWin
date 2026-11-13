@@ -17,6 +17,7 @@
 | F9 | Choose the blur (stock or KWin) for each shell element, for example stock for the Dock and KWin for the rest. | written (`33f6b58`) |
 | F10 | Adjust the transparency of each panel separately (matters most with KWin's blur). | written (`33f6b58`) |
 | F11 | A custom title for when no window is focused (now "Desktop"). | written (`329d6df`) |
+| F14 | (2026-11-13) For blurring, decouple the Dock and its tooltip + right-click menu: the two can have their own blur options. | written |
 
 Statuses as in [`15`](15-plasma-test-report.md): `fix written` / `written` = code exists, not run in Plasma.
 
@@ -80,7 +81,8 @@ Test: Settings → Desktop & Dock has one switch for this; off removes the minim
 
 | Key | Panel | Where it is applied |
 | --- | --- | --- |
-| `dock` | Dock, its labels and right-click menu | `MacDock.qml` (`kwinBlurOn`, `dockTint`, `dockTintK`) |
+| `dock` | Dock (until F14 also its labels and right-click menu) | `MacDock.qml` (`kwinBlurOn`, `dockTint`) |
+| `dockmenus` | Dock hover labels and right-click menu (F14, 2026-11-13) | `MacDock.qml` (`kwinBlurTips`, `tipsTintK`) |
 | `bar` | Menu bar strip ("Liquid Glass bar") | `MacBar.qml`, `barGlassStrip` |
 | `menus` | App menus, submenus, tray menu, calendar, keyboard layout, sound, Wi-Fi, Bluetooth | `MacBar.qml`, the default zone |
 | `cc` | Control Center | `ccg` |
@@ -99,11 +101,27 @@ How it is built:
 - Not covered by a slider: the bar's own background fill (it has "Bar background" under Menu Bar), and the knobs of switches and sliders.
 
 Test:
-1. Appearance → Panels shows nine rows. Set the Dock to Stock blur and everything else to KWin blur; each panel must follow its own row, right away.
+1. Appearance → Panels shows nine rows (ten since F14). Set the Dock to Stock blur and everything else to KWin blur; each panel must follow its own row, right away.
 2. With Dock style and Menu Bar style on Apple Liquid Glass, mix the choices: a Stock panel shows Liquid Glass, a KWin panel the tint with KWin's blur.
 3. Move each slider from Clear to Solid: only that panel changes. At Clear with KWin blur, only the blur and the hairlines remain.
 4. Restart MacShell: the choices persist. A settings file from before, with `"kwinBlur": true` and no `panelBlur`, shows every row on KWin blur.
 5. With every panel on KWin blur, the NVIDIA GPU stays asleep and MacShell's GPU load is no higher than before.
+
+**F14 the Dock's labels and menu apart from the Dock (2026-11-13).** Settings → Appearance → Panels has a tenth row, "Dock labels and menu" (zone `dockmenus`), with its own "Stock blur / KWin blur" choice and Clear-to-Solid slider, like every row. The "Dock" row now means the Dock itself.
+- `PanelLook.js`: a zone that was split off follows the zone it came from until it is picked itself (`follows = { dockmenus: "dock" }`), for the blur and for the tint. A saved setting therefore looks the same as before until the new row is touched. `nix/test-panel-look.js` checks this.
+- `MacDock.qml`: `kwinBlurTips` and `tipsTintK` feed the hover label and the right-click menu (both `DockGlassPanel`); `dockTintK` is gone. The old `liquidActive` is split: `liquidActive` (the Dock itself is Liquid Glass), `tipsLive` (its labels and menu are) and `glassPipe` (either: the wallpaper, the window positions and the backdrop they share).
+- Consequence: with the Dock on KWin blur and the labels on Stock blur (Dock style Apple Liquid Glass), the Dock's backdrop (wallpaper plus window captures) keeps running for the labels and menu alone. Before, KWin blur on the Dock stopped it. With Dock style Normal Blur, "Stock blur" labels and menu are a solid fill, as they always were in that style.
+- Settings → Desktop & Dock: "Dock style" says "not used" and "Real-time glass" hides only when both rows use KWin blur.
+- B9 / B13 are unaffected: the held box belongs to the Dock's window, whichever of the two puts a region in it. The two 1 px dots and the window-sized blur textures are there whenever either row uses KWin blur, also while no label or menu shows (`BlurCollector` counts a surface that has KWin blur switched on, shown or not).
+
+Checked: `node nix/test-panel-look.js` passes; `qmllint` 6.12 (syntax only) gives the same 732 findings on `MacDock.qml`, `MacBar.qml`, `Desktop.qml`, `shell.qml` as before. Not run in Plasma.
+
+Test:
+1. With settings from before (Dock on KWin blur, the new row never touched): the new row shows KWin blur and the Dock's slider value; labels and menu look as before.
+2. Dock on Stock blur, labels and menu on KWin blur, Dock style Apple Liquid Glass: the Dock is Liquid Glass; a hover label and the right-click menu are a tint with KWin's blur behind them, and the Dock's glass does not flicker when they appear.
+3. The reverse (Dock KWin, labels and menu Stock), Dock style Apple Liquid Glass: labels and menu show MacShell's own blurred glass with the right picture behind them; the Dock has KWin's blur. Watch MacShell's GPU load and that the NVIDIA GPU stays asleep.
+4. The reverse with Dock style Normal Blur: labels and menu are solid.
+5. Each row's slider changes only its own panel. Restart MacShell: both choices persist.
 
 **F11 title without a window.** Settings → Menu Bar → "Title without a window": a text field, at most 40 characters, saved as `desktopTitle` in `~/.config/macbar/settings.json`. Empty means "Desktop". The generic menus for the desktop ("About …") use the same name.
 Test: type a name, click the desktop: the bar shows it; clear the field: "Desktop" again.
