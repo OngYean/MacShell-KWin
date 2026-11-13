@@ -70,7 +70,8 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   Control Center, notifications, Spotlight, switcher and pop-ups, desktop, widgets) can be a see-through tint with
   KWin's blur behind it, or keep MacShell's own glass ("Stock blur"). See [KWin's blur](#kwins-blur). Seen working
   in Plasma with one switch for everything; the per-panel choice and the fixes that followed that test (blur out of
-  place after an opening animation, the Dock's blur redrawn while hovered) are not yet tested.
+  place after an opening animation, the Dock's blur redrawn while hovered or when its right-click menu opens) are not
+  yet tested.
 - **Transparency per panel** (Settings → Appearance → Panels): a Clear-to-Solid slider for each of the same panels.
   The original has one translucency value for everything, and no control for it in Settings. Not yet tested.
 - **Title without a window** (Settings → Menu Bar): the name the menu bar shows while no window is active, instead
