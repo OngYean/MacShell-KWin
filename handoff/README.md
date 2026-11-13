@@ -26,9 +26,13 @@ These handoffs let an agent start from the repository without access to the orig
 - [`13-magic-lamp-tests.md`](13-magic-lamp-tests.md) — branch `kwin-magic-lamp`: KWin's Magic Lamp minimizes windows into their Dock icon instead of towards the pointer (bridge anchor surfaces + `set_minimized_geometry`). How it works and the test plan.
 - [`14-sharp-bar-icons-tests.md`](14-sharp-bar-icons-tests.md) — on `pending-test`: the menu bar's icons stay sharp at any UI scale, bar height and display scale. Cause, fix and test plan.
 - [`15-plasma-test-report.md`](15-plasma-test-report.md) — the six bugs (B1–B6) and eight feature requests (F1–F8) from the user's Plasma 6.8 test without `plasmashell` on 2026-11-10, with each item's status, cause, change and test steps.
-- [`16-blur-panels-report.md`](16-blur-panels-report.md) — **the current work list**: the next test's five bugs (B7–B11: Dock size freeze, KWin blur out of place, the Dock's blur re-rendering, a yellow tint, a duplicate setting) and three requests (F9–F11: blur and transparency per panel, a custom title without a window), with cause, change and test steps.
+- [`16-blur-panels-report.md`](16-blur-panels-report.md) — **the current work list**: the next test's five bugs (B7–B11: Dock size freeze, KWin blur out of place, the Dock's blur re-rendering, a yellow tint, a duplicate setting) and three requests (F9–F11: blur and transparency per panel, a custom title without a window), with cause, change and test steps. Also B13 (2026-11-13): the Dock's blur re-rendering on right-click.
 
 - [`17-per-screen-tests.md`](17-per-screen-tests.md) — on `pending-test` (2026-11-12): desktop widgets on any screen (B12) and a title and menu per screen (F12). Design, limits and test plan.
+
+## Update (2026-11-13, branch `pending-test`)
+
+The user reported that with KWin's blur chosen for the Dock, right-clicking a Dock icon still makes the Dock's blur re-render. It is B13 in [`16-blur-panels-report.md`](16-blur-panels-report.md): the limit B9 had left open (the right-click menu changed the blur's bounding box). The Dock now holds the box at its whole window (`holdRect` in `MacDock.qml`, one line). Checked with `qmllint` (syntax) only; not run in Plasma, and the extra GPU work it may cost is described there, not measured.
 
 ## Update (2026-11-11, branch `pending-test`)
 
