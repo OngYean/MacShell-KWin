@@ -1,0 +1,13 @@
+{
+    "KPackageStructure": "Plasma/Shell",
+    "KPlugin": {
+        "Description": "MacLock as KDE's lock screen; everything else comes from Plasma's own desktop package",
+        "Id": "com.macshell.lock",
+        "License": "MIT",
+        "Name": "MacShell Lock Screen",
+        "Website": "https://github.com/OngYean/MacShell-KWin"
+    },
+    "X-KDE-ParentApp": "org.kde.plasmashell",
+    "X-Plasma-APIVersion": "2",
+    "X-Plasma-FallbackPackage": "org.kde.plasma.desktop"
+}
