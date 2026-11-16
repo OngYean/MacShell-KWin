@@ -84,6 +84,12 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   default). On KDE a minimized window sits next to the Trash as a small picture of itself with its app's icon as a
   badge, as on macOS. KWin takes the picture once, when the window is minimized; nothing is captured live. Not yet
   tested in Plasma, and the bridge code for it has not been compiled yet.
+- **Folders in the Dock.** Any folder can be pinned next to the Trash: Settings → Applications → Folders in Dock,
+  or in Dolphin right-click a folder → Pin to MacShell Dock (a KDE service menu the Nix package installs; see
+  [Keyboard shortcuts](#keyboard-shortcuts) for the command behind it). A click opens the folder as a stack above
+  its icon, as on macOS: its newest items as a grid of icons (a picture shows itself), with "Open in File Manager"
+  underneath. A click on an item opens it; right-click the folder → Remove from Dock. Grid view only (no fan or
+  list), and as many items as fit above the Dock: 15 at the default Dock size. Not yet tested in Plasma.
 - **Applications start as their own systemd units** on KDE (`app-macshell-<id>@….service` in `app.slice`), like
   Plasma's own launchers, so they are not children of MacShell and survive a restart of it. Falls back to a direct
   start. Not yet tested in Plasma.
@@ -280,7 +286,9 @@ There is no distribution package yet. You can run MacShell straight from a clone
    `plasmashell`; see [Running it](#running-it) for replacing it.
 
 Without Nix there is no `macshell` / `macshell-session` command. Use `qs -p /path/to/MacShell` in their place, and
-see [Running it](#running-it) for the manual steps.
+see [Running it](#running-it) for the manual steps. For Dolphin's "Pin to MacShell Dock", copy
+`nix/macshell-pin-folder.desktop` to `~/.local/share/kio/servicemenus/`, make the copy executable, and change its
+`Exec=` line to `qs -p /path/to/MacShell ipc call dock pinFolder %f`.
 
 ## Running it
 
@@ -349,6 +357,7 @@ KWin's own task switcher stays on Alt+Tab.
 | `switcher` | `next`, `prev`, `commit`, `cancel` |
 | `settings` | `open` |
 | `widgets` | `refresh` (re-fetch the weather), `edit true\|false` |
+| `dock` | `pinFolder /path/to/folder` (what Dolphin's "Pin to MacShell Dock" runs) |
 
 ### KWin's blur
 
@@ -390,7 +399,7 @@ the global `glassOpacity`.
 | Path | Content |
 | --- | --- |
 | `~/.config/macbar/settings.json` | Menu bar settings |
-| `~/.config/macdock/settings.json`, `pinned.json` | Dock settings and pinned apps |
+| `~/.config/macdock/settings.json`, `pinned.json` | Dock settings; pinned apps and folders (an entry starting with `/` is a folder) |
 | `~/.config/macwidgets/settings.json`, `images/` | Desktop widgets and the pictures of Image widgets |
 | `~/.cache/macbar/` | Clipboard history helper files |
 | `~/Pictures/Screenshots` | Default screenshot folder |
