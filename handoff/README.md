@@ -30,6 +30,19 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`17-per-screen-tests.md`](17-per-screen-tests.md) — on `pending-test` (2026-11-12): desktop widgets on any screen (B12) and a title and menu per screen (F12); from 2026-11-13 also one popover or menu at a time on all screens (F13). Design, limits and test plan.
 
+- [`18-lock-screen-tests.md`](18-lock-screen-tests.md) — on `pending-test` (2026-11-16): MacLock as the screen KDE's locker shows (F15). KDE keeps the locking and the password check; a Plasma/Shell package and `programs.macshell.lockScreen` switch the look. Routes considered, design, test plan and limits.
+
+## Update (2026-11-16, branch `pending-test`)
+
+The user asked to theme Plasma's lock screen with MacLock, replacing Plasma's lock screen only if needed. It is F15 in [`18-lock-screen-tests.md`](18-lock-screen-tests.md). KDE's locker is not replaced: KWin has no `ext-session-lock`, so MacLock cannot lock a Plasma session itself, and swapping KDE's greeter binary was rejected as unsafe. Instead MacLock's UI is packaged as the lock screen of a Plasma/Shell package (`com.macshell.lock`, `packages.macshell-lock`), which KDE's locker loads when `programs.macshell.lockScreen = true` sets `PLASMA_DEFAULT_SHELL`. The option is off by default.
+
+What changed for anyone reading older briefs:
+- `MacLock/LockScreen.qml` no longer imports Quickshell. Its session-specific parts are in `Host.qml`, `Run.qml` and `JsonFile.qml`, with a KDE copy of each in `MacLock/kde/ui/`. This also changed the Hyprland path, which has no test machine.
+- "KDE's lock screen is used" (briefs [`00`](00-project-state.md), [`05`](05-kwin-port.md)) still holds for the locker; only the screen it draws can now be MacLock's.
+- New test: `sh nix/test-lock-screen.sh` (Qt's `qml` tool, offscreen), run by CI as an informational step.
+
+Nothing has run in Plasma. Next: the test plan in [`18`](18-lock-screen-tests.md), starting with the windowed test, which locks nothing.
+
 ## Update (2026-11-13, branch `pending-test`)
 
 The user reported that with KWin's blur chosen for the Dock, right-clicking a Dock icon still makes the Dock's blur re-render. It is B13 in [`16-blur-panels-report.md`](16-blur-panels-report.md): the limit B9 had left open (the right-click menu changed the blur's bounding box). The Dock now holds the box at its whole window (`holdRect` in `MacDock.qml`, one line). Checked with `qmllint` (syntax) only; not run in Plasma, and the extra GPU work it may cost is described there, not measured. Committed and pushed (`dc52473`, `2eac97a`, `83eddc5`).
