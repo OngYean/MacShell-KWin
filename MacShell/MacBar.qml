@@ -544,6 +544,11 @@ Scope {
     readonly property string configDir: Quickshell.env("HOME") + "/.config/macbar"
     readonly property string dockConfigDir: Quickshell.env("HOME") + "/.config/macdock"
     readonly property int popRoom: 900
+    // KWin: the bar's window is popRoom tall only while something is drawn below the bar (a popover, a banner). At rest it
+    // is the bar plus restRoom, so the compositor is not handed a screen-wide, 900 px tall, almost empty surface to keep
+    // buffers for and blend over every window. Hyprland keeps the fixed height: it animates layer resizes.
+    readonly property bool barShrinks: !!comp && comp.isKWin
+    readonly property int restRoom: 24          // the feather under a clear bar reaches 14 px below it
 
     function sh(cmd) { Quickshell.execDetached(["sh", "-c", cmd]); }
     // Lock / sleep / log out / restart / shut down: the compositor backend knows how (Hyprland: MacLock, uwsm or hyprctl exit;
@@ -5124,7 +5129,10 @@ Scope {
             screen: perScreen.modelData
 
             anchors { left: true; right: true; top: true }
-            implicitHeight: root.barH + root.popRoom
+            implicitHeight: root.barH + ((root.barShrinks && !roomy) ? root.restRoom : root.popRoom)
+            // tall from the moment something below the bar shows; short again 2 s after the last of it has gone, so a fold-away
+            // animation or a banner's exit is never cut off and opening popovers in a row does not resize the surface each time
+            property bool roomy: true
             color: "transparent"
 
             exclusionMode: ExclusionMode.Normal
@@ -5139,6 +5147,9 @@ Scope {
             Item {
                 id: ui
                 anchors.fill: parent
+                // the window's height while a popover is open. Popover sizes use this, not ui.height: under KWin the window is
+                // short at rest and only grows a frame or two after the popover starts opening
+                readonly property real tallH: root.barH + root.popRoom
 
                 property string pop: ""          // "", apple, app, file, edit, view, window, help, cc, cal
                 property real menuX: 0
@@ -5421,7 +5432,7 @@ Scope {
                 Timer {
                     id: spotToneT
                     interval: 330
-                    onTriggered: if (ui.pop === "spot" && ui.toastScreen) root.measureTone(win.modelData.x + ui.width / 2 - 320, win.modelData.y + ui.height * 0.4 - 30, 640, 60)
+                    onTriggered: if (ui.pop === "spot" && ui.toastScreen) root.measureTone(win.modelData.x + ui.width / 2 - 320, win.modelData.y + ui.tallH * 0.4 - 30, 640, 60)
                 }
                 Connections {
                     target: root
@@ -5866,6 +5877,13 @@ Scope {
                     width: ui.width
                     height: ((ui.pop !== "" && ui.pop !== "spot") || ui.popElsewhere) ? ui.height : root.barH
                 }
+                // something is drawn (or takes clicks) below the bar: an open popover, one still folding away (its own
+                // `visible`), the click-away area, a notification banner. Anything new that lives below the bar belongs here.
+                readonly property bool below: (ui.pop !== "" && ui.pop !== "spot") || ui.popElsewhere || ui.toastsShown
+                    || volPop.visible || kbPop.visible || notifPop.visible || menuPop.visible || trayPop.visible
+                    || wifiPop.visible || btPop.visible || cal.visible || cc.visible
+                onBelowChanged: { if (below) { shrinkT.stop(); win.roomy = true; } else shrinkT.restart(); }
+                Timer { id: shrinkT; interval: 2000; running: true; onTriggered: if (!ui.below) win.roomy = false }
 
                 // Bar background without its own layer (KWin): the same fill, drawn under every bar item, with KWin's blur behind it
                 Rectangle {
@@ -6361,7 +6379,7 @@ Scope {
                     // same morph as the Wi-Fi popover, growing out of the speaker icon (menuX is the icon's centre here)
     readonly property real ps: root.barPopupScale
                     readonly property real fullW: 330
-                    readonly property real fullH: Math.min(volCol.height + 28, ui.height - root.barH - 40)
+                    readonly property real fullH: Math.min(volCol.height + 28, ui.tallH - root.barH - 40)
                     // the rectangle it grows from (the bar icon, in screen px) and the one it grows into
                     readonly property real srcW: 26
                     readonly property real srcH: 22
@@ -7236,7 +7254,7 @@ Scope {
                             readonly property real fromW: from ? from.width : menuPop.width
                             // room to the right and below, in the dropdown's own (scaled) coordinates
                             readonly property real roomW: (ui.width - 6 - menuPop.x) / root.barPopupScale
-                            readonly property real roomH: (ui.height - 6 - menuPop.y) / root.barPopupScale
+                            readonly property real roomH: (ui.tallH - 6 - menuPop.y) / root.barPopupScale
                             z: 20 + index
                             width: Math.max(180, Math.min(root.menuFitWidth(rows, lead, menuFm, menuScFm), 640))
                             height: subCol.height + 14
