@@ -1,0 +1,22 @@
+# MacShell as a user service, for installs outside Nix (the Home Manager module defines the same unit).
+# `macshell-session start|coexist|stop` drives it for one login; `macshell-session autostart replace|coexist|off`
+# decides what every Plasma login starts.
+[Unit]
+Description=MacShell (Quickshell desktop shell)
+PartOf=graphical-session.target
+# After plasma-core.target (KWin and the environment are up by then) and after plasmashell, so a coexisting plasmashell
+# owns its notification names first. Never after graphical-session.target: plasma-workspace.target wants this unit
+# and is itself ordered before that target.
+After=plasma-core.target plasma-plasmashell.service
+# gives up after 3 failures in a minute, then the fallback brings plasmashell back
+StartLimitIntervalSec=60
+StartLimitBurst=3
+OnFailure=macshell-fallback.service
+
+[Service]
+ExecStart=@CMAKE_INSTALL_PREFIX@/bin/macshell
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=plasma-workspace.target

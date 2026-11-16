@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # MacShell installer / updater
 #
+# THIS FORK (OngYean/MacShell-KWin): in a KDE Plasma session, or with --kde, this script builds and installs the KWin
+# port from the clone it is in, and --uninstall removes it: see the "KDE Plasma" block below and ./install.sh --kde --help.
+# In any other session, or with --hyprland, it is the original project's Hyprland installer, described from here on. That
+# part is unchanged and unsupported here: it downloads and installs the original MacShell, not this fork.
+#
 #   git clone https://github.com/0-ss/MacShell && cd MacShell
 #   ./install.sh            (installs exactly what is in the clone)
 #   ./install.sh --gui      (same, in the graphical installer)
@@ -73,6 +78,112 @@
 #              MACLOCK_DEST, GITHUB_TOKEN
 
 set -euo pipefail
+
+# ═════════════════════════ KDE Plasma (this fork) ═════════════════════════
+# Builds this clone with the top-level CMakeLists.txt and installs it under a prefix (~/.local unless told otherwise):
+# bin/macshell, bin/macshell-session, bin/macshell-kwin-bridge, share/macshell/shell (the Quickshell configuration),
+# the systemd user units, Dolphin's "Pin to MacShell Dock" and MacLock as a lock-screen package. It installs no
+# distribution packages and edits no KDE configuration; plasmashell is never removed, masked or disabled.
+kde_usage() {
+    cat <<'USAGE'
+MacShell for KDE Plasma: install or remove this clone's copy.
+
+  ./install.sh                          build and install to ~/.local
+  ./install.sh --prefix /usr/local      another prefix (uses sudo for the copy when it cannot write there)
+  ./install.sh --autostart replace      also start MacShell at every Plasma login, in place of plasmashell
+  ./install.sh --uninstall              remove it (your settings are kept); add --prefix if you used one
+
+Options
+      --prefix DIR       where to install (default: ~/.local)
+      --autostart MODE   replace | coexist | off: what a Plasma login starts (default: left as it is)
+      --uninstall        stop MacShell and bring plasmashell back, turn autostart off, remove the installed files
+      --kde              install for KDE Plasma even outside a Plasma session
+      --hyprland         run the original project's Hyprland installer even in a Plasma session
+  -h, --help
+
+After installing:  macshell-session start    (in place of plasmashell, for this login; `stop` undoes it)
+USAGE
+}
+kde_die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+# What the top-level CMakeLists.txt installs, relative to the prefix (nix/test-install.sh checks the two agree)
+kde_files="bin/macshell bin/macshell-session bin/macshell-kwin-bridge share/macshell/shell
+share/systemd/user/macshell.service share/systemd/user/macshell-fallback.service
+share/kio/servicemenus/macshell-pin-folder.desktop share/plasma/shells/com.macshell.lock"
+
+kde_main() {
+    local prefix="$HOME/.local" autostart="" uninstall=0 here build sudo="" d f miss=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --kde) ;;
+            --prefix) prefix="${2:-}"; shift ;;
+            --autostart) autostart="${2:-}"; shift ;;
+            --uninstall) uninstall=1 ;;
+            -h|--help) kde_usage; exit 0 ;;
+            *) kde_die "unknown option for the KDE Plasma install: $1 (try --help; --hyprland runs the Hyprland installer)" ;;
+        esac
+        shift
+    done
+    case "$prefix" in /?*) prefix="${prefix%/}" ;; *) kde_die "--prefix must be an absolute path" ;; esac
+    case "$autostart" in ""|replace|coexist|off) ;; *) kde_die "--autostart must be replace, coexist or off" ;; esac
+    [ "$(id -u)" -ne 0 ] || kde_die "run this as your normal user (it asks for sudo itself when the prefix needs it)"
+    # sudo only for a prefix this user cannot write: the nearest directory that exists decides
+    d="$prefix"; while [ ! -e "$d" ]; do d=$(dirname "$d"); done
+    [ -w "$d" ] || sudo="sudo"
+
+    if [ "$uninstall" = 1 ]; then
+        # never leave the session without a shell, and leave nothing behind that changes the next login
+        if [ -x "$prefix/bin/macshell-session" ] && command -v systemctl >/dev/null 2>&1; then
+            "$prefix/bin/macshell-session" stop || true
+            "$prefix/bin/macshell-session" autostart off || true
+        fi
+        for f in $kde_files; do $sudo rm -rf "${prefix:?}/$f"; done
+        $sudo rmdir "$prefix/share/macshell" 2>/dev/null || true      # kept when the Hyprland installer's files are in it
+        command -v systemctl >/dev/null 2>&1 && systemctl --user daemon-reload 2>/dev/null || true
+        echo "MacShell was removed from $prefix. Your settings were kept (~/.config/macbar, macdock, macshell, macwidgets)."
+        return 0
+    fi
+
+    for f in cmake pkg-config c++ wayland-scanner qs; do command -v "$f" >/dev/null 2>&1 || miss="$miss $f"; done
+    if command -v pkg-config >/dev/null 2>&1; then
+        for f in KWaylandClient wayland-client wayland-protocols wlr-protocols; do pkg-config --exists "$f" || miss="$miss $f(development-files)"; done
+    fi
+    if [ -n "$miss" ]; then
+        echo "Missing:$miss" >&2
+        echo "Install them with your distribution's package manager (qs is Quickshell 0.3.x; Qt 6 development files are needed too)." >&2
+        if command -v pacman >/dev/null 2>&1; then
+            echo "On Arch:  sudo pacman -S --needed base-devel cmake quickshell qt6-base qt6-declarative qt6-multimedia qt6-svg kwayland wayland wayland-protocols wlr-protocols" >&2
+            echo "          (or build the package instead: packaging/arch/PKGBUILD)" >&2
+        fi
+        exit 1
+    fi
+
+    here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    [ -f "$here/CMakeLists.txt" ] && [ -f "$here/MacShell/shell.qml" ] || kde_die "run this from a clone of MacShell-KWin (CMakeLists.txt and MacShell/ are next to install.sh)"
+    build=$(mktemp -d)
+    trap 'rm -rf "$build"' EXIT
+    cmake -S "$here" -B "$build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$prefix"
+    cmake --build "$build"
+    $sudo cmake --install "$build"
+    command -v systemctl >/dev/null 2>&1 && systemctl --user daemon-reload 2>/dev/null || true
+    [ -z "$autostart" ] || "$prefix/bin/macshell-session" autostart "$autostart"
+
+    echo
+    echo "MacShell $(cat "$here/MacShell/VERSION") is installed in $prefix."
+    case ":$PATH:" in *":$prefix/bin:"*) ;; *) echo "$prefix/bin is not on your PATH: add it, or call the commands below by their full path." ;; esac
+    echo "  macshell-session start                 in place of plasmashell, for this login (stop: back to plasmashell)"
+    echo "  macshell-session autostart replace     at every Plasma login (coexist: next to plasmashell; off: not at all)"
+    echo "  ./install.sh --uninstall               remove it again"
+}
+
+kde=""
+for a in "$@"; do case "$a" in --kde) kde=1 ;; --hyprland) kde=0 ;; esac; done
+[ -n "$kde" ] || case "${XDG_CURRENT_DESKTOP:-}" in *KDE*) kde=1 ;; *) kde=0 ;; esac
+if [ "$kde" = 1 ]; then kde_main "$@"; exit 0; fi
+# the Hyprland installer does not know --hyprland
+hypr_args=(); for a in "$@"; do [ "$a" = --hyprland ] || hypr_args+=("$a"); done
+set -- ${hypr_args[@]+"${hypr_args[@]}"}
+# ═════════════════════════ the original Hyprland installer ═════════════════════════
 
 REPO="${MACSHELL_REPO:-0-ss/MacShell}"
 BRANCH="${MACSHELL_BRANCH:-main}"

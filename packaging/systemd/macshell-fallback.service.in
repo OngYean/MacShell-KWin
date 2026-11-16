@@ -1,0 +1,11 @@
+# MacShell has failed for good: never leave the session without a shell. Does nothing while plasmashell already runs.
+[Unit]
+Description=Start plasmashell again after MacShell failed
+# only in a running session, not when MacShell dies because the session is being logged out
+Requisite=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=systemctl --user unset-environment MACSHELL_KDE_MODE
+ExecStart=systemctl --user start --no-block plasma-plasmashell.service
