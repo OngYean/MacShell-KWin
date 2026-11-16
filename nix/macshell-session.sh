@@ -6,13 +6,19 @@
 #   coexist  run MacShell next to plasmashell, starting plasmashell again if it was stopped (Plasma keeps its
 #            notifications, pop-ups, clipboard history and desktop). `restore` does the same.
 #   stop     stop MacShell, and bring plasmashell back so the session is never left without a shell
-# Nothing here is persistent: no unit is enabled, disabled or masked. What the next login does is up to programs.macshell
+# Nothing above is persistent: no unit is enabled, disabled or masked. What the next login does is up to programs.macshell
 # (Home Manager): with autostart and mode = "replace" plasmashell is skipped at login, otherwise it starts as usual.
+#   autostart replace|coexist|off   the same choice for installs outside Nix (install.sh, the Arch package). It is the
+#            one persistent command: it enables or disables macshell.service for Plasma logins, and for "replace" writes
+#            the two files that make plasmashell skip itself at login. plasmashell is never masked or removed.
 # KWin, Klassy, KDE's lock screen, kded, PowerDevil and the portals are never touched.
 set -eu
 
 unit="macshell.service"
 plasma="plasma-plasmashell.service"
+# macshell and the bridge are installed next to this script, which need not be on PATH (~/.local/bin)
+PATH="$PATH:${0%/*}"
+export PATH
 
 have_unit() { systemctl --user cat "$unit" >/dev/null 2>&1; }
 
@@ -80,8 +86,45 @@ case "${1:-status}" in
         stop_macshell
         if in_plasma; then bring_plasmashell_back; fi
         ;;
+    autostart)
+        conf="${XDG_CONFIG_HOME:-$HOME/.config}"
+        # what programs.macshell writes with mode = "replace": plasmashell's unit skips itself while the variable is set,
+        # and the variable is in the user manager's environment from login on
+        dropin="$conf/systemd/user/$plasma.d/macshell.conf"
+        envfile="$conf/environment.d/macshell.conf"
+        if [ -L "$conf/systemd/user/$unit" ]; then
+            echo "macshell-session: $unit is managed by Home Manager; set programs.macshell.autostart and .mode instead" >&2
+            exit 2
+        fi
+        case "${2:-}" in
+            replace)
+                mkdir -p "${dropin%/*}" "${envfile%/*}"
+                printf '[Unit]\nConditionEnvironment=!MACSHELL_KDE_MODE=replace\n' > "$dropin"
+                printf 'MACSHELL_KDE_MODE=replace\n' > "$envfile"
+                systemctl --user daemon-reload
+                systemctl --user enable "$unit"
+                echo "From the next Plasma login MacShell starts in place of plasmashell. For this login: macshell-session start"
+                ;;
+            coexist)
+                rm -f "$dropin" "$envfile"
+                systemctl --user daemon-reload
+                systemctl --user enable "$unit"
+                echo "From the next Plasma login MacShell starts next to plasmashell. For this login: macshell-session coexist"
+                ;;
+            off)
+                rm -f "$dropin" "$envfile"
+                systemctl --user disable "$unit" || true
+                systemctl --user daemon-reload
+                echo "Plasma logins start plasmashell only."
+                ;;
+            *)
+                echo "usage: macshell-session autostart replace|coexist|off" >&2
+                exit 2
+                ;;
+        esac
+        ;;
     *)
-        echo "usage: macshell-session status|start|coexist|stop   (replace = start, restore = coexist)" >&2
+        echo "usage: macshell-session status|start|coexist|stop|autostart   (replace = start, restore = coexist)" >&2
         exit 2
         ;;
 esac

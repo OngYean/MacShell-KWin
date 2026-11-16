@@ -2,8 +2,14 @@
 # macshell — run MacShell (Quickshell) from its installed configuration.
 #   macshell                              start the shell (the compositor backend is detected: KWin or Hyprland)
 #   macshell ipc call spotlight toggle    talk to the running shell (also: log, list, kill); use this in KDE shortcuts
-# MACSHELL_CONFIG is set by the Nix wrapper to the configuration in the store.
-cfg="${MACSHELL_CONFIG:?MACSHELL_CONFIG is not set (run the packaged macshell)}"
+# MACSHELL_CONFIG is set by the Nix wrapper to the configuration in the store. Without it this is a CMake install
+# (install.sh, the Arch package): the configuration is in ../share/macshell/shell from this script, and the KWin bridge
+# is next to this script, which need not be on PATH (~/.local/bin in a systemd unit).
+here=${0%/*}
+cfg="${MACSHELL_CONFIG:-$here/../share/macshell/shell}"
+[ -n "${MACSHELL_CONFIG:-}" ] || [ -f "$cfg/shell.qml" ] || { echo "macshell: no configuration in $cfg (set MACSHELL_CONFIG)" >&2; exit 1; }
+PATH="$PATH:$here"
+export PATH
 case "${1:-}" in
     ipc | log | list | kill)
         sub="$1"
