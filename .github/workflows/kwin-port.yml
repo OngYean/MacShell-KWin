@@ -42,6 +42,7 @@ jobs:
           node nix/test-kde-colors.js
           node nix/test-panel-look.js
           node nix/test-widget-screens.js
+          node nix/test-wallpaper-size.js
           python3 kwin-bridge/fake-bridge.py --selftest
 
       - name: The Home Manager module evaluates
