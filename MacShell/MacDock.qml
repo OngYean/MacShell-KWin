@@ -32,6 +32,7 @@ import "I18n.js" as I18n
 import "Fonts.js" as Fonts
 import "KdeColors.js" as KdeColors
 import "DockFolders.js" as DockFolders
+import "AppleMenu.js" as AppleMenu
 
 Scope {
     id: root
@@ -517,6 +518,46 @@ Scope {
             font.pixelSize: 13
         }
         MouseArea { id: ma; anchors.fill: parent; onClicked: b.clicked() }
+    }
+
+    // One-line text field. `value` is what it shows; edited(text) fires as the user types.
+    component SField: Rectangle {
+        id: f
+        required property var t
+        property string value: ""
+        property string hint: ""
+        signal edited(string text)
+        height: 24
+        radius: 6
+        color: t.ctrl
+        border.width: 1
+        border.color: t.cardBorder
+        onValueChanged: if (fi.text !== value) fi.text = value
+        TextInput {
+            id: fi
+            anchors.fill: parent
+            anchors.leftMargin: 8; anchors.rightMargin: 8
+            verticalAlignment: TextInput.AlignVCenter
+            clip: true
+            selectByMouse: true
+            color: f.t.text
+            selectionColor: f.t.accent
+            font.family: root.fontForWeight(Font.Normal, f.t.fam)
+            font.pixelSize: 12
+            Component.onCompleted: text = f.value
+            onTextEdited: f.edited(text)
+        }
+        Text {
+            visible: fi.text === ""
+            x: 8
+            width: parent.width - 16
+            anchors.verticalCenter: parent.verticalCenter
+            elide: Text.ElideRight
+            text: f.hint
+            color: f.t.text3
+            font.family: root.fontForWeight(Font.Normal, f.t.fam)
+            font.pixelSize: 12
+        }
     }
 
     // Light / Dark appearance thumbnail
@@ -1972,6 +2013,72 @@ Scope {
                         t: pal; title: I18n.tr("Clock and calendar")
                         SSwitch { t: pal; checked: root.bar ? root.bar.barWidgetEnabled("clock") : true; onToggled: v => { if (root.bar) root.bar.setBarWidget("clock", v); } }
                     }
+                }
+
+                // ── the Apple menu's items: order, custom commands, items of your own (AppleMenu.js) ──
+                SLabel { t: pal; header: true; text: I18n.tr("Apple Menu Items") }
+                SCard {
+                    id: amCard
+                    t: pal
+                    readonly property var list: AppleMenu.clean(root.bar ? root.bar.appleMenuItems : undefined)
+                    function put(l) { if (root.bar) root.bar.setAppleMenu(l); }
+                    SRow {
+                        t: pal
+                        visible: amCard.list.length === 0
+                        title: I18n.tr("The menu is empty")
+                    }
+                    Repeater {
+                        // by count, not by the list: every key typed into a field replaces the list, and rows rebuilt
+                        // each time would take the keyboard focus away
+                        model: amCard.list.length
+                        delegate: SRow {
+                            id: amRow
+                            required property int index
+                            readonly property var e: amCard.list[index] || ({ id: "sep", label: "", command: "" })
+                            t: pal
+                            title: e.id === "custom" ? e.label : I18n.tr(AppleMenu.names[e.id])
+                            Row {
+                                spacing: 6
+                                SField {
+                                    t: pal; width: 120
+                                    visible: amRow.e.id === "custom"
+                                    hint: I18n.tr("Name")
+                                    value: amRow.e.label
+                                    onEdited: v => amCard.put(AppleMenu.set(amCard.list, amRow.index, "label", v))
+                                }
+                                SField {
+                                    t: pal; width: 200
+                                    visible: amRow.e.id !== "sep"
+                                    hint: amRow.e.id === "custom" ? I18n.tr("Command") : I18n.tr("Command to run instead")
+                                    value: amRow.e.command
+                                    onEdited: v => amCard.put(AppleMenu.set(amCard.list, amRow.index, "command", v))
+                                }
+                                SButton { t: pal; text: "\u2191"; onClicked: amCard.put(AppleMenu.move(amCard.list, amRow.index, -1)) }
+                                SButton { t: pal; text: "\u2193"; onClicked: amCard.put(AppleMenu.move(amCard.list, amRow.index, 1)) }
+                                SButton { t: pal; text: "\u2715"; destructive: true; onClicked: amCard.put(AppleMenu.remove(amCard.list, amRow.index)) }
+                            }
+                        }
+                    }
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    SButton { t: pal; text: I18n.tr("Add Custom Item"); onClicked: amCard.put(AppleMenu.add(amCard.list, "custom")) }
+                    SButton { t: pal; text: I18n.tr("Add Separator"); onClicked: amCard.put(AppleMenu.add(amCard.list, "sep")) }
+                    Repeater {
+                        model: AppleMenu.missing(amCard.list)       // built-in items that were removed
+                        delegate: SButton {
+                            required property string modelData
+                            t: pal
+                            text: "+ " + I18n.tr(AppleMenu.names[modelData])
+                            onClicked: amCard.put(AppleMenu.add(amCard.list, modelData))
+                        }
+                    }
+                    SButton { t: pal; text: I18n.tr("Reset"); onClicked: amCard.put(undefined) }
+                }
+                SLabel {
+                    t: pal
+                    text: I18n.tr("The menu shows these items in this order. A command next to a built-in item runs instead of what the item does; leave it empty for the usual action. Commands run with sh. Recent Items lists applications started from the Dock or Spotlight.")
                 }
 
                 SCard {

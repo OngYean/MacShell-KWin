@@ -79,6 +79,7 @@ import Quickshell.Services.Notifications
 import "EmojiData.js" as EmojiData
 import "I18n.js" as I18n
 import "Fonts.js" as Fonts
+import "AppleMenu.js" as AppleMenu
 
 Scope {
     id: root
@@ -387,6 +388,11 @@ Scope {
     property string filesCmd: "xdg-open \"$HOME\""
     property string clipboardCmd: "cliphist list | (fuzzel --dmenu || wofi --dmenu || rofi -dmenu) | cliphist decode | wl-copy"
     property var appUsage: ({})               // launch counts, feeds the "Suggestions" row in Spotlight
+    property var recentApps: []               // ids of the applications started last from MacShell, newest first (Apple menu → Recent Items)
+    // The Apple menu's items in order (AppleMenu.js; Settings → Menu Bar → Apple Menu Items). undefined = the default menu.
+    property var appleMenuItems: undefined
+    // (the settings signature cannot see inside a list of objects, so the save is asked for here)
+    function setAppleMenu(list) { appleMenuItems = list; saveTimer.restart(); }
     property bool clipHistory: true           // keep a clipboard history for Spotlight → Clipboard (needs wl-clipboard + cliphist)
     property bool clipAutoPaste: true         // after picking a clipboard entry / emoji, paste it into the focused app
     property var emojiRecent: []              // recently used emoji, newest first
@@ -418,7 +424,7 @@ Scope {
     readonly property var settingKeys: ["barEnabled", "darkMode", "appearanceMode", "accent", "fontFamily", "barHeight", "uiScaleAuto", "uiScaleManual", "glassOpacity",
         "barStyle", "barGlass", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "barBgOpacity", "glassRealtime", "liveWallGlass", "glassDebug", "wallpaperPath", "use24h", "language", "showDate",
         "showSeconds", "showBatteryPercent", "showTray", "showSearch",
-        "spotlightEnabled", "reduceMotion", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "menuCascade", "desktopTitle", "terminal", "launcher",
+        "spotlightEnabled", "reduceMotion", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "menuCascade", "desktopTitle", "appleMenuItems", "recentApps", "terminal", "launcher",
         "filesCmd", "clipboardCmd", "appUsage", "clipHistory", "clipAutoPaste", "emojiRecent", "screenshotDir", "screenshotSave", "screenshotClipboard", "screenshotNotify", "nightTemp", "ccControls", "ccMigRec", "wallpaperDir", "wallpaperFavs", "wallpaperCmd", "wallpaperVideo", "wpRestorePath", "uiSounds", "gamingMode", "gamingAuto", "ccMigGame", "lockArtBackground",
         "lockClockStyle", "switcherStyle", "lockClockFont", "lockClockWeight", "lockClockMaterial", "lockClockIntensity", "lockClockTint", "lockClockDate", "autoContrast", "wallpaperAppearance", "wpPairLight", "wpPairDark",
         "notifDnd", "dnd", "nightOn", "keepAwake",
@@ -3526,6 +3532,7 @@ Scope {
     // Everything goes through hub.launch, which on KDE starts the app as its own systemd unit (shell.qml).
     function runEntry(e) {
         if (!e) return;
+        if (e.id) recentApps = AppleMenu.pushRecent(Array.isArray(recentApps) ? recentApps : [], String(e.id), 8);
         var cmd = [], wd = "";
         try { cmd = e.command ? Array.prototype.slice.call(e.command) : []; } catch (err) { cmd = []; }
         try { wd = e.workingDirectory || ""; } catch (err2) { wd = ""; }
@@ -3676,24 +3683,104 @@ Scope {
         return out.slice(0,8);
     }
 
+    // ── the Apple menu: its items come from a list the user arranges (AppleMenu.js) ──
+    // One entry of that list as a menu row. A command set on a built-in item runs instead of what the item does.
+    function appleItem(e) {
+        if (e.id === "sep") return msep();
+        var it = { kind: "item", shortcut: "", label: e.id === "custom" ? e.label : AppleMenu.names[e.id], raw: e.id === "custom" };
+        var cmd = e.command.trim();
+        switch (e.id) {
+        case "about":
+            it.glyph = "m_about";
+            it.run = function () {
+                if (hub && hub.about) hub.about.open();
+                else sh(terminal + " -e sh -c 'fastfetch || neofetch; echo; read -p \"Press Enter\" _'");
+            };
+            break;
+        case "settings": it.glyph = "gear"; it.run = function () { root.openSettings(); }; break;
+        case "recent": it.glyph = "layers"; it.asub = "recent"; break;            // asub: opens inside the popover (appleSubModel)
+        case "forcequit": it.glyph = "close"; it.asub = "forcequit"; break;
+        case "sleep": it.glyph = "moon"; it.run = function () { root.sleepMachine(); }; break;
+        case "restart": it.glyph = "m_restart"; it.confirm = true; it.run = function () { if (root.comp) root.comp.reboot(); }; break;
+        case "shutdown": it.glyph = "m_power"; it.confirm = true; it.run = function () { if (root.comp) root.comp.shutdown(); }; break;
+        case "lock": it.glyph = "m_lock"; it.run = function () { root.lockScreen(); }; break;
+        case "logout": it.glyph = "m_logout"; it.confirm = true; it.run = function () { root.logOut(); }; break;
+        }
+        if (cmd !== "") { it.run = function () { root.sh(cmd); }; it.asub = undefined; }
+        if (it.asub) it.shortcut = "\u203A";
+        return it;
+    }
+    // the open applications, one per app id, with the processes of their windows (MacShell's own windows are left out)
+    function runningApps() {
+        var wins = [], out = [], at = {}, i;
+        if (onHyprland) {
+            var ts = Hyprland.toplevels.values;
+            for (i = 0; i < ts.length; i++) { var o = ts[i].lastIpcObject || {}; wins.push({ cls: String(o["class"] || ts[i].appId || ""), pid: Number(o.pid) || 0 }); }
+        } else {
+            var cl = comp ? comp.clients : [];
+            for (i = 0; i < cl.length; i++) wins.push({ cls: String(cl[i]["class"] || ""), pid: Number(cl[i].pid) || 0 });
+        }
+        for (i = 0; i < wins.length; i++) {
+            var w = wins[i], k = w.cls.toLowerCase();
+            if (k === "" || k === "org.quickshell" || w.pid <= 0) continue;
+            if (at[k] === undefined) {
+                var ap = lookup(w.cls);
+                at[k] = out.length;
+                out.push({ name: ap ? ap.name : w.cls, icon: ap ? iconSrc(ap.icon) : "", pids: [] });
+            }
+            if (out[at[k]].pids.indexOf(w.pid) < 0) out[at[k]].pids.push(w.pid);
+        }
+        return out;
+    }
+    // Recent Items and Force Quit open inside the Apple menu's popover, under a "‹" row that goes back
+    function appleSubModel(id) {
+        var m = [{ kind: "item", label: "\u2039  " + I18n.tr(AppleMenu.names[id]).replace(/\u2026$/, ""), raw: true, back: true }, msep()], i, n = 0;
+        var head = function (t) { return { kind: "item", label: t, disabled: true }; };
+        if (id === "recent") {
+            // applications started from MacShell (Dock, Spotlight), then the files recent-files.sh finds
+            m.push(head("Applications"));
+            var ra = Array.isArray(recentApps) ? recentApps : [];
+            for (i = 0; i < ra.length; i++) {
+                var e = null;
+                try { e = DesktopEntries.byId(ra[i]); } catch (err) { e = null; }
+                if (!e) continue;
+                n++;
+                m.push({ kind: "item", label: e.name, raw: true, icon: iconSrc(e.icon), run: appRunner(e) });
+            }
+            if (n === 0) m.push(head("None"));
+            m.push(msep());
+            m.push(head("Documents"));
+            n = 0;
+            for (i = 0; i < recentHits.length && n < 8; i++) {
+                if (recentHits[i].kind !== "f") continue;
+                n++;
+                (function (p) {
+                    m.push(ico({ kind: "item", label: p.substring(p.lastIndexOf("/") + 1), raw: true, run: function () { root.openPath(p); } }, "doc"));
+                })(recentHits[i].path);
+            }
+            if (n === 0) m.push(head(recentLoading ? "Loading\u2026" : "None"));
+        } else {
+            // a first click arms the row ("Click again to confirm"), the second kills the app's processes
+            var apps = runningApps();
+            for (i = 0; i < apps.length; i++) {
+                (function (a) {
+                    m.push({ kind: "item", label: a.name, raw: true, icon: a.icon, confirm: true,
+                             run: function () { Quickshell.execDetached(["kill", "-9"].concat(a.pids.map(String))); } });
+                })(apps[i]);
+            }
+            if (apps.length === 0) m.push(head("No open applications"));
+        }
+        return m;
+    }
+
     // desktop: the menus of a bar whose screen shows no window, whatever is active on another screen
     function menuModelFor(name, desktop) {
         if (isGm(name)) return gmPathModel([], Number(name.substring(3)));
         var m = [], i;
         if (name === "apple") {
-            m.push(ico(mi("About This Linux", "", function () {
-                if (hub && hub.about) hub.about.open();
-                else sh(terminal + " -e sh -c 'fastfetch || neofetch; echo; read -p \"Press Enter\" _'");
-            }), "m_about"));
-            m.push(msep());
-            m.push(ico(mi("System Settings\u2026", "", function () { root.openSettings(); }), "gear"));
-            m.push(msep());
-            m.push(ico(mi("Sleep", "", function () { root.sleepMachine(); }), "moon"));
-            m.push(ico(mc("Restart\u2026", function () { if (root.comp) root.comp.reboot(); }), "m_restart"));
-            m.push(ico(mc("Shut Down\u2026", function () { if (root.comp) root.comp.shutdown(); }), "m_power"));
-            m.push(msep());
-            m.push(ico(mi("Lock Screen", "", function () { root.lockScreen(); }), "m_lock"));
-            m.push(ico(mc("Log Out\u2026", function () { root.logOut(); }), "m_logout"));
+            var am = AppleMenu.shown(AppleMenu.clean(appleMenuItems));
+            for (i = 0; i < am.length; i++) m.push(appleItem(am[i]));
+            if (m.length === 0) m.push(appleItem(AppleMenu.entry("settings")));      // every item removed: still a way back to Settings
         } else {
             var id = desktop ? "" : activeAppId.toLowerCase(), kind = appKind(id), has = id !== "";
             var aw = (has && activeWin && String(activeWin["class"]).toLowerCase() === id) ? activeWin : null;
@@ -4280,6 +4367,7 @@ Scope {
         barWidgets = ["appleMenu", "appMenus", "workspaces", "volume", "keyboard", "notifications", "wifi", "bluetooth", "privacy", "controlCenter", "clock"];
         ccControls = ccDefault.slice();
         uiScaleAuto = true; uiScaleManual = 1.0; desktopTitle = "";
+        appleMenuItems = undefined;
     }
 
     // inherit look from macdock first, then macbar's own file wins
@@ -5159,6 +5247,8 @@ Scope {
                 property real trayX: 0
                 property var menuModel: []
                 property var gmPath: []              // global menu: submenus opened inside the popover (item ids)
+                property string appleSub: ""         // Apple menu: "recent" / "forcequit" while that list is open inside the popover
+                function appleModel() { return appleSub !== "" ? root.appleSubModel(appleSub) : root.menuModelFor(pop, !barTl); }
                 property string gmPrev: ""
                 property string gmWin: ""            // the window whose menu this popover shows
                 // the window this screen's bar describes (see root.barTlFor). parked: it is not the active one, so the bar
@@ -5378,7 +5468,9 @@ Scope {
                 }
                 Connections {
                     target: root
-                    function onActiveWinChanged() { if (ui.isMenu && !root.isGm(ui.pop)) ui.menuModel = root.menuModelFor(ui.pop, !ui.barTl); }
+                    function onActiveWinChanged() { if (ui.isMenu && !root.isGm(ui.pop)) ui.menuModel = ui.appleModel(); }
+                    function onRecentHitsChanged() { if (ui.appleSub === "recent") ui.menuModel = ui.appleModel(); }
+                    function onRecentLoadingChanged() { if (ui.appleSub === "recent") ui.menuModel = ui.appleModel(); }
                 }
                 // bounding box of all glass that is on screen right now (popovers, notification popups) + a refraction margin
                 readonly property rect glassRect: {
@@ -5407,6 +5499,7 @@ Scope {
                     root.gmTransition(gmPrev, pop, gmPath, gmWin, gw);
                     gmPrev = pop;
                     cascT.stop();
+                    appleSub = "";
                     gmPath = [];
                     gmRowY = [];
                     gmWin = gw;
@@ -7222,7 +7315,16 @@ Scope {
                                             return;
                                         }
                                         if (it.modelData.sub === true) { ui.gmEnter(it.modelData.gmId, it.y); return; }
-                                        if (it.modelData.back === true) { ui.gmBack(); return; }
+                                        if (it.modelData.asub) {
+                                            ui.appleSub = it.modelData.asub;
+                                            if (ui.appleSub === "recent") root.loadRecents();
+                                            ui.menuModel = ui.appleModel();
+                                            return;
+                                        }
+                                        if (it.modelData.back === true) {
+                                            if (ui.appleSub !== "") { ui.appleSub = ""; ui.menuModel = ui.appleModel(); } else ui.gmBack();
+                                            return;
+                                        }
                                         var run = it.modelData.run;
                                         if (it.modelData.raw === true) { if (run) run(); ui.pop = ""; return; }   // clicked, then closed (as KDE does)
                                         ui.pop = "";
