@@ -21,8 +21,8 @@ jobs:
       - name: Evaluate the flake
         run: nix flake check --no-build --all-systems
 
-      - name: Build the bridge and both shell packages
-        run: nix build -L --no-link .#macshell-kwin-bridge .#macshell .#macshell-hyprland
+      - name: Build the bridge, both shell packages and the lock screen package
+        run: nix build -L --no-link .#macshell-kwin-bridge .#macshell .#macshell-hyprland .#macshell-lock
 
       - name: The bridge starts, and fails cleanly without Wayland
         run: |
@@ -34,7 +34,7 @@ jobs:
 
       - name: Shell scripts and test helpers
         run: |
-          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh nix/test-brightness.sh MacShell/assets/brightness.sh nix/test-launch-app.sh MacShell/assets/launch-app.sh nix/test-macshell.sh
+          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh nix/test-brightness.sh MacShell/assets/brightness.sh nix/test-launch-app.sh MacShell/assets/launch-app.sh nix/test-macshell.sh MacLock/kde/build.sh nix/test-lock-screen.sh
           sh nix/test-macshell-session.sh
           sh nix/test-brightness.sh
           sh nix/test-launch-app.sh
@@ -61,6 +61,7 @@ jobs:
                     home.stateVersion = "25.11";
                     programs.macshell.enable = true;
                     programs.macshell.autostart = true;
+                    programs.macshell.lockScreen = true;
                   }
                 ];
               };
@@ -77,6 +78,8 @@ jobs:
                          then "yes" else "no"}"
             + " after=${toString unit.Unit.After}"
             + " drv=${home.activationPackage.drvPath}"
+            + " lock=${home.config.systemd.user.sessionVariables.PLASMA_DEFAULT_SHELL or "unset"}"
+            + " lockpkg=${if builtins.hasAttr "plasma/shells/com.macshell.lock" home.config.xdg.dataFile then "yes" else "no"}"
           ' > hm.txt 2> hm-err.txt; then
             msg=$(sed -n '/error:/,$p' hm-err.txt | tail -n 30)
             echo "::error title=home-manager eval::$(printf '%s' "${msg:-$(tail -n 30 hm-err.txt)}" | tr '\n' ' ' | sed 's/%/%25/g' | cut -c1-4000)"
@@ -90,6 +93,27 @@ jobs:
           # after that target is a cycle, and systemd then drops MacShell's start job at login
           grep -q " after=plasma-core.target plasma-plasmashell.service " hm.txt \
             || { echo "::error title=home-manager::macshell.service must be ordered after plasma-core.target, not graphical-session.target"; exit 1; }
+
+          # lockScreen = true installs the Plasma/Shell package and names it for KDE's locker
+          grep -q " lock=com.macshell.lock lockpkg=yes" hm.txt \
+            || { echo "::error title=home-manager::lockScreen did not install com.macshell.lock and set PLASMA_DEFAULT_SHELL"; exit 1; }
+
+      - name: Lock screen load checks (informational)
+        # reporting only until Qt's qml tool is known to run on the runners (nixpkgs splits Qt's import and plugin paths)
+        continue-on-error: true
+        run: |
+          qd=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#qt6.qtdeclarative)
+          qb=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#qt6.qtbase)
+          set +e
+          QML_RUNNER="$qd/bin/qml" QML_IMPORTS="$qd/lib/qt-6/qml" QT_PLUGIN_PATH="$qb/lib/qt-6/plugins" \
+            sh nix/test-lock-screen.sh > lock-test.txt 2>&1
+          code=$?
+          set -e
+          cat lock-test.txt
+          # job logs need a GitHub login: the outcome goes into an annotation, readable through the public API
+          level=notice; [ "$code" = 0 ] || level=warning
+          echo "::$level title=lock screen load checks::exit $code: $(tr '\n' ' ' < lock-test.txt | sed 's/%/%25/g' | cut -c1-3000)"
+          exit "$code"
 
       - name: qmllint (informational)
         continue-on-error: true
