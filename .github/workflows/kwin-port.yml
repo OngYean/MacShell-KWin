@@ -34,7 +34,7 @@ jobs:
 
       - name: Shell scripts and test helpers
         run: |
-          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh nix/test-brightness.sh MacShell/assets/brightness.sh nix/test-launch-app.sh MacShell/assets/launch-app.sh nix/test-macshell.sh MacLock/kde/build.sh nix/test-lock-screen.sh MacShell/assets/list-folder.sh
+          nix develop --command shellcheck nix/macshell.sh nix/macshell-session.sh nix/test-macshell-session.sh nix/kwin-smoke.sh nix/test-brightness.sh MacShell/assets/brightness.sh nix/test-launch-app.sh MacShell/assets/launch-app.sh nix/test-macshell.sh MacLock/kde/build.sh nix/test-lock-screen.sh MacShell/assets/list-folder.sh nix/test-install.sh
           sh nix/test-macshell-session.sh
           sh nix/test-brightness.sh
           sh nix/test-launch-app.sh
@@ -44,7 +44,13 @@ jobs:
           node nix/test-widget-screens.js
           node nix/test-wallpaper-size.js
           node nix/test-dock-folders.js
+          sh nix/test-install.sh
           python3 kwin-bridge/fake-bridge.py --selftest
+
+      - name: The install outside Nix builds (top-level CMakeLists.txt, with the bridge)
+        run: |
+          nix develop --command sh -c 'cmake -S . -B "$RUNNER_TEMP/cmake-build" -DCMAKE_INSTALL_PREFIX=/usr && cmake --build "$RUNNER_TEMP/cmake-build" && DESTDIR="$RUNNER_TEMP/stage" cmake --install "$RUNNER_TEMP/cmake-build"'
+          test -x "$RUNNER_TEMP/stage/usr/bin/macshell-kwin-bridge"
 
       - name: The Home Manager module evaluates
         run: |

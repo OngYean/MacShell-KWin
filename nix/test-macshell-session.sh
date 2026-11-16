@@ -9,8 +9,12 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-mkdir "$work/bin"
+mkdir "$work/bin" "$work/home"
 log="$work/log"
+# autostart writes under ~/.config: never the real one
+HOME="$work/home"
+unset XDG_CONFIG_HOME
+export HOME
 
 stub() { # name, body
     printf '#!/bin/sh\n%s\n' "$2" > "$work/bin/$1"
@@ -89,3 +93,42 @@ expect "start outside Plasma: refused before touching anything" ""
 
 run 2 bogus
 expect "unknown command: usage, nothing run" ""
+
+# ── autostart: the one persistent command (installs outside Nix) ──
+dropin="$HOME/.config/systemd/user/plasma-plasmashell.service.d/macshell.conf"
+envfile="$HOME/.config/environment.d/macshell.conf"
+files() { # name, expected drop-in and environment file contents ("" = the file must not exist)
+    for pair in "$dropin|$2" "$envfile|$3"; do
+        f=${pair%%|*}
+        want=${pair#*|}
+        if [ -z "$want" ]; then [ ! -e "$f" ] || { echo "FAIL: $1: $f exists"; exit 1; }
+        else [ "$(cat "$f" 2>/dev/null)" = "$want" ] || { echo "FAIL: $1: $f is not '$want'"; exit 1; }; fi
+    done
+    echo "ok: $1 (files)"
+}
+
+run 0 autostart replace
+expect "autostart replace: the unit is enabled after the files are in place" "systemctl --user daemon-reload
+systemctl --user enable macshell.service"
+files "autostart replace: plasmashell skips itself at login" "[Unit]
+ConditionEnvironment=!MACSHELL_KDE_MODE=replace" "MACSHELL_KDE_MODE=replace"
+
+run 0 autostart coexist
+expect "autostart coexist: the unit stays enabled" "systemctl --user daemon-reload
+systemctl --user enable macshell.service"
+files "autostart coexist: nothing keeps plasmashell from starting" "" ""
+
+run 0 autostart replace
+run 0 autostart off
+expect "autostart off: the unit is disabled" "systemctl --user disable macshell.service
+systemctl --user daemon-reload"
+files "autostart off: plasmashell starts at login again" "" ""
+
+run 2 autostart
+expect "autostart without a mode: usage, nothing run" ""
+
+mkdir -p "$HOME/.config/systemd/user"
+ln -s /nonexistent/macshell.service "$HOME/.config/systemd/user/macshell.service"
+run 2 autostart replace
+expect "autostart with Home Manager's unit: refused, nothing run" ""
+files "autostart with Home Manager's unit: nothing written" "" ""
