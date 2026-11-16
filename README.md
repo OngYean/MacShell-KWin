@@ -90,6 +90,15 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   its icon, as on macOS: its newest items as a grid of icons (a picture shows itself), with "Open in File Manager"
   underneath. A click on an item opens it; right-click the folder → Remove from Dock. Grid view only (no fan or
   list), and as many items as fit above the Dock: 15 at the default Dock size. Not yet tested in Plasma.
+- **An Apple menu you can arrange** (Settings → Menu Bar → Apple Menu Items; also on Hyprland). Every item of the
+  top-left menu, the existing ones included, can be moved up or down or removed, and separators and items of your
+  own (a name and a shell command) can be added. A command typed next to a built-in item runs instead of what the
+  item does, for example your own lock command for Lock Screen. Two items are new and in the default menu:
+  - **Recent Items** lists the applications last started from the Dock or Spotlight and the most recent files,
+    inside the menu. Applications started any other way (a terminal, KRunner) are not listed.
+  - **Force Quit…** lists the open applications inside the menu; a second click on one kills its processes.
+
+  Not yet tested.
 - **Click wallpaper to reveal desktop** (Settings → Desktop & Dock → Desktop, off by default, KDE only). A click
   on an empty part of the desktop turns on KWin's Peek at Desktop, which moves the windows aside; a second click
   brings them back, as does opening or activating a window. The menu bar, Dock, desktop icons and widgets stay.
@@ -484,7 +493,7 @@ the global `glassOpacity`.
 
 | Path | Content |
 | --- | --- |
-| `~/.config/macbar/settings.json` | Menu bar settings |
+| `~/.config/macbar/settings.json` | Menu bar settings, including the Apple menu's items (`appleMenuItems`) |
 | `~/.config/macdock/settings.json`, `pinned.json` | Dock settings; pinned apps and folders (an entry starting with `/` is a folder) |
 | `~/.config/macwidgets/settings.json`, `images/` | Desktop widgets and the pictures of Image widgets |
 | `~/.cache/macbar/` | Clipboard history helper files |
