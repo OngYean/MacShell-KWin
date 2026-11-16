@@ -102,8 +102,11 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 - **Scroll wheel on volume and brightness**: on the Control Center's Display and Sound tiles, on every Control
   Center style slider, and on a new optional "Display brightness" icon in the menu bar (Settings → Menu Bar). Not
   yet tested.
-- **Nix flake**: the packages `macshell`, `macshell-kwin-bridge` and `macshell-hyprland`, a Home Manager module
-  (`programs.macshell`, with optional autostart) and a development shell.
+- **MacLock as KDE's lock screen** (Home Manager `programs.macshell.lockScreen`, off by default): KDE's screen
+  locker shows MacLock's screen (clock, Liquid Glass, Now Playing, lyrics, notifications) instead of its own. KDE
+  still locks the session and checks the password; see [Lock screen](#lock-screen). Not yet tested.
+- **Nix flake**: the packages `macshell`, `macshell-kwin-bridge`, `macshell-lock` and `macshell-hyprland`, a Home
+  Manager module (`programs.macshell`, with optional autostart) and a development shell.
 - **Tests**: a fake bridge for trying the interface without KWin, a smoke test against a headless KWin, shell-script
   tests and GitHub Actions CI.
 
@@ -114,7 +117,7 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Window list, Dock, app switcher, active app name | Hyprland IPC and Quickshell's toplevel list | KWin, through the bridge |
 | Workspaces | Hyprland workspaces | KWin virtual desktops |
 | Keyboard layout indicator | `hyprctl` | KWin's keyboard layouts |
-| Lock | MacLock | KDE's screen locker |
+| Lock | MacLock locks the session and checks the password itself | KDE's screen locker does both; with `lockScreen` on, it shows MacLock's screen. Not yet tested in Plasma |
 | Log Out, Restart, Shut Down | `uwsm` / `hyprctl` / `systemctl` | KDE's session manager (your session is saved) |
 | Screenshots and screen recording | `grim`, `slurp`, `wf-recorder` | Spectacle |
 | Display, keyboard, mouse, trackpad and Night Shift settings | `hyprctl`, `hyprsunset` | Open the matching page of KDE System Settings |
@@ -145,7 +148,8 @@ No upstream code has been deleted; the Hyprland path is kept, but untested. On K
 - **Colour picker** (`hyprpicker`).
 - **Window layout controls** in the window menu (float, pin, split, move and resize). KWin's own window menu has
   these.
-- **MacLock.** KDE's lock screen is used instead.
+- **MacLock as the locker.** KDE's screen locker locks the session; MacLock can only be the screen it shows
+  ([Lock screen](#lock-screen)). The Preview button in Settings → Lock Screen is hidden on KDE.
 - **`install.sh`, the graphical installer and the self-updater.** These are Hyprland-only; install and update with
   Nix or git (see [Install](#install)).
 - **Hyprland keybinds and layer rules.** Bind keys in KDE's Shortcuts settings instead
@@ -226,6 +230,7 @@ Run `nix flake lock`, then rebuild your system as usual (for example `sudo nixos
 | `enable` | `false` | Installs `macshell` and `macshell-session`, and defines the `macshell.service` user unit. |
 | `autostart` | `false` | Starts `macshell.service` with every Plasma session (and only Plasma sessions). |
 | `mode` | `"replace"` | With `autostart`: `"replace"` skips `plasmashell` at login and MacShell takes its place; `"coexist"` starts `plasmashell` as usual and MacShell next to it. |
+| `lockScreen` | `false` | KDE's lock screen shows MacLock ([Lock screen](#lock-screen)). Applies from the next login. |
 | `package` | this flake's `macshell` | The package to use. |
 
 In `"replace"` mode the module doesn't disable, mask or remove `plasmashell`. It adds a condition to Plasma's
@@ -299,6 +304,35 @@ macshell                       # MacShell in the foreground, next to whatever ru
 
 **Global menu:** Qt and GTK apps check once, at start, whether a global menu is available. Apps that were already
 running before MacShell keep their own menu bar until you restart them.
+
+### Lock screen
+
+KDE's screen locker always locks the session, checks your password (and fingerprint, if you use one), locks when the
+computer is idle or goes to sleep, and restarts the lock screen if it crashes. With `programs.macshell.lockScreen =
+true` it draws MacLock instead of KDE's own screen. Not yet tested in a Plasma session.
+
+- **How it is switched on.** The module installs a small Plasma package, `com.macshell.lock`, into
+  `~/.local/share/plasma/shells/` and sets `PLASMA_DEFAULT_SHELL=com.macshell.lock` for your session. Log out and
+  in again after rebuilding. `plasmashell` and the logout screen read the same variable; the package contains only
+  a lock screen, so they take everything else from Plasma's own package.
+- **Try it in a window first**, without locking anything:
+  ```sh
+  greet=$(nix-store -qR /run/current-system | grep -m1 -E -- '-kscreenlocker-[0-9][^/]*$')/libexec/kscreenlocker_greet
+  "$greet" --testing --shell com.macshell.lock
+  ```
+  Your real password closes it. Before installing, `nix build .#macshell-lock` and pass
+  `"$PWD/result/share/plasma/shells/com.macshell.lock"` to `--shell` instead.
+- **If MacLock fails to load**, KDE shows its built-in fallback screen and your password still unlocks. If you are
+  ever stuck, switch to a text console (Ctrl+Alt+F3), log in and run `loginctl unlock-session <id>` (`loginctl`
+  lists the ids).
+- **To go back**, set `lockScreen = false`, rebuild, and log out and in.
+- **What you lose from KDE's own lock screen:** the Switch User, Sleep and Hibernate buttons, the on-screen
+  keyboard and the keyboard layout switcher. The options under System Settings → Screen Locking → Appearance
+  (wallpaper, clock, media controls) no longer apply; MacLock uses the wallpaper picked in MacShell and the
+  settings under MacShell's Settings → Lock Screen.
+- **Lyrics, Spotify Canvas and album covers from the internet** are fetched by helper programs (`curl`, `python3`,
+  `jq`), because KDE's lock screen itself is not allowed to use the network. Without those tools on your `PATH`
+  you only lose those features.
 
 ### Keyboard shortcuts
 
@@ -382,7 +416,12 @@ the global `glassOpacity`.
   (`handoff/08-plasma-fixes-tests.md` is the test plan). Neither has the wallpaper and splash handling without
   `plasmashell` (`handoff/10-replace-wallpaper-splash-tests.md`), nor the per-panel blur and transparency
   (`handoff/16-blur-panels-report.md`), nor minimizing into the Dock (`handoff/13-magic-lamp-tests.md`), nor
-  widgets on other screens and the per-screen title and menus (`handoff/17-per-screen-tests.md`).
+  widgets on other screens and the per-screen title and menus (`handoff/17-per-screen-tests.md`), nor MacLock as
+  KDE's lock screen (`handoff/18-lock-screen-tests.md`).
+- **MacLock as KDE's lock screen:** it uses the wallpaper picked in MacShell, so with no pick (for example next to
+  `plasmashell` with Plasma's wallpaper) the background is dark. It appears from black rather than fading in over
+  the desktop. Notifications and timers on it update every two seconds, the battery every thirty. An account
+  without a password needs Enter to unlock.
 - **Title and menus per screen:** a screen's bar only knows the windows that have been active since MacShell
   started, so a window you haven't clicked yet shows as the desktop on a screen you aren't working on. Only the
   active window's menus are loaded, so the other screens show a name without menus until you click it.

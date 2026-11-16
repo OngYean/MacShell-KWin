@@ -40,3 +40,20 @@ qs -c MacLock ipc call lockscreen lock
 The helper launches the IPC-capable process with `MACLOCK_DAEMON=1`. Existing setups that run `qs -c MacLock` directly (for example from `maclock.sh`/hypridle) keep the original one-shot behavior: the session locks immediately and MacLock exits after unlock.
 
 Preview mode is unchanged: `MACLOCK_PREVIEW=1 qs -c MacLock` opens the visual preview and does not request a real lock.
+
+## KDE Plasma
+
+KWin has no `ext-session-lock` protocol, so `shell.qml` cannot lock a Plasma session. There MacLock is the screen
+KDE's own locker shows: `kde/build.sh <dir>` assembles the Plasma/Shell package `com.macshell.lock`, whose
+`lockscreen/LockScreen.qml` KDE loads once per screen. KDE still locks the session and checks the password.
+
+| Path | What it is |
+| --- | --- |
+| `LockScreen.qml` and the files next to it | The UI, shared by both. It imports no Quickshell module. |
+| `Host.qml`, `Run.qml`, `JsonFile.qml` | The Quickshell side of what the UI needs from the session: battery, media player, helper processes, watched files. |
+| `kde/ui/` | The same three files for KDE's lock screen (plus `HostPlayers.qml`), laid over the ones above in the package. |
+| `kde/lockscreen/LockScreen.qml` | The file KDE loads. |
+| `kde/lockscreen/LockState.qml` | The state all screens share, and the password flow against KDE's authenticator: what `shell.qml` is on Hyprland. |
+
+Nix: `packages.macshell-lock`, switched on by `programs.macshell.lockScreen` (see the top-level README).
+`sh nix/test-lock-screen.sh` loads both sides against stand-ins for KDE's and Quickshell's modules.
