@@ -38,6 +38,19 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`21-desktop-peek-tests.md`](21-desktop-peek-tests.md) — on `pending-test` (2026-11-16): an option that makes a click on the empty desktop toggle KWin's Peek at Desktop (F17). What KWin does with MacShell's windows, limits and test plan.
 
+- [`22-install-pkgbuild-tests.md`](22-install-pkgbuild-tests.md) — on `pending-test` (2026-11-16): installing without Nix (F18): top-level CMake install rules, `install.sh`'s KDE Plasma mode and `--uninstall`, `packaging/arch/PKGBUILD`, `macshell-session autostart`. What was and was not verified, decisions and test plan.
+
+## Update (2026-11-16, fifth, branch `pending-test`)
+
+The user asked for the install script to fit the port, and for a PKGBUILD. It is F18 in [`22-install-pkgbuild-tests.md`](22-install-pkgbuild-tests.md). Written, pushed as `wip` commits, untested on Linux.
+
+What changed for anyone reading older briefs:
+- `install.sh` is no longer only the Hyprland installer: in a Plasma session (or with `--kde`) it installs this port through the new top-level `CMakeLists.txt`. Older briefs that say "do not run install.sh on Plasma" mean the Hyprland part, which is still below the new block.
+- A file added to what gets installed outside Nix goes into `CMakeLists.txt` and into `kde_files` in `install.sh`; `sh nix/test-install.sh` fails when they disagree. `flake.nix` has its own install phase.
+- `nix/macshell.sh` no longer fails without `MACSHELL_CONFIG`: it looks in `../share/macshell/shell` beside itself.
+- `macshell-session` has one persistent command now, `autostart`. It is for installs outside Nix and refuses a Home Manager unit.
+- The default branch does not have the port yet, so the `PKGBUILD` (and the README's `nix run github:...` lines) only work once `pending-test` is merged.
+
 ## Update (2026-11-16, fourth, branch `pending-test`)
 
 The user asked for an option that toggles KWin's Peek at Desktop when the desktop is clicked. It is F17 in [`21-desktop-peek-tests.md`](21-desktop-peek-tests.md). Written, pushed as a `wip` commit and untested. The bridge did not change: the compositor facade now exposes the `showingDesktop` state the bridge already sent, and the capability `showDesktop`.
