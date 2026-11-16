@@ -41,7 +41,7 @@ What changed for anyone reading older briefs:
 - "KDE's lock screen is used" (briefs [`00`](00-project-state.md), [`05`](05-kwin-port.md)) still holds for the locker; only the screen it draws can now be MacLock's.
 - New test: `sh nix/test-lock-screen.sh` (Qt's `qml` tool, offscreen), run by CI as an informational step.
 
-Nothing has run in Plasma. Next: the test plan in [`18`](18-lock-screen-tests.md), starting with the windowed test, which locks nothing.
+Nothing has run in Plasma, and CI did not run for this push either (the account is still locked over billing): the user's rebuild will be the first build of `macshell-lock` and of the module change. Next: the test plan in [`18`](18-lock-screen-tests.md), starting with the windowed test, which locks nothing.
 
 ## Update (2026-11-13, branch `pending-test`)
 

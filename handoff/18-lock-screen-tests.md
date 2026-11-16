@@ -56,8 +56,8 @@ What this keeps from KDE: the PAM check (service `kde`, plus fingerprint, smartc
 - `sh nix/test-lock-screen.sh` passes on the macOS dev box with Qt 6.12 from the PySide6 wheel (a small Python stand-in for Qt's `qml` tool). It loads the assembled package the way KDE does, against stand-ins for KDE's authenticator, `executable` engine and `Mpris2Model`, and walks: settings parsed, wallpaper picked, a password sent before and after the prompt, a wrong password, a failed fingerprint read, success without a prompt, unlock. It also loads the Quickshell side against stand-ins for Quickshell's modules. With the early-password hold removed, the test fails.
 - `qmllint` 6.12 on `LockScreen.qml` and `MacDock.qml`: no new findings compared with `266f7c3`. No errors in the new files.
 - `sh -n` on the two new scripts; the workflow file parses as YAML.
-- CI: see the update in [`README.md`](README.md) for the run that followed the push.
-- **Not checked:** anything in a Plasma session; whether the stand-ins match the real modules; the Hyprland path (the refactor changed its files and it has no test machine); `shellcheck` and the Nix build locally.
+- CI did not run for the push (`cd3eac0`): GitHub did not start the job because the account is locked over a billing issue, as for every push since 2026-11-10. So the Nix build of `macshell-lock`, the Home Manager evaluation with `lockScreen = true`, `shellcheck` on the two new scripts and the load checks under Nix's `qml` tool have not run anywhere.
+- **Not checked:** anything in a Plasma session; whether the stand-ins match the real modules; the Hyprland path (the refactor changed its files and it has no test machine); `shellcheck`, the Nix build and the module evaluation (no Nix on the dev box, and no CI).
 
 ## Test plan (NixOS, Plasma 6.8, Wayland)
 
@@ -65,7 +65,7 @@ Before starting, open a text console once (Ctrl+Alt+F3), log in, and leave it. I
 
 **In a window, nothing locked (do this first):**
 
-1. Update the flake input and rebuild with `programs.macshell.lockScreen = true;`. Do not log out yet.
+1. Update the flake input and rebuild with `programs.macshell.lockScreen = true;`. Do not log out yet. This rebuild is the first time `macshell-lock` and the module change are built at all: if it fails, send the error.
 2. Start the lock screen in a window:
    ```sh
    greet=$(nix-store -qR /run/current-system | grep -m1 -E -- '-kscreenlocker-[0-9][^/]*$')/libexec/kscreenlocker_greet
