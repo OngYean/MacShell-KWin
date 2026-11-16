@@ -28,6 +28,7 @@ Scope {
     // ── raw bridge state ──
     property var windowList: []                 // bridge window objects (id, appId, title, pid, active, minimized, ..., x, y, width, height, desktops)
     property string activeId: ""
+    property bool showingDesktop: false          // KWin's Peek at Desktop is on (the windows are moved aside)
     property var desktops: []                   // sorted by position: { id (KWin uuid), name, position }
     property string currentDesktop: ""
     property var layouts: []
@@ -52,6 +53,7 @@ Scope {
         // KWin's minimize effects (Magic Lamp) can be told where each window's Dock icon is (setIconTargets)
         minimizeTarget: root.windowManagement && root.iconScreens.length > 0,
         windowSnapshot: root.windowManagement && root.snapshotsAvailable,
+        showDesktop: root.windowManagement,       // Peek at Desktop: showDesktop(on), showingDesktop
         // KWin offers no capture protocol to ordinary clients, draws (Klassy) decorations itself and has no layer rules
         windowCapture: false, screenCapture: false, drawDecorations: false, windowRules: false, layerBlurRules: false,
         windowLayout: false, sendShortcut: false, colorPicker: false, nightShift: false, monitorConfig: false, inputConfig: false,
@@ -271,6 +273,7 @@ Scope {
             status = windowManagement ? "ok" : "window-management-unsupported";
         } else if (m.type === "windows") {
             activeId = m.activeId || "";
+            showingDesktop = m.showingDesktop === true;
             windowList = m.windows || [];
             syncToplevels();
             syncIconTargets();
@@ -309,7 +312,7 @@ Scope {
         onExited: (exitCode, exitStatus) => {
             root.ready = false;
             root.status = "bridge-exited-" + exitCode;
-            root.windowList = []; root.activeId = ""; root.syncToplevels();
+            root.windowList = []; root.activeId = ""; root.showingDesktop = false; root.syncToplevels();
             root.appMenu = { status: "none", windowId: "", appId: "", revision: 0, items: [] };
             root.iconScreens = []; root.iconSent = {};    // the next bridge starts with no anchors and no targets
             root.snapshotsAvailable = false; root.snapshotAsked = {};

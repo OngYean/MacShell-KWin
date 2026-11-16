@@ -35,6 +35,7 @@ Scope {
     Variants {
         model: root.active ? Quickshell.screens : []
         PanelWindow {
+            id: wall
             required property var modelData
             screen: modelData
             anchors { top: true; bottom: true; left: true; right: true }
@@ -45,7 +46,16 @@ Scope {
             WlrLayershell.namespace: "desktop"
             WlrLayershell.layer: WlrLayer.Background
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-            mask: Region {}    // never takes the pointer: clicks on the desktop belong to the Desktop layer above
+            // Never takes the pointer: clicks on the desktop belong to the Desktop layer above. Unless that layer is off
+            // (no desktop icons) and "Click wallpaper to reveal desktop" is on: then the click lands here.
+            readonly property bool peekHere: !!root.dock && root.dock.desktopPeek && !root.dock.desktopIcons
+            mask: Region { item: wall.peekHere ? peekArea : null }
+            MouseArea {
+                id: peekArea
+                anchors.fill: parent
+                enabled: wall.peekHere
+                onClicked: { if (root.hub.popWho) root.hub.popWho = null; else root.dock.peekDesktop(); }
+            }
 
             Image {
                 anchors.fill: parent

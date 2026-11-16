@@ -45,6 +45,8 @@ Scope {
     property bool dockEnabled: true      // false = no Dock at all (settings window stays available)
     property bool settingsEnabled: true  // false = keep the System Settings window closed
     property bool desktopIcons: true     // show files, folders and .desktop shortcuts from the XDG Desktop directory
+    property bool desktopPeek: false     // KWin: a click on the empty desktop toggles Peek at Desktop (Desktop.qml, Wallpaper.qml)
+    function peekDesktop() { if (desktopPeek && comp && comp.can("showDesktop")) comp.showDesktop(!comp.showingDesktop); }
     property int desktopIconSize: 48     // Desktop icon size in logical pixels
     property var bar: hub ? hub.bar : null
     Connections {
@@ -3040,6 +3042,13 @@ Scope {
                             onMoved: v => root.desktopIconSize = Math.round(v / 2) * 2
                         }
                     }
+                    SRow {
+                        t: pal
+                        visible: !!root.comp && root.comp.can("showDesktop")
+                        title: I18n.tr("Click wallpaper to reveal desktop")
+                        subtitle: I18n.tr("A click on an empty part of the desktop moves the windows aside (KWin's Peek at Desktop). Click again to bring them back.")
+                        SSwitch { t: pal; checked: root.desktopPeek; onToggled: v => root.desktopPeek = v }
+                    }
                 }
                 SLabel { t: pal; header: true; text: I18n.tr("App Switcher (Alt + Tab)") }
                 SCard {
@@ -4503,7 +4512,7 @@ Scope {
         }
         if (hub && hub.widgets) { hub.widgets.tempUnit = "C"; hub.widgets.locMode = "auto"; hub.widgets.cityName = ""; hub.widgets.widgetScale = 1.0; }
         Quickshell.execDetached(["sh", "-c", "rm -f \"$HOME/.config/maclock/settings.json\""]);
-        desktopIcons = true; desktopIconSize = 48;
+        desktopIcons = true; desktopIconSize = 48; desktopPeek = false;
         iconSize = 52; magnification = 1.7; magnificationEnabled = true;
         spacing = 6; margin = 6; cornerRadius = 18;
         darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accentFromKde = true; nativeText = false; screenCornerRadius = 0; accent = "#0a84ff"; fontFamily = "Open Runde";
@@ -4513,7 +4522,7 @@ Scope {
     }
 
     // ── settings persistence (~/.config/macdock/settings.json) ──
-    readonly property string settingsSig: [dockEnabled, settingsEnabled, desktopIcons, desktopIconSize, iconSize, magnification, magnificationEnabled, spacing, margin,
+    readonly property string settingsSig: [dockEnabled, settingsEnabled, desktopIcons, desktopIconSize, desktopPeek, iconSize, magnification, magnificationEnabled, spacing, margin,
         cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, accentFromKde, nativeText, screenCornerRadius, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
         showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength, JSON.stringify(panelBlur), JSON.stringify(panelTint)].join("|")
     property bool settingsReady: false
@@ -4524,7 +4533,7 @@ Scope {
 
     function saveSettings() {
         var o = {
-            dockEnabled: dockEnabled, settingsEnabled: settingsEnabled, desktopIcons: desktopIcons, desktopIconSize: desktopIconSize, iconSize: iconSize, magnification: magnification, magnificationEnabled: magnificationEnabled,
+            dockEnabled: dockEnabled, settingsEnabled: settingsEnabled, desktopIcons: desktopIcons, desktopIconSize: desktopIconSize, desktopPeek: desktopPeek, iconSize: iconSize, magnification: magnification, magnificationEnabled: magnificationEnabled,
             spacing: spacing, margin: margin, cornerRadius: cornerRadius,
             darkMode: darkMode, appearanceMode: appearanceMode, glassOpacity: glassOpacity, dockStyle: dockStyle, kwinBlur: kwinBlur, accentFromKde: accentFromKde, nativeText: nativeText, screenCornerRadius: screenCornerRadius, wallpaperPath: wallpaperPath, glassDebug: glassDebug,
             glassRim: glassRim, glassGrain: glassGrain, glassLiquid: glassLiquid, glassBlur: glassBlur,
@@ -4540,7 +4549,7 @@ Scope {
 
     function applySettings(o) {
         if (!o || typeof o !== "object") return;
-        var keys = ["dockEnabled", "settingsEnabled", "desktopIcons", "desktopIconSize", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
+        var keys = ["dockEnabled", "settingsEnabled", "desktopIcons", "desktopIconSize", "desktopPeek", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
                     "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "accentFromKde", "nativeText", "screenCornerRadius", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
                     "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength", "panelBlur", "panelTint"];
         for (var i = 0; i < keys.length; i++) {

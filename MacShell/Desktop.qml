@@ -661,9 +661,11 @@ Scope {
                     property var baseSel: ({})            // selection a marquee starts from
                     property bool moved: false
                     property bool ignoring: false         // the press landed on a widget: the desktop does nothing (no menu, no selection)
+                    property bool dismissing: false       // the press closed a popover or menu: it does not also peek at the desktop
 
                     onPressed: mouse => {
-                        if (root.hub && root.hub.popWho) root.hub.popWho = null;      // a click on the desktop closes what is open, on any screen
+                        dismissing = !!(root.hub && root.hub.popWho);
+                        if (dismissing) root.hub.popWho = null;      // a click on the desktop closes what is open, on any screen
                         ignoring = root.pointOverWidget(mouse.x, mouse.y, w.modelData.name);
                         if (ignoring) {
                             // on a widget the desktop does nothing, except offering its settings
@@ -713,6 +715,8 @@ Scope {
                         if (ignoring) return;
                         if (w.dragActive) w.finishDrag(mouse.x, mouse.y);
                         else if (!moved && collapseTo !== "") root.selectOnly(collapseTo);
+                        // a plain click on the empty desktop: "Click wallpaper to reveal desktop" (off unless set, KWin only)
+                        else if (!moved && !pressedItem && !addMode && !dismissing && mouse.button === Qt.LeftButton && root.dock) root.dock.peekDesktop();
                         w.marqueeActive = false;
                         pressedItem = null;
                     }

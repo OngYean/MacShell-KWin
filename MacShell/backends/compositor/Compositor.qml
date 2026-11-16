@@ -9,6 +9,7 @@
 //   windows activate close minimize maximize fullscreen workspaces moveToWorkspace keyboardLayouts globalMenu sessionActions
 //   systemSettings backgroundEffect windowCapture screenCapture drawDecorations windowRules layerBlurRules windowLayout
 //   sendShortcut colorPicker nightShift monitorConfig inputConfig notificationServer minimizeTarget windowSnapshot
+//   showDesktop
 import QtQuick
 import Quickshell
 
@@ -62,7 +63,9 @@ Scope {
     function toggleMaximize(addr) { if (backend) backend.toggleMaximize(addr); }
     function toggleFullscreen(addr) { if (backend) backend.toggleFullscreen(addr); }
     function moveWindowToWorkspace(addr, n) { if (backend) backend.moveWindowToWorkspace(addr, n); }
+    // KWin (can("showDesktop")): Peek at Desktop. The windows move aside until it is turned off or a window is activated
     function showDesktop(on) { if (backend) backend.showDesktop(on); }
+    readonly property bool showingDesktop: !!backend && backend.showingDesktop === true
     // KWin (can("minimizeTarget")): where the Dock shows each window, so KWin's minimize effects (Magic Lamp) animate into
     // it. map: address → { screen (name), x, y, width, height } in that screen's logical pixels; the whole set every time
     function setIconTargets(map) { if (backend) backend.setIconTargets(map); }
