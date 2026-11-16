@@ -90,6 +90,11 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   its icon, as on macOS: its newest items as a grid of icons (a picture shows itself), with "Open in File Manager"
   underneath. A click on an item opens it; right-click the folder → Remove from Dock. Grid view only (no fan or
   list), and as many items as fit above the Dock: 15 at the default Dock size. Not yet tested in Plasma.
+- **Click wallpaper to reveal desktop** (Settings → Desktop & Dock → Desktop, off by default, KDE only). A click
+  on an empty part of the desktop turns on KWin's Peek at Desktop, which moves the windows aside; a second click
+  brings them back, as does opening or activating a window. The menu bar, Dock, desktop icons and widgets stay.
+  While `plasmashell` draws the desktop, MacShell only gets the click when Desktop Icons is on. Not yet tested in
+  Plasma.
 - **Applications start as their own systemd units** on KDE (`app-macshell-<id>@….service` in `app.slice`), like
   Plasma's own launchers, so they are not children of MacShell and survive a restart of it. Falls back to a direct
   start. Not yet tested in Plasma.
