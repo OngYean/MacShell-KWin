@@ -32,6 +32,19 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`18-lock-screen-tests.md`](18-lock-screen-tests.md) — on `pending-test` (2026-11-16): MacLock as the screen KDE's locker shows (F15). KDE keeps the locking and the password check; a Plasma/Shell package and `programs.macshell.lockScreen` switch the look. Routes considered, design, test plan and limits.
 
+- [`19-memory-report.md`](19-memory-report.md) — on `pending-test` (2026-11-16): where the Quickshell process's memory goes (B14, read from the code, not measured) and three changes: one decoded wallpaper per screen, overlay backdrops loaded on demand and a bar window that is short at rest (the last two under KWin only). Measuring commands and test plan.
+
+## Update (2026-11-16, later, branch `pending-test`)
+
+The user reported the Quickshell process at 700 MB+ and asked for the cheap fixes. It is B14 in [`19-memory-report.md`](19-memory-report.md), which lists the causes found in the code and what was and was not changed. Nothing was measured. The brief also corrects one thing the user was first told: closed overlay windows do not keep their textures (Quickshell destroys a hidden layer-shell window).
+
+What changed for anyone reading older briefs:
+- Every wallpaper Image decodes at `hub.wallpaperSize(screenName)` (`shell.qml`). A new Image that shows the wallpaper must use it too, or it costs another screen-sized copy; `node nix/test-wallpaper-size.js` checks the existing ones.
+- Under KWin the bar's window is short while nothing is below the bar. Anything new that draws below the bar inside that window has to be added to `ui.below` in `MacBar.qml`, and must size itself from `ui.tallH`, not `ui.height`.
+- Under KWin the app switcher, wallpaper picker, OSD and Spotlight load their glass backdrop when they open (`warmBackdrops`).
+
+CI still does not run. Next: measure before and after and run the checks in [`19`](19-memory-report.md), then the lock screen plan in [`18`](18-lock-screen-tests.md).
+
 ## Update (2026-11-16, branch `pending-test`)
 
 The user asked to theme Plasma's lock screen with MacLock, replacing Plasma's lock screen only if needed. It is F15 in [`18-lock-screen-tests.md`](18-lock-screen-tests.md). KDE's locker is not replaced: KWin has no `ext-session-lock`, so MacLock cannot lock a Plasma session itself, and swapping KDE's greeter binary was rejected as unsafe. Instead MacLock's UI is packaged as the lock screen of a Plasma/Shell package (`com.macshell.lock`, `packages.macshell-lock`), which KDE's locker loads when `programs.macshell.lockScreen = true` sets `PLASMA_DEFAULT_SHELL`. The option is off by default.
