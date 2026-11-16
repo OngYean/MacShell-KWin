@@ -1,3 +1,9 @@
 # Python bytecode (MacLock's helper scripts write it next to themselves)
 __pycache__/
 *.pyc
+
+# makepkg's working files (packaging/arch/PKGBUILD)
+packaging/arch/macshell-kwin-git/
+packaging/arch/src/
+packaging/arch/pkg/
+packaging/arch/*.pkg.tar.*

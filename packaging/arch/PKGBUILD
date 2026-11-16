@@ -1,0 +1,57 @@
+# Maintainer: OngYean <https://github.com/OngYean>
+#
+# MacShell for KDE Plasma (the KWin port), built from the repository's default branch:
+#   cd packaging/arch && makepkg -si
+# To build another branch, append it to the source line: ...MacShell-KWin.git#branch=pending-test
+# After installing:  macshell-session start                (in place of plasmashell, for this login)
+#                    macshell-session autostart replace    (at every Plasma login; coexist | off)
+
+pkgname=macshell-kwin-git
+pkgver=0.5.1.r0.g0000000
+pkgrel=1
+pkgdesc="macOS-style menu bar, Dock and desktop for KDE Plasma 6 on Wayland (KWin), built on Quickshell"
+arch=('x86_64' 'aarch64')
+url="https://github.com/OngYean/MacShell-KWin"
+license=('MIT' 'OFL-1.1')
+depends=(
+  'quickshell'        # the shell runtime (0.3.x)
+  'qt6-base' 'qt6-declarative' 'qt6-multimedia' 'qt6-svg'
+  'kwayland' 'wayland' # macshell-kwin-bridge
+  'plasma-workspace'  # the session it runs in: KWin, kded's AppMenu module, the session manager
+  'systemd'           # macshell.service, macshell-session
+  'dbus'              # dbus-send
+)
+makedepends=('git' 'cmake' 'wayland-protocols' 'wlr-protocols')
+optdepends=(
+  'powerdevil: screen brightness'
+  'spectacle: screenshots and screen recording'
+  'kdialog: folder and file pickers'
+  'file: file-type icons in Dock folders'
+  'inotify-tools: the Trash icon updates at once'
+  'networkmanager: Wi-Fi in Control Center'
+  'bluez-utils: Bluetooth in Control Center'
+  'wl-clipboard: clipboard'
+  'cliphist: clipboard history'
+  'fastfetch: About This Linux'
+  'ydotool: shortcut items in the generic File / Edit menus'
+)
+provides=('macshell-kwin')
+conflicts=('macshell-kwin')
+source=("$pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$pkgname"
+  printf '%s.r%s.g%s' "$(tr -d '[:space:]' < MacShell/VERSION)" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+build() {
+  cmake -S "$pkgname" -B build -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=/usr -Wno-dev
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 "$pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$pkgname/MacShell/assets/fonts/OFL.txt" "$pkgdir/usr/share/licenses/$pkgname/OFL.txt"
+}
