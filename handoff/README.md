@@ -40,6 +40,17 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`22-install-pkgbuild-tests.md`](22-install-pkgbuild-tests.md) — on `pending-test` (2026-11-16): installing without Nix (F18): top-level CMake install rules, `install.sh`'s KDE Plasma mode and `--uninstall`, `packaging/arch/PKGBUILD`, `macshell-session autostart`. What was and was not verified, decisions and test plan.
 
+- [`23-apple-menu-tests.md`](23-apple-menu-tests.md) — on `pending-test` (2026-11-16): the top-left menu's items can be arranged, removed, given a command of their own and added to (F19); Recent Items and Force Quit are new. How it works, limits and test plan.
+
+## Update (2026-11-16, sixth, branch `pending-test`)
+
+The user asked for a customizable top-left menu with Recent Items and Force Quit. It is F19 in [`23-apple-menu-tests.md`](23-apple-menu-tests.md). Written, pushed as `wip` commits, untested.
+
+What changed for anyone reading older briefs:
+- The Apple menu is no longer a fixed list in `menuModelFor`: it is built from `appleMenuItems` (`MacShell/AppleMenu.js`). A new built-in item needs an id in `AppleMenu.builtin`, a name in `AppleMenu.names` and a case in `appleItem()` in `MacBar.qml`.
+- `setAppleMenu()` asks for the save itself: the bar's settings signature is `String(value)` per key, which cannot see a change inside a list of objects.
+- `runEntry()` in `MacBar.qml` now records the application in `recentApps`.
+
 ## Update (2026-11-16, fifth, branch `pending-test`)
 
 The user asked for the install script to fit the port, and for a PKGBUILD. It is F18 in [`22-install-pkgbuild-tests.md`](22-install-pkgbuild-tests.md). Written, pushed as `wip` commits, untested on Linux.
