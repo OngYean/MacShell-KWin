@@ -3691,6 +3691,8 @@ Scope {
                     spacing: 8
                     // a 6-second look at the lock screen (no real lock) with the settings above
                     SButton {
+                        // not under KWin: MacLock's Quickshell entry point needs a compositor with ext-session-lock
+                        visible: !(root.comp && root.comp.isKWin)
                         t: pal; text: I18n.tr("Preview")
                         onClicked: {
                             var b = root.bar;
@@ -3698,7 +3700,15 @@ Scope {
                             Quickshell.execDetached(["sh", "-c", "MACLOCK_PREVIEW=1 MACLOCK_CLOCK=\"$1\" timeout 6 qs -c MacLock >/dev/null 2>&1", "sh", cfg]);
                         }
                     }
-                    SButton { t: pal; text: I18n.tr("Lock Screen Now"); onClicked: { prefsWindow.visible = false; Quickshell.execDetached(["sh", "-c", "pgrep -f -- \"-c [M]acLock\" >/dev/null 2>&1 || qs -c MacLock"]); } }
+                    SButton {
+                        t: pal; text: I18n.tr("Lock Screen Now")
+                        onClicked: {
+                            prefsWindow.visible = false;
+                            // KWin: KDE's locker, which shows MacLock when programs.macshell.lockScreen is on
+                            if (root.comp && root.comp.isKWin) root.comp.lock();
+                            else Quickshell.execDetached(["sh", "-c", "pgrep -f -- \"-c [M]acLock\" >/dev/null 2>&1 || qs -c MacLock"]);
+                        }
+                    }
                 }
             }
         }
