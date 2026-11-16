@@ -2,11 +2,6 @@
 // avatar + password); the others show the wallpaper and the clock only, but still forward typing.
 import QtQuick
 import QtQuick.Effects
-import QtMultimedia
-import Quickshell
-import Quickshell.Io
-import Quickshell.Services.Mpris
-import Quickshell.Services.UPower
 import "I18n.js" as I18n
 
 Item {
@@ -21,6 +16,10 @@ Item {
     readonly property bool leaving: st.unlocking
 
     focus: true
+
+    // battery, media players and the shell's IPC: Host.qml, Run.qml and JsonFile.qml are the only files that differ
+    // between Quickshell (this directory) and KDE's lock screen (kde/ui/), which cannot load Quickshell's modules
+    Host { id: host }
 
     // ── entrance: start once the wallpaper is decoded (or after a short timeout), so it never fades in from black
     Timer { id: showTimer; interval: 450; running: true; onTriggered: ls.shown = true }
@@ -59,19 +58,14 @@ Item {
             anchors.fill: wall
             scale: wall.scale
             active: ls.st.wallpaperVideo !== ""
-            sourceComponent: Item {
-                MediaPlayer {
-                    source: "file://" + ls.st.wallpaperVideo
-                    loops: MediaPlayer.Infinite
-                    videoOutput: vo
-                    Component.onCompleted: play()
-                }
-                VideoOutput { id: vo; anchors.fill: parent; fillMode: VideoOutput.PreserveAspectCrop }
-            }
+            // by URL: where QtMultimedia is missing only the video fails to load, and the still wallpaper stays
+            source: "VideoLoop.qml"
+            readonly property bool on: status === Loader.Ready
+            onLoaded: item.src = Qt.binding(function () { return ls.st.wallpaperVideo; })
         }
         // the wallpaper softens (no darkening) while you are entering the password
         MultiEffect {
-            source: wallVideo.active ? wallVideo : wall
+            source: wallVideo.on ? wallVideo : wall
             anchors.fill: wall
             scale: wall.scale
             blurEnabled: true
@@ -96,26 +90,14 @@ Item {
                 id: canvasLoader
                 anchors.fill: parent
                 active: ls.canvasVideo !== "" && ls.artT > 0.01
-                sourceComponent: Item {
-                    anchors.fill: parent
-                    MediaPlayer {
-                        id: canvasMp
-                        source: "file://" + ls.canvasVideo
-                        loops: MediaPlayer.Infinite
-                        videoOutput: canvasVo
-                        Component.onCompleted: play()
-                    }
-                    VideoOutput {
-                        id: canvasVo
-                        anchors.fill: parent
-                        fillMode: VideoOutput.PreserveAspectCrop
-                    }
-                }
+                source: "VideoLoop.qml"
+                readonly property bool on: status === Loader.Ready
+                onLoaded: item.src = Qt.binding(function () { return ls.canvasVideo; })
             }
             MultiEffect {
                 anchors.fill: parent
-                source: canvasLoader.active ? canvasLoader : null
-                visible: canvasLoader.active
+                source: canvasLoader.on ? canvasLoader : null
+                visible: canvasLoader.on
                 scale: 1.15
                 blurEnabled: true; blurMax: 48; blur: 0.55
                 saturation: 0.35
@@ -124,7 +106,7 @@ Item {
 
             // old and new album, each blurred; the new one fades in over the old one during a hand-over
             Repeater {
-                model: canvasLoader.active ? 0 : 2
+                model: canvasLoader.on ? 0 : 2
                 delegate: MultiEffect {
                     required property int index
                     readonly property Item img: index === 0 ? ls.coverOld : ls.coverNew
@@ -160,13 +142,13 @@ Item {
         sourceItem: scene
         // with a video wallpaper the scene changes every frame: the glass copy refreshes at 12 fps instead
         // (blur + every glass shader re-running 30-60x a second was the main GPU cost on the lock screen)
-        live: !wallVideo.active && !canvasLoader.active
+        live: !wallVideo.on && !canvasLoader.on
         visible: false
         textureSize: Qt.size(Math.max(1, Math.round(ls.width / 2)), Math.max(1, Math.round(ls.height / 2)))
     }
     Timer {
         interval: 83; repeat: true
-        running: (wallVideo.active || canvasLoader.active) && ls.shown && !ls.leaving
+        running: (wallVideo.on || canvasLoader.on) && ls.shown && !ls.leaving
         onTriggered: sceneTex.scheduleUpdate()
     }
     MultiEffect {
@@ -211,16 +193,11 @@ Item {
             color: "white"
         }
         Row {
-            visible: UPower.displayDevice && UPower.displayDevice.isPresent
+            visible: host.batteryPresent
             anchors.verticalCenter: parent.verticalCenter
             spacing: 6 * ls.u
-            readonly property real pct: {
-                var d = UPower.displayDevice;
-                if (!d) return 0;
-                return Math.round(d.percentage <= 1.0 ? d.percentage * 100 : d.percentage);
-            }
-            readonly property bool charging: UPower.displayDevice
-                && (UPower.displayDevice.state === UPowerDeviceState.Charging || UPower.displayDevice.state === UPowerDeviceState.FullyCharged)
+            readonly property real pct: host.batteryPct
+            readonly property bool charging: host.batteryCharging
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: parent.pct + "%"
@@ -256,13 +233,8 @@ Item {
     // ═════════════ NOTIFICATIONS + LIVE ACTIVITY (top right, under the status) ═════════════
     // Notifications are hidden like macOS ("Show previews: When Unlocked"): app icon, app name, "Notification", time.
     // Clicking one asks for the password: the field glows and fades (1 s). MacShell writes the list.
-    FileView {
-        id: notifFile
-        path: Quickshell.env("HOME") + "/.cache/macshell/lock-notifs.json"
-        watchChanges: true; printErrors: false
-        onFileChanged: reload()
-    }
-    readonly property var lockNotifs: { try { return notifFile.loaded ? JSON.parse(notifFile.text()) : []; } catch (e) { return []; } }
+    JsonFile { id: notifFile; rel: ".cache/macshell/lock-notifs.json"; active: ls.isPrimary }
+    readonly property var lockNotifs: { try { return notifFile.text !== "" ? JSON.parse(notifFile.text) : []; } catch (e) { return []; } }
     // the cards live in a keyed ListModel updated in place: clearing one doesn't rebuild (and re-fade) the others
     ListModel { id: lnModel }
     onLockNotifsChanged: {
@@ -281,13 +253,8 @@ Item {
         }
     }
     // Clock app state: a running timer / stopwatch, or an alarm ringing
-    FileView {
-        id: clockFile
-        path: Quickshell.env("HOME") + "/.config/macshell/clock.json"
-        watchChanges: true; printErrors: false
-        onFileChanged: reload()
-    }
-    readonly property var clockSt: { try { return clockFile.loaded ? JSON.parse(clockFile.text()) : null; } catch (e) { return null; } }
+    JsonFile { id: clockFile; rel: ".config/macshell/clock.json"; active: ls.isPrimary }
+    readonly property var clockSt: { try { return clockFile.text !== "" ? JSON.parse(clockFile.text) : null; } catch (e) { return null; } }
     property real nowMs: Date.now()
     Timer { interval: 250; repeat: true; running: ls.liveKind !== ""; onTriggered: ls.nowMs = Date.now() }
     readonly property string liveKind: !clockSt ? "" : (clockSt.ringing ? "ring" : ((clockSt.timer && clockSt.timer.state && clockSt.timer.state !== "idle") ? "timer"
@@ -376,7 +343,7 @@ Item {
                         width: (liveCard.width - 40 * ls.u) / (ls.clockSt.ringing.kind === "timer" ? 1 : 2); height: 30 * ls.u; radius: height / 2
                         color: modelData === "Stop" ? "#FF9F0A" : Qt.rgba(1, 1, 1, ringBtn.pressed ? 0.32 : 0.2)
                         Text { anchors.centerIn: parent; text: parent.modelData; color: parent.modelData === "Stop" ? "black" : "white"; font.family: ls.fam; font.pixelSize: 13 * ls.u; font.weight: Font.DemiBold }
-                        MouseArea { id: ringBtn; anchors.fill: parent; onClicked: Quickshell.execDetached(["qs", "-c", "MacShell", "ipc", "call", "clock", parent.modelData === "Stop" ? "stop" : "snooze"]) }
+                        MouseArea { id: ringBtn; anchors.fill: parent; onClicked: host.shellIpc(["clock", parent.modelData === "Stop" ? "stop" : "snooze"]) }
                     }
                 }
             }
@@ -411,7 +378,7 @@ Item {
                     id: flyOff
                     property real to: 0
                     NumberAnimation { target: nc; property: "dragX"; to: flyOff.to; duration: 260; easing.type: Easing.OutCubic }
-                    ScriptAction { script: { nc.gone = true; Quickshell.execDetached(["qs", "-c", "MacShell", "ipc", "call", "notifications", "dismiss", String(nc.nid)]); } }
+                    ScriptAction { script: { nc.gone = true; host.shellIpc(["notifications", "dismiss", String(nc.nid)]); } }
                 }
 
                 Glass { anchors.fill: parent; src: glassTex; frame: ls; cornerR: 20 * ls.u; thickness: 20; tint: 0.40; shadowAmt: 0.3 }
@@ -669,14 +636,7 @@ Item {
     readonly property Item coverOld: coverIdx === 0 ? coverB : coverA
 
     // ═════════════ NOW PLAYING ═════════════
-    readonly property var player: {
-        var ps = Mpris.players.values, best = null;
-        for (var i = 0; i < ps.length; i++) {
-            if (ps[i].isPlaying) return ps[i];
-            if (!best && ps[i].trackTitle) best = ps[i];
-        }
-        return best;
-    }
+    readonly property var player: host.player
     readonly property bool hasMedia: player !== null && player !== undefined && (player.trackTitle || "") !== ""
     // Apple "artwork mode" (tap the cover: it leaves the bubble, as wide as the bubble) and Apple Music style lyrics
     // (lyrics button). Only one at a time.
@@ -936,7 +896,7 @@ Item {
                 onTriggered: {
                     if (!media.pl) return;
                     if (media.pl.positionSupported) {
-                        media.pl.positionChanged(); scrub.pos = media.pl.position;
+                        scrub.pos = host.position(media.pl);
                         ls.posBase = scrub.pos; ls.posAt = Date.now(); ls.posPlaying = media.pl.isPlaying;
                     }
                 }
@@ -975,7 +935,7 @@ Item {
                     cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked: mouse => {
                         var f = Math.max(0, Math.min(1, (mouse.x - 8) / bar.width));
-                        media.pl.position = f * scrub.len;
+                        host.seek(media.pl, f * scrub.len);
                         scrub.pos = f * scrub.len;
                         ls.posBase = scrub.pos; ls.posAt = Date.now();
                     }
@@ -1117,20 +1077,16 @@ Item {
         onTriggered: {
             ls.canvasVideo = "";
             if (media.pl && (ls.spotifyTrackId !== "" || (media.pl.identity || "").toLowerCase().indexOf("spotify") >= 0)) {
-                canvasProc.running = false;
                 var arg = ls.spotifyTrackId !== "" ? ls.spotifyTrackId : ((media.pl.trackArtist || "") + " " + (media.pl.trackTitle || ""));
-                canvasProc.command = ["python3", Quickshell.env("HOME") + "/.config/quickshell/MacLock/spotify-canvas.py", arg];
-                canvasProc.running = true;
+                canvasProc.run(["python3", host.scriptDir + "/spotify-canvas.py", arg]);
             }
         }
     }
-    Process {
+    Run {
         id: canvasProc
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var p = (text || "").trim();
-                if (p.length > 0) ls.canvasVideo = p;
-            }
+        onDone: text => {
+            var p = (text || "").trim();
+            if (p.length > 0) ls.canvasVideo = p;
         }
     }
 
@@ -1145,9 +1101,7 @@ Item {
         if (!ls.isPrimary || !media.pl || !(media.pl.trackTitle || "")) { lyrLines = []; lyrStatus = "idle"; return; }
         lyrLines = []; lyrStatus = "loading";
         var len = media.pl.lengthSupported ? Math.round(media.pl.length) : 0;
-        lyrProc.running = false;
-        lyrProc.command = ["sh", "-c", ls.lyrScript, "sh", media.pl.trackArtist || "", media.pl.trackTitle || "", media.pl.trackAlbum || "", len > 0 ? String(len) : ""];
-        lyrProc.running = true;
+        lyrProc.run(["sh", "-c", ls.lyrScript, "sh", media.pl.trackArtist || "", media.pl.trackTitle || "", media.pl.trackAlbum || "", len > 0 ? String(len) : "", host.scriptDir]);
     }
     readonly property string lyrScript: [
         'a="$1"; t="$2"; al="$3"; d="${4:-0}"; c="$HOME/.cache/maclock/lyrics"; mkdir -p "$c"',
@@ -1175,7 +1129,7 @@ Item {
         'rm -f "$tmp"',
         // ── 3. Genius: token-free, rich lyrics source
         'if [ -z "$r" ] || [ "$(printf "%s" "$r" | jq -r ".syncedLyrics // empty" 2>/dev/null)" = "" ]; then',
-        '  g=$(python3 "$HOME/.config/quickshell/MacLock/genius-lyrics.py" "$a" "$bare" "$c" 2>/dev/null || true)',
+        '  g=$(python3 "$5/genius-lyrics.py" "$a" "$bare" "$c" 2>/dev/null || true)',
         '  if [ -n "$g" ] && [ "$g" != "{}" ]; then',
         '    gp=$(printf "%s" "$g" | jq -r ".plain // empty" 2>/dev/null)',
         '    if [ -n "$gp" ]; then r=$(jq -nc --arg p "$gp" "{plainLyrics: \\$p}"); answered=1; fi',
@@ -1186,10 +1140,9 @@ Item {
         'elif [ "$answered" = 1 ]; then echo "{}" | tee "$f"',
         'else echo "{\\"retry\\":true}"; fi'
     ].join("\n")
-    Process {
+    Run {
         id: lyrProc
-        stdout: StdioCollector {
-            onStreamFinished: {
+            onDone: text => {
                 var o = {};
                 try { o = JSON.parse(text || "{}"); } catch (e) { o = {}; }
                 var out = [], i, m;
@@ -1218,7 +1171,6 @@ Item {
                     ls.lyrLines = []; ls.lyrStatus = "none";
                 }
             }
-        }
     }
 
     // current line (a hair early, like Apple Music)
@@ -1346,7 +1298,7 @@ Item {
                         TapHandler {
                             enabled: ln.inBand && ls.lyrStatus === "synced" && media.pl && media.pl.canSeek
                             onTapped: {
-                                media.pl.position = ln.modelData.t;
+                                host.seek(media.pl, ln.modelData.t);
                                 ls.posBase = ln.modelData.t; ls.posAt = Date.now(); scrub.pos = ln.modelData.t;
                                 lyr.manual = 0; ls.st.poke();
                             }
