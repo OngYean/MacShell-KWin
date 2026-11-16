@@ -116,6 +116,10 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 - **MacLock as KDE's lock screen** (Home Manager `programs.macshell.lockScreen`, off by default): KDE's screen
   locker shows MacLock's screen (clock, Liquid Glass, Now Playing, lyrics, notifications) instead of its own. KDE
   still locks the session and checks the password; see [Lock screen](#lock-screen). Not yet tested.
+- **Installing without Nix**: `install.sh` installs this port when it runs in a Plasma session (and removes it
+  with `--uninstall`), `packaging/arch/PKGBUILD` builds an Arch package, and both use the CMake install rules in
+  the top-level `CMakeLists.txt`. `macshell-session autostart replace|coexist|off` sets what a Plasma login starts
+  for these installs. See [Install](#install). None of this has run on a real system yet.
 - **Nix flake**: the packages `macshell`, `macshell-kwin-bridge`, `macshell-lock` and `macshell-hyprland`, a Home
   Manager module (`programs.macshell`, with optional autostart) and a development shell.
 - **Tests**: a fake bridge for trying the interface without KWin, a smoke test against a headless KWin, shell-script
@@ -162,8 +166,8 @@ No upstream code has been deleted; the Hyprland path is kept, but untested. On K
   these.
 - **MacLock as the locker.** KDE's screen locker locks the session; MacLock can only be the screen it shows
   ([Lock screen](#lock-screen)). The Preview button in Settings → Lock Screen is hidden on KDE.
-- **`install.sh`, the graphical installer and the self-updater.** These are Hyprland-only; install and update with
-  Nix or git (see [Install](#install)).
+- **The graphical installer and the self-updater.** These are Hyprland-only. `install.sh` installs this port only
+  in a Plasma session; update by pulling and installing again, or with Nix (see [Install](#install)).
 - **Hyprland keybinds and layer rules.** Bind keys in KDE's Shortcuts settings instead
   ([below](#keyboard-shortcuts)).
 - **Blur behind the Dock and popovers in the Normal Blur style**, unless the panel is set to "KWin blur". Without
@@ -177,7 +181,7 @@ No upstream code has been deleted; the Hyprland path is kept, but untested. On K
 | --- | --- |
 | **KDE Plasma 6, Wayland session** | Developed against Plasma and KWin 6.8.2 with Qt 6.12. X11 sessions aren't supported. |
 | **Quickshell 0.3.x** | With QtMultimedia available to QML. The Nix package provides both. |
-| **`macshell-kwin-bridge`** | Built from `kwin-bridge/` (Qt 6, KWayland). The Nix package provides it. |
+| **`macshell-kwin-bridge`** | Built from `kwin-bridge/` (Qt 6, KWayland). The Nix package, the Arch package and `install.sh` provide it. |
 | KDE components Plasma already ships | kded's AppMenu module (global menu), PowerDevil (brightness), KDE's screen locker, Spectacle (screenshots), System Settings, `plasma-apply-wallpaperimage`, `dbus-send` |
 | An icon theme for Qt apps | App icons in the Dock and Spotlight come from the system icon theme. |
 | Optional | NetworkManager (`nmcli`) for Wi-Fi; `bluez` (`bluetoothctl`) for Bluetooth; `wl-clipboard` and `cliphist` for clipboard history; `wpctl` or `pactl` for audio devices; `zenity` or `kdialog` for file pickers; `fastfetch` for "About This Linux"; `ydotool` for shortcut items in the generic menus. Missing tools disable only their feature. |
@@ -188,9 +192,19 @@ Themes → Window Decorations. MacShell never draws decorations itself.
 
 ## Install
 
+| Method | For | State |
+| --- | --- | --- |
+| [Nix with Home Manager](#nixos-with-home-manager-recommended) | NixOS, or any system with Nix | The route the port is developed and tested with |
+| [Arch package](#arch-linux-pkgbuild) | Arch Linux and derivatives | Untested |
+| [`install.sh`](#any-distribution-installsh) | Any distribution, into `~/.local` or another prefix | Untested |
+| [CMake by hand](#by-hand-with-cmake) | Packagers, or a system-wide install | Untested |
+| [From a clone](#from-a-clone-without-installing) | Trying it or developing | Untested |
+
 > [!CAUTION]
-> Don't run `install.sh` or the graphical installer on KDE Plasma. They are the original project's Hyprland
-> installers: they install Hyprland packages and edit Hyprland's configuration.
+> `install.sh` does two different things. In a KDE Plasma session (or with `--kde`) it installs this port from your
+> clone. In any other session (or with `--hyprland`) it is still the original project's Hyprland installer: it
+> downloads the original MacShell, installs Hyprland packages and edits Hyprland's configuration. The graphical
+> installer is Hyprland-only: don't run it on KDE Plasma.
 
 ### NixOS with Home Manager (recommended)
 
@@ -268,13 +282,80 @@ Hyprland build. On distributions other than NixOS, Nix-built graphical programs 
 drivers ([nixGL](https://github.com/nix-community/nixGL) fixes that); this route is untested there.
 `nix profile install github:OngYean/MacShell-KWin#macshell` installs it permanently.
 
-### Other distributions, without Nix (untested)
+### Arch Linux (PKGBUILD)
 
-There is no distribution package yet. You can run MacShell straight from a clone:
+Untested. The package isn't in the AUR; build it from the repository:
 
-1. Install Quickshell 0.3.x, Qt 6 (base, declarative, wayland, multimedia, svg), and the development files for Qt 6,
-   KWayland and the Wayland client library, plus CMake, pkg-config and a C++20 compiler. Package names differ
-   between distributions.
+```sh
+git clone https://github.com/OngYean/MacShell-KWin
+cd MacShell-KWin/packaging/arch
+makepkg -si
+```
+
+This builds `macshell-kwin-git` from the repository's default branch and installs it under `/usr`, with Quickshell,
+Qt 6 and KWayland as dependencies. To build another branch, append `#branch=<name>` to the `source` line of the
+`PKGBUILD`. Then see [After installing](#after-installing-without-nix). Remove it with
+`macshell-session autostart off` followed by `sudo pacman -R macshell-kwin-git`.
+
+### Any distribution: `install.sh`
+
+Untested. Run it from a clone, inside your Plasma session (or pass `--kde`):
+
+```sh
+git clone https://github.com/OngYean/MacShell-KWin
+cd MacShell-KWin
+./install.sh                      # builds the bridge and installs everything into ~/.local
+./install.sh --uninstall          # removes it again; your settings are kept
+```
+
+It needs Quickshell 0.3.x, Qt 6 (base, declarative, wayland, multimedia, svg), the development files for Qt 6,
+KWayland and the Wayland client library, `wayland-scanner`, `wayland-protocols`, `wlr-protocols`, CMake, pkg-config
+and a C++20 compiler. Package names differ between distributions. The script lists what it can't find and stops; it
+never installs distribution packages and never edits KDE's configuration.
+
+| Option | Effect |
+| --- | --- |
+| `--prefix DIR` | Install somewhere other than `~/.local`, for example `/usr/local`. The script uses `sudo` for the copy when it can't write there. Pass the same prefix to `--uninstall`. |
+| `--autostart replace\|coexist\|off` | Also set what a Plasma login starts (see [After installing](#after-installing-without-nix)). |
+| `--uninstall` | Stop MacShell and bring `plasmashell` back, turn autostart off, and remove the installed files. |
+| `--kde` / `--hyprland` | Choose the KDE install or the original Hyprland installer whatever the session is. |
+
+What it puts under the prefix: `bin/macshell`, `bin/macshell-session`, `bin/macshell-kwin-bridge`,
+`share/macshell/shell/` (the Quickshell configuration), `share/systemd/user/macshell.service` and
+`macshell-fallback.service`, `share/kio/servicemenus/macshell-pin-folder.desktop` (Dolphin's "Pin to MacShell
+Dock") and `share/plasma/shells/com.macshell.lock` (MacLock for KDE's lock screen, unused until you switch it on).
+To update, `git pull` and run `./install.sh` again.
+
+### By hand with CMake
+
+Untested. `install.sh` and the Arch package run the same rules:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build build
+sudo cmake --install build        # DESTDIR=... stages it for a package
+```
+
+`-DMACSHELL_BRIDGE=OFF` leaves `macshell-kwin-bridge` out, for packaging it separately from `kwin-bridge/`.
+
+### After installing without Nix
+
+- **Start it:** `macshell-session start` runs MacShell in place of `plasmashell` for this login; see
+  [Running it](#running-it). If `~/.local/bin` isn't on your `PATH`, add it or call
+  `~/.local/bin/macshell-session`.
+- **Start it at every Plasma login:** `macshell-session autostart replace` (in place of `plasmashell`),
+  `autostart coexist` (next to it) or `autostart off`. It enables or disables `macshell.service` for Plasma
+  sessions. For `replace` it also writes `~/.config/systemd/user/plasma-plasmashell.service.d/macshell.conf` and
+  `~/.config/environment.d/macshell.conf`, the same two settings the Home Manager module makes: `plasmashell`
+  skips itself at login, and is started again if MacShell fails three times within a minute. `plasmashell` is
+  never masked or removed. Don't use this command with the Home Manager module.
+- **Lock screen:** see [Lock screen](#lock-screen).
+
+### From a clone, without installing
+
+Untested. Nothing is installed except the bridge:
+
+1. Install the same dependencies as for `install.sh`.
 2. Build the bridge, install it into `~/.local/bin` (which must be on your `PATH`), and start the shell:
 
    ```sh
@@ -286,11 +367,7 @@ There is no distribution package yet. You can run MacShell straight from a clone
    qs -p ./MacShell                     # Ctrl+C stops it
    ```
 
-3. To start it at login, save a two-line script (`#!/bin/sh` and `exec qs -p /path/to/MacShell-KWin/MacShell`),
-   make it executable, and add it in System Settings → Autostart → Add… → Add Login Script. This runs it next to
-   `plasmashell`; see [Running it](#running-it) for replacing it.
-
-Without Nix there is no `macshell` / `macshell-session` command. Use `qs -p /path/to/MacShell` in their place, and
+This way there is no `macshell` or `macshell-session` command: use `qs -p /path/to/MacShell` in their place, and
 see [Running it](#running-it) for the manual steps. For Dolphin's "Pin to MacShell Dock", copy
 `nix/macshell-pin-folder.desktop` to `~/.local/share/kio/servicemenus/`, make the copy executable, and change its
 `Exec=` line to `qs -p /path/to/MacShell ipc call dock pinFolder %f`.
@@ -309,7 +386,7 @@ macshell                       # MacShell in the foreground, next to whatever ru
   shell doesn't run. MacShell draws the wallpaper, takes over notifications and ends Plasma's login splash screen.
   Plasma's volume and brightness pop-ups, Klipper's clipboard history and Plasma's desktop (its icons and widgets)
   are gone until `macshell-session coexist` or `stop`.
-  Without Nix: `systemctl --user stop plasma-plasmashell.service`, then `MACSHELL_KDE_MODE=replace qs -p ./MacShell`.
+  From a clone: `systemctl --user stop plasma-plasmashell.service`, then `MACSHELL_KDE_MODE=replace qs -p ./MacShell`.
   Undo it with `Ctrl+C`, then `systemctl --user start plasma-plasmashell.service`.
 - **Coexist** (`macshell-session coexist`, or `mode = "coexist"`): `plasmashell` keeps its panels, desktop, pop-ups,
   clipboard history and, if it has a system tray, notifications. **Remove, move or auto-hide Plasma's top and bottom
@@ -329,6 +406,10 @@ true` it draws MacLock instead of KDE's own screen. Not yet tested in a Plasma s
   `~/.local/share/plasma/shells/` and sets `PLASMA_DEFAULT_SHELL=com.macshell.lock` for your session. Log out and
   in again after rebuilding. `plasmashell` and the logout screen read the same variable; the package contains only
   a lock screen, so they take everything else from Plasma's own package.
+- **Without Nix** (`install.sh`, the Arch package, CMake) the package is already installed, under
+  `share/plasma/shells/` of the prefix. Switch it on by saving the line `PLASMA_DEFAULT_SHELL=com.macshell.lock`
+  as `~/.config/environment.d/macshell-lock.conf` and logging out and in; delete the file to go back. Not yet
+  tested.
 - **Try it in a window first**, without locking anything:
   ```sh
   greet=$(nix-store -qR /run/current-system | grep -m1 -E -- '-kscreenlocker-[0-9][^/]*$')/libexec/kscreenlocker_greet
@@ -351,7 +432,7 @@ true` it draws MacLock instead of KDE's own screen. Not yet tested in a Plasma s
 ### Keyboard shortcuts
 
 Bind MacShell's actions in System Settings → Keyboard → Shortcuts → Add New → Command or Script, for example
-`Meta+Space` → `macshell ipc call spotlight toggle`. Without Nix, use `qs -p /path/to/MacShell ipc call …`.
+`Meta+Space` → `macshell ipc call spotlight toggle`. Running from a clone, use `qs -p /path/to/MacShell ipc call …`.
 KWin's own task switcher stays on Alt+Tab.
 
 | Target | Functions |
@@ -460,17 +541,19 @@ the global `glassOpacity`.
   MacShell is stopped and `plasmashell` restarted.
 
 To get your normal desktop back at any point, run `macshell-session stop`, from KRunner (`Alt+Space`) or a terminal.
-Without Nix, run `systemctl --user start plasma-plasmashell.service` after stopping MacShell. With Home Manager
-autostart in replace mode, the next login starts MacShell again: set `mode = "coexist"` or `autostart = false` and
-rebuild to get Plasma's shell at login. To uninstall, set `programs.macshell.enable = false` (or remove the module)
-and rebuild. MacShell's settings stay in the folders listed above.
+Running from a clone, run `systemctl --user start plasma-plasmashell.service` after stopping MacShell. With
+autostart in replace mode, the next login starts MacShell again. To get Plasma's shell at login, set
+`mode = "coexist"` or `autostart = false` and rebuild (Home Manager), or run `macshell-session autostart off`
+(other installs). To uninstall, set `programs.macshell.enable = false` (or remove the module) and rebuild; run
+`./install.sh --uninstall`; or remove the Arch package. MacShell's settings stay in the folders listed above.
 
 ## Development
 
 - `nix develop --command qs -p ./MacShell` runs the shell from the working tree with the bridge on `PATH`.
 - `MACSHELL_KWIN_BRIDGE="$PWD/kwin-bridge/fake-bridge.py"` swaps in a fake bridge with made-up windows and menus,
   for testing the interface without KWin.
-- `sh nix/test-macshell-session.sh`, `sh nix/test-brightness.sh` and `nix/kwin-smoke.sh` are the tests CI runs.
+- `sh nix/test-macshell-session.sh`, `sh nix/test-brightness.sh` and `nix/kwin-smoke.sh` are among the tests CI
+  runs; `sh nix/test-install.sh` checks the install outside Nix (CMake, the launcher, `install.sh --uninstall`).
 - `kwin-bridge/README.md` documents the bridge's protocol and why it uses the interfaces it does. `handoff/` holds
   the porting notes and test plans, and `AGENTS.md` the rules for contributors and coding agents.
 

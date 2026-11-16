@@ -48,8 +48,13 @@ nix develop --command qs --verbose --path ./poc/global-menu/shell.qml
 
 See `poc/global-menu/README.md` for its trust boundary, current feature gaps and the untracked-source workaround.
 
-## Conventional installer
+## Installing outside Nix
 
-`install.sh` remains the existing upstream-style, package-manager-based **Hyprland** installer. It can install system packages or enable services and edits Hyprland configuration. Do not use it in a Plasma/KWin session or as part of declarative Nix deployment.
+The top-level `CMakeLists.txt` holds the install rules for every route that is not Nix: it builds `kwin-bridge/` (unless `-DMACSHELL_BRIDGE=OFF`) and installs, under the prefix, `bin/macshell` (`nix/macshell.sh`), `bin/macshell-session`, `bin/macshell-kwin-bridge`, `share/macshell/shell/` (the `MacShell/` tree), the two systemd user units generated from `packaging/systemd/*.in`, Dolphin's service menu and the lock-screen package assembled by `MacLock/kde/build.sh`. `flake.nix` does not use it.
 
-A KWin-aware conventional install mode should be added only after the KWin backend and runtime requirements are implemented and tested. Until then, retain the original Plasma session and its KDE services unchanged.
+- `install.sh` runs it in a KDE Plasma session, or with `--kde`: it checks for the build tools, builds in a temporary directory and installs to `~/.local` (or `--prefix`). `--uninstall` removes the paths listed in its `kde_files`. In any other session, or with `--hyprland`, the script is still the upstream **Hyprland** installer below its "KDE Plasma" block: unchanged, unsupported here, and it installs the original project, not this fork.
+- `packaging/arch/PKGBUILD` builds `macshell-kwin-git` from the repository's default branch with the same rules.
+- `macshell-session autostart replace|coexist|off` is the persistent switch for these installs (the Home Manager module's `autostart` and `mode`).
+- `sh nix/test-install.sh` installs into a temporary prefix without the bridge and checks the result, the installed launcher, and that `install.sh --uninstall` leaves no file behind. CI also builds the whole thing, bridge included, in the development shell.
+
+None of these routes has run on a real system: no `makepkg`, no install into a Plasma session.
