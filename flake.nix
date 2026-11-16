@@ -115,6 +115,30 @@
             };
           };
 
+          # MacLock as KDE's lock screen: a Plasma/Shell package that holds only lockscreen/ (MacLock/kde/build.sh) and
+          # takes everything else from Plasma's own. KDE's locker loads it when PLASMA_DEFAULT_SHELL names it
+          # (programs.macshell.lockScreen); KDE still does the locking and the password check.
+          macshell-lock = pkgs.stdenvNoCC.mkDerivation {
+            pname = "macshell-lock";
+            version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./MacShell/VERSION);
+            src = ./MacLock;
+            dontUnpack = true;
+
+            installPhase = ''
+              runHook preInstall
+              sh ${./MacLock}/kde/build.sh "$out/share/plasma/shells"
+              install -Dm644 ${./LICENSE} "$out/share/licenses/macshell-lock/LICENSE"
+              runHook postInstall
+            '';
+
+            meta = {
+              description = "MacLock, MacShell's lock screen, as a Plasma/Shell package for KDE's screen locker";
+              homepage = "https://github.com/OngYean/MacShell-KWin";
+              license = with pkgs.lib.licenses; [ mit ofl ]; # MacLock + the bundled Open Runde font
+              platforms = systems;
+            };
+          };
+
           kwin-backend-probe = pkgs.stdenv.mkDerivation {
             pname = "macshell-kwin-backend-probe";
             version = "0.2.0";
@@ -140,7 +164,7 @@
         in
         {
           default = macshell-hyprland;
-          inherit macshell-hyprland macshell macshell-kwin-bridge kwin-backend-probe;
+          inherit macshell-hyprland macshell macshell-lock macshell-kwin-bridge kwin-backend-probe;
         }
       );
 

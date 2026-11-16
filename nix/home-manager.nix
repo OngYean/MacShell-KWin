@@ -4,6 +4,7 @@
 #   programs.macshell.enable = true;          # installs macshell + macshell-session, defines macshell.service
 #   programs.macshell.autostart = true;       # optional: start it with every Plasma session
 #   programs.macshell.mode = "coexist";       # optional: next to plasmashell instead of in its place (the default)
+#   programs.macshell.lockScreen = true;      # optional: MacLock as KDE's lock screen (KDE still does the locking)
 #
 # plasmashell is never masked, removed or disabled. With autostart in "replace" mode a drop-in makes its unit skip
 # itself while MACSHELL_KDE_MODE=replace is in the user manager's environment (set here for every login). For the
@@ -15,6 +16,7 @@ self:
 let
   cfg = config.programs.macshell;
   systemctl = "${pkgs.systemd}/bin/systemctl";
+  lockPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.macshell-lock;
 in
 {
   options.programs.macshell = {
@@ -45,6 +47,20 @@ in
         MacShell fails three times within a minute, plasmashell is started instead.
         "coexist": plasmashell starts as usual and MacShell runs next to it.
         `macshell-session start` (replace) and `macshell-session coexist` switch the current login either way.
+      '';
+    };
+
+    lockScreen = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Show MacLock as KDE's lock screen. KDE keeps locking the session itself (the password check through PAM,
+        locking when idle and before sleep, restarting the screen after a crash); only what it draws changes, and if
+        MacLock fails to load KDE shows its built-in fallback screen.
+        Installs the Plasma/Shell package com.macshell.lock into the user's data directory and names it in
+        PLASMA_DEFAULT_SHELL, so it applies from the next login. plasmashell and the logout screen read the same
+        variable; the package holds nothing but the lock screen, so they take everything from Plasma's own package.
+        A ShellPackage entry in plasmashellrc's [Shell] group overrides the variable.
       '';
     };
   };
@@ -95,6 +111,12 @@ in
         };
       };
     }
+
+    (lib.mkIf cfg.lockScreen {
+      xdg.dataFile."plasma/shells/com.macshell.lock".source = "${lockPackage}/share/plasma/shells/com.macshell.lock";
+      # read by kscreenlocker's greeter, which KWin starts: it has to be in the session's environment at login
+      systemd.user.sessionVariables.PLASMA_DEFAULT_SHELL = "com.macshell.lock";
+    })
 
     (lib.mkIf (cfg.autostart && cfg.mode == "replace") {
       # read by the drop-in below, by macshell.service (replace mode) and by `macshell-session status`
