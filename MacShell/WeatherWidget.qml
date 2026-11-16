@@ -42,6 +42,7 @@ Item {
     property bool kwinBlur: false       // "KWin blur" (Appearance → Panels): the frosted card turns see-through, KWin blurs behind it
     property url shaderUrl: ""
     property url wallUrl: ""
+    property size wallSize: Qt.size(screenW, 0)     // decode size; WidgetVisual hands in the size all wallpaper copies share
     property string wallVideo: ""        // animated wallpaper to play behind the glass ("" = none / real-time glass off)
     property bool wallPaused: false      // desktop covered / Game Mode: keep the decoder idle
     property real screenW: 1920
@@ -172,7 +173,7 @@ Item {
                     onStatusChanged: if (status === Image.Ready) { gl.moving = true; settle.restart(); }
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
-                    sourceSize.width: w.screenW
+                    sourceSize: w.wallSize
                     smooth: true
                 }
                 LiveWall {

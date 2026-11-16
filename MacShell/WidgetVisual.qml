@@ -39,6 +39,7 @@ Item {
                 kwinBlur: host.kwinBlurOn
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
+                wallSize: host.hub ? host.hub.wallpaperSize(v.sname) : Qt.size(v.sw, 0)
                 wallVideo: host.liveWallVideo
                 wallPaused: host.liveWallPaused(v.sname)
                 screenW: v.sw
@@ -68,6 +69,7 @@ Item {
                 kwinBlur: host.kwinBlurOn
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
+                wallSize: host.hub ? host.hub.wallpaperSize(v.sname) : Qt.size(v.sw, 0)
                 wallVideo: host.liveWallVideo
                 wallPaused: host.liveWallPaused(v.sname)
                 screenW: v.sw
@@ -96,6 +98,7 @@ Item {
                 kwinBlur: host.kwinBlurOn
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
+                wallSize: host.hub ? host.hub.wallpaperSize(v.sname) : Qt.size(v.sw, 0)
                 wallVideo: host.liveWallVideo
                 wallPaused: host.liveWallPaused(v.sname)
                 screenW: v.sw
@@ -143,6 +146,7 @@ Item {
                 kwinBlur: host.kwinBlurOn
                 shaderUrl: "file://" + host.glassShaderOut
                 wallUrl: host.fileUrl(host.wallpaperFor(v.sname))
+                wallSize: host.hub ? host.hub.wallpaperSize(v.sname) : Qt.size(v.sw, 0)
                 wallVideo: host.liveWallVideo
                 wallPaused: host.liveWallPaused(v.sname)
                 screenW: v.sw

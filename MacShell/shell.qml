@@ -195,6 +195,19 @@ ShellRoot {
         }
 
         Timer { id: wpKick; interval: 250; onTriggered: sharedHub.refreshWallpaper() }
+        // The size every wallpaper Image decodes a screen's picture at (the desktop, each glass backdrop, the widgets, Settings).
+        // Qt keeps one decoded copy per file AND requested size, so with one size they share a copy; each used to ask for its
+        // own (a width only, or the physical size) and a screen-sized picture sat in memory two or three times.
+        // Physical pixels while MacShell draws the desktop itself (Wallpaper.qml has to be sharp); otherwise the logical size,
+        // which is all the blurred glass needs. An unknown name gets the first screen's size, never 0 (= undecimated).
+        function wallpaperSize(screenName) {
+            var list = Quickshell.screens, s = null;
+            for (var i = 0; i < list.length; i++) if (list[i].name === screenName) { s = list[i]; break; }
+            if (!s) s = list.length > 0 ? list[0] : null;
+            if (!s) return Qt.size(1920, 1080);
+            var k = facade.desktopUnserved ? s.devicePixelRatio : 1;
+            return Qt.size(Math.round(s.width * k), Math.round(s.height * k));
+        }
         function refreshWallpaper() { if (!wpProc.running) wpProc.running = true; }
 
         // window + monitor geometry for the Liquid Glass backdrops

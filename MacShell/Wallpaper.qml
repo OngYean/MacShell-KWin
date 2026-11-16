@@ -52,8 +52,9 @@ Scope {
                 asynchronous: true
                 fillMode: Image.PreserveAspectCrop
                 // decoded at the screen's physical size: sharp on HiDPI, no full-size copy of a large photo in memory
-                // (the screen's size, not the item's: that is 0 until the surface is configured, which would load it twice)
-                sourceSize: Qt.size(modelData.width * modelData.devicePixelRatio, modelData.height * modelData.devicePixelRatio)
+                // (the screen's size, not the item's: that is 0 until the surface is configured, which would load it twice).
+                // hub.wallpaperSize: the same size the glass backdrops ask for, so they share this decoded copy
+                sourceSize: root.hub.wallpaperSize(modelData.name)
                 source: root.dock ? root.dock.fileUrl(root.dock.wallpaperFor(modelData.name)) : ""
                 onStatusChanged: if (status === Image.Ready || status === Image.Error) root.finishSplash()
             }

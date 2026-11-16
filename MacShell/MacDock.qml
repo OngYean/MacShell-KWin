@@ -1083,7 +1083,7 @@ Scope {
                                 y: sbg.m - prefsGlassGeo.y
                                 width: prefsGlassGeo.mw; height: prefsGlassGeo.mh
                                 source: root.fileUrl(root.wallpaperFor(prefsGlassGeo.mon))
-                                sourceSize.width: prefsGlassGeo.mw
+                                sourceSize: root.hub ? root.hub.wallpaperSize(prefsGlassGeo.mon) : Qt.size(prefsGlassGeo.mw, 0)     // shared decode
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true; smooth: true
                             }
@@ -5669,7 +5669,7 @@ Scope {
                             visible: status === Image.Ready
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
-                            sourceSize.width: bd.width
+                            sourceSize: root.hub ? root.hub.wallpaperSize(win.modelData.name) : Qt.size(bd.width, 0)     // the same as wpNext's
                             smooth: true
                         }
                         Image {
@@ -5683,7 +5683,7 @@ Scope {
                             source: root.fileUrl(root.wallpaperFor(win.modelData.name))
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
-                            sourceSize.width: bd.width
+                            sourceSize: root.hub ? root.hub.wallpaperSize(win.modelData.name) : Qt.size(bd.width, 0)     // shared decode
                         }
                         // animated wallpaper: plays behind the Dock glass only while Real-time glass is on
                         LiveWall {

@@ -636,7 +636,7 @@ Scope {
                         cache: true
                         smooth: true
                         fillMode: Image.PreserveAspectCrop
-                        sourceSize.width: width
+                        sourceSize: root.hub ? root.hub.wallpaperSize(w.modelData.name) : Qt.size(width, 0)      // shared decode
                         source: root.dock && root.dock.wallpaperFor && root.dock.fileUrl
                             ? root.dock.fileUrl(root.dock.wallpaperFor(w.modelData.name)) : ""
                     }

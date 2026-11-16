@@ -5605,7 +5605,7 @@ Scope {
                             source: root.fileUrl(root.wallpaperFor(win.modelData.name))
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
-                            sourceSize.width: bd.width
+                            sourceSize: root.hub ? root.hub.wallpaperSize(win.modelData.name) : Qt.size(bd.width, 0)     // shared decode
                             smooth: true
                         }
                         // animated wallpaper: plays behind the glass (menus, bar, Spotlight, switcher) only while "Animated wallpaper in glass" is on
