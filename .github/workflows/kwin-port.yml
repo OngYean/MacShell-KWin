@@ -44,6 +44,7 @@ jobs:
           node nix/test-widget-screens.js
           node nix/test-wallpaper-size.js
           node nix/test-dock-folders.js
+          node nix/test-apple-menu.js
           sh nix/test-install.sh
           python3 kwin-bridge/fake-bridge.py --selftest
 
