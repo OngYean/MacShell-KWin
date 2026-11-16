@@ -97,9 +97,13 @@
               makeWrapper "$out/libexec/macshell" "$out/bin/macshell" \
                 --set MACSHELL_CONFIG "$out/share/macshell" \
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.quickshell macshell-kwin-bridge ]} \
-                --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.dbus pkgs.procps pkgs.gawk ]} \
+                --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.dbus pkgs.procps pkgs.gawk pkgs.file ]} \
                 --prefix QML_IMPORT_PATH : "${pkgs.qt6.qtmultimedia}/${pkgs.qt6.qtbase.qtQmlPrefix}" \
                 --prefix QT_PLUGIN_PATH : "${pkgs.qt6.qtmultimedia}/${pkgs.qt6.qtbase.qtPluginPrefix}"
+              # Dolphin's "Pin to MacShell Dock" (a KIO service menu, found through XDG_DATA_DIRS)
+              install -Dm755 ${./nix/macshell-pin-folder.desktop} "$out/share/kio/servicemenus/macshell-pin-folder.desktop"
+              substituteInPlace "$out/share/kio/servicemenus/macshell-pin-folder.desktop" \
+                --replace-fail "Exec=macshell " "Exec=$out/bin/macshell "
               makeWrapper "$out/libexec/macshell-session" "$out/bin/macshell-session" \
                 --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath [ macshell-kwin-bridge ]}" \
                 --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.util-linux pkgs.gnused pkgs.gnugrep pkgs.coreutils ]}

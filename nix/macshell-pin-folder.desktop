@@ -1,0 +1,14 @@
+# Dolphin (KIO) service menu: right-click a folder -> "Pin to MacShell Dock". The folder appears left of the Trash.
+# Installed by the macshell package to share/kio/servicemenus/, with Exec pointed at the packaged macshell.
+# By hand: copy to ~/.local/share/kio/servicemenus/ and make it executable (KDE runs a user's own entry only then).
+[Desktop Entry]
+Type=Service
+MimeType=inode/directory;
+X-KDE-Protocols=file
+X-KDE-RequiredNumberOfUrls=1
+Actions=pinToMacShellDock
+
+[Desktop Action pinToMacShellDock]
+Name=Pin to MacShell Dock
+Icon=window-pin
+Exec=macshell ipc call dock pinFolder %f
