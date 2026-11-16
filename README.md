@@ -117,6 +117,7 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Window list, Dock, app switcher, active app name | Hyprland IPC and Quickshell's toplevel list | KWin, through the bridge |
 | Workspaces | Hyprland workspaces | KWin virtual desktops |
 | Keyboard layout indicator | `hyprctl` | KWin's keyboard layouts |
+| Memory | Each glass backdrop, the desktop and the widgets decoded their own copy of the wallpaper; the bar's window was always 900 px taller than the bar; closed overlays kept their glass backdrop loaded | One decoded wallpaper per screen (also on Hyprland). On KDE the bar's window is short while nothing is open below it, and Spotlight, the app switcher, the wallpaper picker and the OSD load their backdrop when they open. Not yet tested or measured |
 | Lock | MacLock locks the session and checks the password itself | KDE's screen locker does both; with `lockScreen` on, it shows MacLock's screen. Not yet tested in Plasma |
 | Log Out, Restart, Shut Down | `uwsm` / `hyprctl` / `systemctl` | KDE's session manager (your session is saved) |
 | Screenshots and screen recording | `grim`, `slurp`, `wf-recorder` | Spectacle |
@@ -417,7 +418,9 @@ the global `glassOpacity`.
   `plasmashell` (`handoff/10-replace-wallpaper-splash-tests.md`), nor the per-panel blur and transparency
   (`handoff/16-blur-panels-report.md`), nor minimizing into the Dock (`handoff/13-magic-lamp-tests.md`), nor
   widgets on other screens and the per-screen title and menus (`handoff/17-per-screen-tests.md`), nor MacLock as
-  KDE's lock screen (`handoff/18-lock-screen-tests.md`).
+  KDE's lock screen (`handoff/18-lock-screen-tests.md`), nor the memory changes (`handoff/19-memory-report.md`).
+- **Memory:** Liquid Glass keeps a screen-sized backdrop for the bar and for the Dock on every screen. A panel set
+  to KWin's blur (Settings → Appearance → Panels) has none, which is the largest saving you can make yourself.
 - **MacLock as KDE's lock screen:** it uses the wallpaper picked in MacShell, so with no pick (for example next to
   `plasmashell` with Plasma's wallpaper) the background is dark. It appears from black rather than fading in over
   the desktop. Notifications and timers on it update every two seconds, the battery every thirty. An account
