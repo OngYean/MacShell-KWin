@@ -34,6 +34,17 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`19-memory-report.md`](19-memory-report.md) — on `pending-test` (2026-11-16): where the Quickshell process's memory goes (B14, read from the code, not measured) and three changes: one decoded wallpaper per screen, overlay backdrops loaded on demand and a bar window that is short at rest (the last two under KWin only). Measuring commands and test plan.
 
+- [`20-dock-folders-tests.md`](20-dock-folders-tests.md) — on `pending-test` (2026-11-16): folders pinned to the Dock next to the Trash, from Settings or from Dolphin's right-click menu, opening as a grid of their newest items (F16). How it works, limits and test plan.
+
+## Update (2026-11-16, third, branch `pending-test`)
+
+The user asked for folders in the Dock that open like a macOS stack. It is F16 in [`20-dock-folders-tests.md`](20-dock-folders-tests.md). Written, pushed as `wip` commits and untested.
+
+What changed for anyone reading older briefs:
+- `~/.config/macdock/pinned.json` now holds folders too: an entry that starts with `/` (`MacShell/DockFolders.js`). Code that walks `pinned` must leave entries it does not know in place.
+- The Dock's right-click bubble is a `Flow`, and its model has a third kind of entry, `tile` (an icon over a name), beside `item` and `sep`. `ui.openMenu(cell, model)` opens the bubble with any model.
+- New IPC target `dock` (`pinFolder <path>`), and a KIO service menu installed by the `macshell` package (`nix/macshell-pin-folder.desktop`). The package's wrapper adds `file` to `PATH`.
+
 ## Update (2026-11-16, later, branch `pending-test`)
 
 The user reported the Quickshell process at 700 MB+ and asked for the cheap fixes. It is B14 in [`19-memory-report.md`](19-memory-report.md), which lists the causes found in the code and what was and was not changed. Nothing was measured. The brief also corrects one thing the user was first told: closed overlay windows do not keep their textures (Quickshell destroys a hidden layer-shell window).
