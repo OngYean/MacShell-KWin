@@ -36,6 +36,12 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`20-dock-folders-tests.md`](20-dock-folders-tests.md) — on `pending-test` (2026-11-16): folders pinned to the Dock next to the Trash, from Settings or from Dolphin's right-click menu, opening as a grid of their newest items (F16). How it works, limits and test plan.
 
+- [`21-desktop-peek-tests.md`](21-desktop-peek-tests.md) — on `pending-test` (2026-11-16): an option that makes a click on the empty desktop toggle KWin's Peek at Desktop (F17). What KWin does with MacShell's windows, limits and test plan.
+
+## Update (2026-11-16, fourth, branch `pending-test`)
+
+The user asked for an option that toggles KWin's Peek at Desktop when the desktop is clicked. It is F17 in [`21-desktop-peek-tests.md`](21-desktop-peek-tests.md). Written, pushed as a `wip` commit and untested. The bridge did not change: the compositor facade now exposes the `showingDesktop` state the bridge already sent, and the capability `showDesktop`.
+
 ## Update (2026-11-16, third, branch `pending-test`)
 
 The user asked for folders in the Dock that open like a macOS stack. It is F16 in [`20-dock-folders-tests.md`](20-dock-folders-tests.md). Written, pushed as `wip` commits and untested.
