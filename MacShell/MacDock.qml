@@ -31,6 +31,7 @@ import Quickshell.Services.UPower
 import "I18n.js" as I18n
 import "Fonts.js" as Fonts
 import "KdeColors.js" as KdeColors
+import "DockFolders.js" as DockFolders
 
 Scope {
     id: root
@@ -2705,6 +2706,38 @@ Scope {
                 }
                 SLabel { t: pal; text: I18n.tr("Drag icons in the Dock to reorder them. Pins are saved to ~/.config/macdock/pinned.json.") }
 
+                SLabel { t: pal; header: true; text: I18n.tr("Folders in Dock") }
+                SCard {
+                    t: pal
+                    Repeater {
+                        model: root.pinned.filter(function (e) { return DockFolders.isDir(e); })
+                        delegate: SRow {
+                            id: dirRow
+                            required property var modelData
+                            t: pal
+                            title: DockFolders.name(String(modelData))
+                            subtitle: String(modelData)
+                            iconSource: root.iconSrc("folder")
+                            SButton { t: pal; text: I18n.tr("Remove"); onClicked: root.unpinFolder(dirRow.modelData) }
+                        }
+                    }
+                    SRow {
+                        t: pal
+                        title: I18n.tr("Add a folder")
+                        subtitle: I18n.tr("It sits next to the Trash. Click it to see its newest items.")
+                        SButton { t: pal; text: I18n.tr("Choose\u2026"); onClicked: dirPick.running = true }
+                    }
+                }
+                SLabel { t: pal; text: I18n.tr("Choose\u2026 needs kdialog, zenity or yad. In Dolphin, right-click a folder and choose Pin to MacShell Dock.") }
+                Process {
+                    id: dirPick
+                    command: ["sh", "-c",
+                        "if command -v kdialog >/dev/null 2>&1; then kdialog --getexistingdirectory \"$HOME\"; "
+                        + "elif command -v zenity >/dev/null 2>&1; then zenity --file-selection --directory --filename=\"$HOME/\"; "
+                        + "elif command -v yad >/dev/null 2>&1; then yad --file --directory --filename=\"$HOME/\"; fi"]
+                    stdout: StdioCollector { onStreamFinished: root.pinFolder(text.trim()) }
+                }
+
                 SCard {
                     t: pal
                     SRow {
@@ -4700,6 +4733,7 @@ Scope {
                 + "exec xdg-open trash:///"]);
             return;
         }
+        if (item.special === "folder") { openFile({ isDir: true, path: item.path }); return; }
         var wins = windowsFor(item.key);
         if (wins.length > 0 && !forceNew) {
             var idx = -1;
@@ -4730,6 +4764,56 @@ Scope {
             }
             pruneTimer.restart();
         }
+    }
+
+    // ── Folders in the Dock (DockFolders.js): pinned left of the Trash, a click opens the folder as a stack ──
+    // macshell ipc call dock pinFolder /some/folder     (Dolphin's "Pin to MacShell Dock": nix/macshell-pin-folder.desktop)
+    IpcHandler {
+        target: "dock"
+        function pinFolder(path: string): void { root.pinFolder(path); }
+    }
+    function pinFolder(path) {
+        var p = DockFolders.add(pinned, path);
+        if (!p) return;
+        pinned = p;
+        store.setText(JSON.stringify(p, null, 2));
+        rebuild();
+    }
+    function unpinFolder(path) {
+        pinned = DockFolders.remove(pinned, path);
+        store.setText(JSON.stringify(pinned, null, 2));
+        rebuild();
+    }
+    // the Desktop's way of opening things: a graphical file manager for folders, the viewer / default app for files
+    function openFile(it) {
+        if (hub && hub.desktop) hub.desktop.openItem(it);
+        else Quickshell.execDetached(["xdg-open", it.path]);
+    }
+    // The stack: the folder's newest items as a grid of icons in the Dock's menu bubble, as many rows as fit in the room
+    // the Dock's window keeps for menus (under the grid: a separator, one row and the bubble's tail).
+    readonly property int stackCols: 5
+    readonly property int stackMax: stackCols * Math.max(1, Math.min(4, Math.floor((menuRoom + 52 - 57 * labelK) / (78 * labelK))))
+    readonly property string listScript: decodeURIComponent(String(Qt.resolvedUrl("assets/list-folder.sh")).replace(/^file:\/\//, ""))
+    property var stackDone: null
+    function listFolder(item, done) {
+        if (stackProc.running) return;
+        stackDone = function (text) { done(stackMenu(item, text)); };
+        stackProc.command = ["sh", listScript, item.path, String(stackMax)];
+        stackProc.running = true;
+    }
+    Process {
+        id: stackProc
+        stdout: StdioCollector { onStreamFinished: { var f = root.stackDone; root.stackDone = null; if (f) f(text); } }
+    }
+    function stackMenu(item, text) {
+        var m = DockFolders.tiles(text, item.path).map(function (t) {
+            var src = t.thumb !== "" ? t.thumb : Quickshell.iconPath(t.icon, true);
+            if (src === "") src = Quickshell.iconPath(t.icon.split("-")[0] + "-x-generic", "text-x-generic");
+            return { kind: "tile", label: t.name, icon: src, run: function () { root.openFile(t); } };
+        });
+        if (m.length > 0) m.push({ kind: "sep" });
+        m.push({ kind: "item", label: I18n.tr("Open in File Manager"), run: function () { activate(item, false); } });
+        return m;
     }
 
     function togglePin(item) {
@@ -4801,6 +4885,13 @@ Scope {
         if (item.special === "trash") {
             m.push({ kind: "item", label: I18n.tr("Open"), run: function () { activate(item, false); } });
             m.push({ kind: "item", label: I18n.tr("Empty Trash"), confirm: true, disabled: !trashFull, run: function () { root.emptyTrash(); } });
+            m.push({ kind: "sep" });
+            m.push({ kind: "item", label: I18n.tr("Settings\u2026"), run: function() { root.openPrefs(); } });
+            return m;
+        }
+        if (item.special === "folder") {
+            m.push({ kind: "item", label: I18n.tr("Open"), run: function () { activate(item, false); } });
+            m.push({ kind: "item", label: I18n.tr("Remove from Dock"), run: function () { root.unpinFolder(item.path); } });
             m.push({ kind: "sep" });
             m.push({ kind: "item", label: I18n.tr("Settings\u2026"), run: function() { root.openPrefs(); } });
             return m;
@@ -4917,11 +5008,18 @@ Scope {
         for (var wi = 0; wi < winIdList.length; wi++) if (liveWins.indexOf(winIdList[wi].tl) >= 0) keep.push(winIdList[wi]);
         winIdList = keep;
 
-        // [apps…] | [windows…] | Apps (Spotlight's application list) | Trash
+        // [apps…] | [windows…] | Apps (Spotlight's application list), pinned folders, Trash
         list.push({ kind: "sep", key: "sep:win" });
         for (var wj = 0; wj < winItems.length; wj++) list.push(winItems[wj]);
         if (winItems.length > 0) list.push({ kind: "sep", key: "sep:trash" });
         if (!appsPlaced) list.push(appsItem);
+        for (var pd = 0; pd < pinned.length; pd++) {
+            var dir = String(pinned[pd]);
+            if (!DockFolders.isDir(dir) || seen["dir:" + dir]) continue;
+            seen["dir:" + dir] = true;
+            list.push({ kind: "app", key: "dir:" + dir, name: DockFolders.name(dir), icon: "folder", path: dir,
+                        entry: null, running: false, pinned: true, special: "folder" });
+        }
         if (showTrash) {
             list.push({ kind: "app", key: "__trash", name: "Trash", icon: "user-trash",
                         entry: null, running: false, pinned: true, special: "trash" });
@@ -5372,22 +5470,35 @@ Scope {
                 property real menuCx: 0
                 // the menu is as wide as its longest entry (measured here whenever a menu is built)
                 property real menuTextW: 0
-                readonly property real menuW: Math.max(Math.round(168 * root.labelK), Math.min(Math.round(360 * root.labelK), Math.ceil(menuTextW) + Math.round(38 * root.labelK)))
+                // a folder stack's tiles (kind "tile") sit side by side, stackCols to a row; the menu is at least that wide
+                property int menuTiles: 0
+                readonly property int menuCols: Math.max(1, Math.min(root.stackCols, menuTiles))
+                readonly property real menuW: Math.max(Math.round(168 * root.labelK), Math.min(Math.round(360 * root.labelK), Math.ceil(menuTextW) + Math.round(38 * root.labelK)),
+                                                       menuTiles > 0 ? menuCols * Math.round(84 * root.labelK) + 2 * Math.round(5 * root.labelK) : 0)
+                function openMenu(c, model) {
+                    menuCx = c.mapToItem(ui, c.width / 2, 0).x;
+                    menuModel = model;
+                    menuCell = c;
+                    menuItem = c.modelData;
+                    syncMenu();
+                }
                 TextMetrics {
                     id: menuTm
                     font.pixelSize: Math.max(9, Math.round(13 * root.labelK))
                     font.family: root.fontForWeight(Font.Normal, root.fontFamily)
                 }
                 function measureMenu() {
-                    var w = 0;
+                    var w = 0, tiles = 0;
                     for (var i = 0; i < menuModel.length; i++) {
                         var e = menuModel[i];
-                        if (e.kind === "sep") continue;
+                        if (e.kind === "tile") tiles++;
+                        if (e.kind !== "item") continue;
                         menuTm.text = I18n.tr(e.label);
                         w = Math.max(w, menuTm.advanceWidth);
                         if (e.confirm === true) { menuTm.text = I18n.tr("Click again to confirm"); w = Math.max(w, menuTm.advanceWidth); }
                     }
                     menuTextW = w;
+                    menuTiles = tiles;
                 }
                 onMenuModelChanged: {
                     measureMenu();
@@ -6425,11 +6536,10 @@ Scope {
                                     onClicked: mouse => {
                                         if (ui.justDragged) return;
                                         if (mouse.button === Qt.RightButton) {
-                                            ui.menuCx = cell.mapToItem(ui, cell.width / 2, 0).x;
-                                            ui.menuModel = root.menuFor(cell.modelData);
-                                            ui.menuCell = cell;
-                                            ui.menuItem = cell.modelData;
-                                            ui.syncMenu();
+                                            ui.openMenu(cell, root.menuFor(cell.modelData));
+                                        } else if (cell.modelData.special === "folder" && mouse.button === Qt.LeftButton) {
+                                            // a pinned folder opens as a stack, in the menu's bubble (middle click: the file manager)
+                                            root.listFolder(cell.modelData, function (m) { ui.openMenu(cell, m); });
                                         } else {
                                             root.activate(cell.modelData, mouse.button === Qt.MiddleButton);
                                         }
@@ -6485,7 +6595,8 @@ Scope {
                     // repainting all of the bubble's canvases (blurred shadow included) on the CPU and causing severe magnification lag.
                     tailX: ui.menuTailX >= 0 ? ui.menuTailX : width / 2
 
-                    Column {
+                    // a Flow that reads as a Column: every entry is as wide as the menu, except a folder stack's tiles
+                    Flow {
                         id: menuCol
                         x: menu.pad
                         y: menu.pad
@@ -6499,9 +6610,10 @@ Scope {
                                 required property var modelData
                                 readonly property bool isSep: modelData.kind === "sep"
                                 readonly property bool off: !isSep && modelData.disabled === true
+                                readonly property bool isTile: modelData.kind === "tile"
                                 readonly property bool armedNow: !isSep && modelData.confirm === true && ui.armed === modelData.label
-                                width: menuCol.width
-                                height: isSep ? Math.round(11 * menu.k) : Math.round(22 * menu.k)
+                                width: isTile ? Math.floor(menuCol.width / ui.menuCols) : menuCol.width
+                                height: isSep ? Math.round(11 * menu.k) : Math.round((isTile ? 78 : 22) * menu.k)
 
                                 Rectangle {
                                     visible: mi.isSep
@@ -6516,8 +6628,34 @@ Scope {
                                     radius: Math.round(8 * menu.k)          // softly rounded selection
                                     color: mi.armedNow ? "#FF453A" : root.accent
                                 }
+                                // a folder stack's tile: the file's icon (a picture: the picture itself) over its name
+                                Image {
+                                    visible: mi.isTile
+                                    y: Math.round(6 * menu.k)
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    width: Math.round(48 * menu.k)
+                                    height: width
+                                    source: mi.isTile ? mi.modelData.icon : ""
+                                    sourceSize: Qt.size(root.iconPx(1), root.iconPx(1))
+                                    fillMode: Image.PreserveAspectFit
+                                    asynchronous: true
+                                    smooth: true
+                                    mipmap: true
+                                }
                                 Text {
-                                    visible: !mi.isSep
+                                    visible: mi.isTile
+                                    x: Math.round(4 * menu.k)
+                                    y: Math.round(58 * menu.k)
+                                    width: parent.width - 2 * x
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideMiddle
+                                    text: mi.isTile ? mi.modelData.label : ""
+                                    color: mia.containsMouse ? "white" : (menu.dark ? Qt.rgba(1, 1, 1, 0.92) : Qt.rgba(0, 0, 0, 0.86))
+                                    font.pixelSize: Math.max(8, Math.round(11 * menu.k))
+                                    font.family: root.fontForWeight(Font.Normal, root.fontFamily)
+                                }
+                                Text {
+                                    visible: !mi.isSep && !mi.isTile
                                     x: Math.round(11 * menu.k)
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: parent.width - 2 * Math.round(11 * menu.k)
