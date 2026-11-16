@@ -90,6 +90,11 @@ Scope {
     readonly property bool onHyprland: !comp || comp.isHyprland
     readonly property bool canCapture: !comp || comp.can("screenCapture")             // grim / wf-recorder / tone measuring
     readonly property bool canWindowCapture: !comp || comp.can("windowCapture")       // live windows behind the glass
+    // The app switcher, wallpaper picker, level OSD and Spotlight each have a glass backdrop of their own. Where windows are
+    // captured (Hyprland) it stays loaded while its window is closed, so the captures are streaming when it opens. KWin has
+    // no captures: there a closed overlay's backdrop was only a second copy of every desktop widget and, with an animated
+    // wallpaper in the glass, a video decoder playing for nobody. It is loaded with its window instead.
+    readonly property bool warmBackdrops: canWindowCapture
     // true while a screen recording / screen share runs: the glass's live window captures sit out (see shell.qml: hub.captureQuiet)
     readonly property bool captureQuiet: hub ? hub.captureQuiet : recording
     // windows opening / closing: the glass's live captures pause (it keeps its last frame; the source stays attached) - see shell.qml: hub.glassHold
@@ -9231,7 +9236,7 @@ Scope {
 
                 Loader {
                     id: swBackdrop
-                    active: root.liquidOf("overlays")          // stays loaded (warm) so the window opens on ready-made frames
+                    active: root.liquidOf("overlays") && (root.warmBackdrops || swWin.visible)     // warm: opens on ready-made frames
                     sourceComponent: backdropComp
                     onLoaded: { item.hostShown = Qt.binding(function () { return swWin.visible; });
                                 item.region = Qt.binding(function () { return Qt.rect(swPanel.x - 96, swPanel.y - 96, swPanel.width + 192, swPanel.height + 192); }); }
@@ -9406,7 +9411,7 @@ Scope {
 
                 Loader {
                     id: wpBackdrop
-                    active: root.liquidOf("overlays")          // stays loaded (warm) so the window opens on ready-made frames
+                    active: root.liquidOf("overlays") && (root.warmBackdrops || wpWin.visible)     // warm: opens on ready-made frames
                     sourceComponent: backdropComp
                     onLoaded: { item.hostShown = Qt.binding(function () { return wpWin.visible; });
                                 item.region = Qt.binding(function () { return Qt.rect(wpPanel.x - 96, wpPanel.y - 96, wpPanel.width + 192, wpPanel.height + 192); }); }
@@ -9791,7 +9796,7 @@ Scope {
 
                 Loader {
                     id: osdBackdrop
-                    active: root.liquidOf("overlays")
+                    active: root.liquidOf("overlays") && (root.warmBackdrops || osdWin.visible)
                     sourceComponent: backdropComp
                     onLoaded: { item.hostShown = Qt.binding(function () { return osdWin.visible; });
                                 item.region = Qt.binding(function () { return Qt.rect(levelOsd.x - 96, levelOsd.y - 96, levelOsd.width + 192, levelOsd.height + 192); }); }
@@ -9921,7 +9926,7 @@ Scope {
 
                 Loader {
                     id: spotBackdrop
-                    active: root.liquidOf("spotlight")          // stays loaded (warm) so the window opens on ready-made frames
+                    active: root.liquidOf("spotlight") && (root.warmBackdrops || spotWin.openish)     // warm: opens on ready-made frames
                     sourceComponent: backdropComp
                     onLoaded: { item.hostShown = Qt.binding(function () { return !root.gaming; });
                                 item.region = Qt.binding(function () { return Qt.rect(spot.x - 128, spot.y - 128, spot.width + 256, spot.height + 256); }); }
