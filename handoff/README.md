@@ -44,6 +44,17 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`24-plasma-report-3.md`](24-plasma-report-3.md) — on `pending-test` (2026-11-17): six items from the user's next Plasma test: the lock screen on MacShell's main display (F20), KDE's lock wallpaper kept the same as MacShell's (B15), Magic Lamp no longer switching to the app's icon during a restore (B16), the folder stack as macOS's fan with a faster listing (F21), Recent Items and Force Quit following "Submenus open to the side" (F22), a white battery icon (F23), and the Dock menu's pointer near its left end (F24). Causes, decisions and test plan.
 
+- [`25-optional-features-tests.md`](25-optional-features-tests.md) — on `pending-test` (2026-11-17): optional programs (kdialog, cliphist, …) as a choice in every way of installing (F25): `programs.macshell.features.*` in the Home Manager module, described `optdepends` in the PKGBUILD, questions in `install.sh`. The feature list, decisions and test plan.
+
+## Update (2026-11-17, second, branch `pending-test`)
+
+The user asked for the optional dependencies to be a choice in every packaging route. It is F25 in [`25-optional-features-tests.md`](25-optional-features-tests.md). Written, pushed as `wip` commits, untested; the Nix module has not been evaluated anywhere.
+
+What changed for anyone reading older briefs:
+- A new optional program goes into three lists: `features` in `nix/home-manager.nix`, `optdepends` in the PKGBUILD and `kde_features` in `install.sh`. `sh nix/test-install.sh` fails when they disagree.
+- `install.sh`'s KDE part now installs distribution packages, but only those of the optional features the user says yes to. Older briefs that say it installs none predate this.
+- `file` is no longer on the Nix wrapper's `PATH` ([`20`](20-dock-folders-tests.md) said it was): it is the switch `features.fileIcons`, on by default.
+
 ## Update (2026-11-17, branch `pending-test`)
 
 The user tested the branch in Plasma and sent seven items. They are F20 to F24, B15 and B16 in [`24-plasma-report-3.md`](24-plasma-report-3.md). Written, pushed as `wip` commits, untested.
