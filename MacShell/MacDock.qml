@@ -5555,10 +5555,13 @@ Scope {
                 property var menuModel: []
                 property string armed: ""            // label of a confirm-type entry that was clicked once (e.g. Empty Trash)
                 property real menuTailX: -1
+                // the menu hangs to the right of its icon, as on macOS: its tail is near the bubble's left end, just past the
+                // corner (radius 16 + half the tail's 24), unless the screen's edge pushes the bubble back
+                readonly property real menuTailOff: Math.round(30 * root.labelK)
                 function updateMenuTail() {
                     if (!menuOpen) return;
                     var w = menuW;
-                    var idealX = menuCx - w / 2;
+                    var idealX = menuCx - menuTailOff;
                     var clampedX = Math.max(8, Math.min(ui.width - w - 8, idealX));
                     menuTailX = Math.round(menuCx - clampedX);
                 }
@@ -6703,13 +6706,13 @@ Scope {
 
                     width: ui.menuW
                     bodyH: menuCol.height + 2 * pad
-                    x: Math.max(8, Math.min(ui.width - width - 8, ui.menuCx - width / 2))
+                    x: Math.max(8, Math.min(ui.width - width - 8, ui.menuCx - ui.menuTailOff))
                     y: ui.menuIconTop >= 0 ? ui.menuIconTop - Math.round(10 * k) - height
                                            : ui.height - root.margin - root.bgHeight - root.iconSize * (root.effMag - 1) - Math.round(10 * k) - height
                     // The tail points at the icon the menu belongs to. Its position along the bubble is locked when the menu opens:
                     // re-evaluating tailX while the menu follows its icon during magnification changed shapeKey on every frame,
                     // repainting all of the bubble's canvases (blurred shadow included) on the CPU and causing severe magnification lag.
-                    tailX: ui.menuTailX >= 0 ? ui.menuTailX : width / 2
+                    tailX: ui.menuTailX >= 0 ? ui.menuTailX : ui.menuTailOff
 
                     Column {
                         id: menuCol
