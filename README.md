@@ -78,8 +78,10 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   of "Desktop". Not yet tested.
 - **Minimizing into the Dock.** KWin's Magic Lamp effect animates a minimized window into its Dock icon (or its own
   window cell) instead of towards the pointer. Restoring it comes out of the same place, whether you click the Dock,
-  use Alt+Tab or a shortcut. Not yet tested in Plasma; a CI check against a headless KWin covers only that KWin
-  receives the target, not the animation.
+  use Alt+Tab or a shortcut. Seen working in Plasma on 2026-11-17, with one fault: a window restored from its own
+  cell switched to its app's icon near the end of the animation. The Dock now leaves KWin's target alone for 1.2 s
+  after a minimize or restore; that fix is not yet tested. As a result a window that is being minimized goes into
+  its app's icon, and its own cell is the target from then on.
 - **Minimized windows as pictures in the Dock** (Settings → Desktop & Dock → "Show window previews", on by
   default). On KDE a minimized window sits next to the Trash as a small picture of itself with its app's icon as a
   badge, as on macOS. KWin takes the picture once, when the window is minimized; nothing is captured live. Not yet
@@ -87,16 +89,21 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 - **Folders in the Dock.** Any folder can be pinned next to the Trash: Settings → Applications → Folders in Dock,
   or in Dolphin right-click a folder → Pin to MacShell Dock (a KDE service menu the Nix package installs; see
   [Keyboard shortcuts](#keyboard-shortcuts) for the command behind it). A click opens the folder as a stack above
-  its icon, as on macOS: its newest items as a grid of icons (a picture shows itself), with "Open in File Manager"
-  underneath. A click on an item opens it; right-click the folder → Remove from Dock. Grid view only (no fan or
-  list), and as many items as fit above the Dock: 15 at the default Dock size. Not yet tested in Plasma.
+  its icon, as macOS's fan: its newest items rise from the icon in a slight arc, each a name in a dark pill beside
+  its icon (a picture shows itself), with "Open in File Manager" on top. A click on an item opens it; right-click
+  the folder → Remove from Dock. Fan view only (no grid or list), and as many items as fit above the Dock: five at
+  the default Dock size, the rest through "Open in File Manager". The fan, and a faster listing of the folder, are
+  not yet tested in Plasma.
 - **An Apple menu you can arrange** (Settings → Menu Bar → Apple Menu Items; also on Hyprland). Every item of the
   top-left menu, the existing ones included, can be moved up or down or removed, and separators and items of your
   own (a name and a shell command) can be added. A command typed next to a built-in item runs instead of what the
   item does, for example your own lock command for Lock Screen. Two items are new and in the default menu:
-  - **Recent Items** lists the applications last started from the Dock or Spotlight and the most recent files,
-    inside the menu. Applications started any other way (a terminal, KRunner) are not listed.
-  - **Force Quit…** lists the open applications inside the menu; a second click on one kills its processes.
+  - **Recent Items** lists the applications last started from the Dock or Spotlight and the most recent files.
+    Applications started any other way (a terminal, KRunner) are not listed.
+  - **Force Quit…** lists the open applications; a second click on one kills its processes.
+
+  Both lists follow Settings → Menu Bar → "Submenus open to the side": off, they replace the menu under a "‹" row;
+  on, they open in a panel beside their row, when the pointer rests on it or on a click.
 
   Not yet tested.
 - **Click wallpaper to reveal desktop** (Settings → Desktop & Dock → Desktop, off by default, KDE only). A click
@@ -155,6 +162,7 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Shortcut items in the generic File/Edit menus | `hyprctl sendshortcut` / `wtype` | `ydotool`, if installed |
 | Game Mode | Also tunes Hyprland, the power profile and the video wallpaper | Quiets MacShell's own effects only |
 | Settings → Software Update | Checks 0-ss/MacShell | Checks this fork (OngYean/MacShell-KWin); it only notifies, you update with Nix or git |
+| Battery icon in the menu bar | A grey outline, green while charging | White like the other items of the bar (also on Hyprland), with the charging bolt; red only at 15 % or less while not charging. Not yet tested |
 | Menu popovers | Always 260 px wide; long entries cut off with "…" | As wide as the longest entry needs (up to 640 px). Not yet tested |
 | Dock icons | Loaded at exactly the Dock's icon size, again at every step of the Size slider | Loaded in 64 px steps, so dragging Size or Magnification no longer freezes the shell with SVG icon themes. Not yet tested |
 | Terminal apps started from the Dock | Started without a terminal | Open in the configured terminal, as from Spotlight (also on Hyprland). Not yet tested |
@@ -426,6 +434,14 @@ true` it draws MacLock instead of KDE's own screen. Not yet tested in a Plasma s
   ```
   Your real password closes it. Before installing, `nix build .#macshell-lock` and pass
   `"$PWD/result/share/plasma/shells/com.macshell.lock"` to `--shell` instead.
+- **With several screens** the clock, Now Playing and the password field go on the display chosen under MacShell's
+  Settings → Displays → Main display while it is connected, else on the laptop's built-in panel, else on the first
+  screen. The other screens show the wallpaper and the clock. Not yet tested.
+- **KDE's own lock wallpaper is set to MacShell's.** KDE draws its lock wallpaper under MacLock, and that picture
+  used to show for a moment before MacLock appeared. While MacLock is the lock screen, MacShell writes its
+  wallpaper into KDE's setting (`kscreenlockerrc`, the picture under System Settings → Screen Locking →
+  Appearance) at startup and whenever you change the wallpaper, so what shows first is the same picture. Your own
+  choice there is overwritten; with `lockScreen` off nothing is written. Not yet tested.
 - **If MacLock fails to load**, KDE shows its built-in fallback screen and your password still unlocks. If you are
   ever stuck, switch to a text console (Ctrl+Alt+F3), log in and run `loginctl unlock-session <id>` (`loginctl`
   lists the ids).
@@ -526,8 +542,8 @@ the global `glassOpacity`.
 - **Memory:** Liquid Glass keeps a screen-sized backdrop for the bar and for the Dock on every screen. A panel set
   to KWin's blur (Settings → Appearance → Panels) has none, which is the largest saving you can make yourself.
 - **MacLock as KDE's lock screen:** it uses the wallpaper picked in MacShell, so with no pick (for example next to
-  `plasmashell` with Plasma's wallpaper) the background is dark. It appears from black rather than fading in over
-  the desktop. Notifications and timers on it update every two seconds, the battery every thirty. An account
+  `plasmashell` with Plasma's wallpaper) the background is dark. It fades in over KDE's lock wallpaper (kept the
+  same picture as MacShell's), not over the desktop. Notifications and timers on it update every two seconds, the battery every thirty. An account
   without a password needs Enter to unlock.
 - **Title and menus per screen:** a screen's bar only knows the windows that have been active since MacShell
   started, so a window you haven't clicked yet shows as the desktop on a screen you aren't working on. Only the
