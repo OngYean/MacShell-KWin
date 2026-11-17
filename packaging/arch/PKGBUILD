@@ -22,18 +22,27 @@ depends=(
   'dbus'              # dbus-send
 )
 makedepends=('git' 'cmake' 'wayland-protocols' 'wlr-protocols')
+# Each is a program MacShell looks for and does without when it is missing: install the ones whose feature you
+# want (pacman -S --asdeps <name>), leave the others out. install.sh asks about the same list (kde_features) and
+# the Home Manager module has a switch for each (programs.macshell.features); nix/test-install.sh compares them.
 optdepends=(
-  'powerdevil: screen brightness'
+  'kdialog: the Choose… buttons in Settings and picture widgets open a folder or file picker'
+  'cliphist: clipboard history in Spotlight (with wl-clipboard)'
+  'wl-clipboard: clipboard history in Spotlight (with cliphist), and copying a screenshot to the clipboard'
+  'inotify-tools: the Trash icon changes at once instead of within 3 seconds'
+  'file: file-type icons in a Dock folder stack instead of one generic icon'
+  'fastfetch: the system report behind About This Linux'
   'spectacle: screenshots and screen recording'
-  'kdialog: folder and file pickers'
-  'file: file-type icons in Dock folders'
-  'inotify-tools: the Trash icon updates at once'
+  'curl: lyrics, stocks and location lookups in the widgets and on the lock screen (with jq)'
+  'jq: lyrics, stocks and location lookups in the widgets and on the lock screen (with curl)'
+  'python: lyrics from Genius when the first source has none'
+  'imagemagick: colours taken from the wallpaper'
+  'ffmpeg: a small copy of a video wallpaper for the glass, which uses much less memory'
+  'ydotool: shortcut items in the generic File and Edit menus (start its ydotoold service too)'
+  'powerdevil: screen brightness in Control Center'
   'networkmanager: Wi-Fi in Control Center'
   'bluez-utils: Bluetooth in Control Center'
-  'wl-clipboard: clipboard'
-  'cliphist: clipboard history'
-  'fastfetch: About This Linux'
-  'ydotool: shortcut items in the generic File / Edit menus'
+  'power-profiles-daemon: the power mode in Settings → Battery'
 )
 provides=('macshell-kwin')
 conflicts=('macshell-kwin')
