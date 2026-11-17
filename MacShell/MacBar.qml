@@ -240,6 +240,7 @@ Scope {
     readonly property string recentScript: decodeURIComponent(String(Qt.resolvedUrl("assets/recent-files.sh")).replace(/^file:\/\//, ""))
     readonly property string openPathScript: decodeURIComponent(String(Qt.resolvedUrl("assets/open-path.sh")).replace(/^file:\/\//, ""))
     readonly property string brightScript: decodeURIComponent(String(Qt.resolvedUrl("assets/brightness.sh")).replace(/^file:\/\//, ""))
+    readonly property string lockWallScript: decodeURIComponent(String(Qt.resolvedUrl("assets/lock-wallpaper.sh")).replace(/^file:\/\//, ""))
     readonly property string toneScript: decodeURIComponent(String(Qt.resolvedUrl("assets/tone.sh")).replace(/^file:\/\//, ""))
     // cur: 1 = dark text now (bright backdrop), -1 = white text now, 0 = undecided; v/sd = brightness / spread 0..1
     function pickTone(cur, v, sd, fresh) {
@@ -4488,7 +4489,12 @@ Scope {
         return root.wallpaperFor(screens && screens.length ? screens[0].name : "");
     }
     property bool wallpaperSampleForce: true
-    onWallpaperPathChanged: { wallpaperSampleForce = true; wallpaperColorTimer.restart(); }
+    onWallpaperPathChanged: {
+        wallpaperSampleForce = true; wallpaperColorTimer.restart();
+        // KDE: MacLock as the lock screen fades in over KDE's own lock wallpaper, so that one is kept the same picture
+        // (the script writes nothing unless MacLock is KDE's lock screen)
+        if (wallpaperPath !== "") Quickshell.execDetached(["sh", lockWallScript, wallpaperPath]);
+    }
     onWallpaperMapChanged: { wallpaperSampleForce = true; wallpaperColorTimer.restart(); }
     onDominantWallpaperPathChanged: { wallpaperSampleForce = true; wallpaperColorTimer.restart(); }
     function sampleWallpaperColor() {
