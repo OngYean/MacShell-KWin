@@ -6336,16 +6336,16 @@ Scope {
                                         width: 22; height: 12; radius: 3.5
                                         color: "transparent"
                                         border.width: 1
-                                        border.color: bpal.fg2
+                                        border.color: bpal.fg
                                         Rectangle {
                                             x: 1.5; y: 1.5
                                             width: Math.max(2, (parent.width - 3) * Math.min(1, root.batPct / 100))
                                             height: parent.height - 3
                                             radius: 2
-                                            color: root.charging ? "#30D158" : (root.batPct <= 15 ? "#FF453A" : bpal.fg)
+                                            color: (root.batPct <= 15 && !root.charging) ? "#FF453A" : bpal.fg
                                         }
                                     }
-                                    Rectangle { x: 23; y: 4; width: 2; height: 4; radius: 1; color: bpal.fg2 }
+                                    Rectangle { x: 23; y: 4; width: 2; height: 4; radius: 1; color: bpal.fg }
                                     Glyph {
                                         visible: root.charging
                                         anchors.centerIn: bbody
