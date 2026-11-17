@@ -1,8 +1,8 @@
-# Six items from the user's Plasma test of 2026-11-17
+# Seven items from the user's Plasma test of 2026-11-17
 
-`AGENTS.md` remains the authority. This file covers the six items the user sent on 2026-11-17 for branch `pending-test`, after running the branch in Plasma. One of them came with a picture of macOS's fan stack.
+`AGENTS.md` remains the authority. This file covers the six items the user sent on 2026-11-17 for branch `pending-test`, after running the branch in Plasma, and a seventh (F24) sent later the same day. Two of them came with a picture from macOS (the fan stack, a Dock icon's menu).
 
-**State: written and pushed to `pending-test` on 2026-11-17 as `wip` commits. None of the six changes has run in Plasma or in Quickshell.**
+**State: written and pushed to `pending-test` on 2026-11-17 as `wip` commits. None of the seven changes has run in Plasma or in Quickshell.**
 
 The report also tells us what already works in Plasma, which no brief could say before: MacLock shows as KDE's lock screen, Magic Lamp minimizes into the Dock and restores from a window's own cell, a pinned folder opens its stack, and Recent Items opens.
 
@@ -14,6 +14,7 @@ The report also tells us what already works in Plasma, which no brief could say 
 | F21 | Opening a pinned folder from the Dock is slow, and the style should match the picture (macOS's fan). | written, untested |
 | F22 | Recent Items' submenu should follow the submenu preference: open in place, or expand into another menu. | written, untested |
 | F23 | Change the battery's colour to white, matching the other items of the top bar. | written, untested |
+| F24 | The pointy part of a Dock icon's right-click menu should be near its left side instead of the centre. The hover tooltip stays centred. | written, untested |
 
 ## What was checked
 
@@ -61,6 +62,12 @@ The report also tells us what already works in Plasma, which no brief could say 
 - The outline and the cap were drawn in the bar's secondary colour (62 % white on a dark bar) and the fill was green while charging. All three now use the bar's text colour. The fill is red only at 15 % or less while not charging. The charging bolt is unchanged.
 - This is a guess at what "white" covers: the user did not say whether the grey outline or the green fill was meant. Both were changed.
 
+## F24: the Dock menu's tail near its left end
+
+- The bubble was centred over its icon. It now starts `menuTailOff` (30 px at the default Dock size: the corner's radius, half the tail and a little more) left of the icon's centre and hangs to the right, so the tail is near its left end, as in the user's picture of macOS.
+- Near the right edge of the screen the bubble is pushed back and the tail moves right along it, as before. The hover label and the folder's fan are other items and did not change.
+- Checked: `qmllint` 6.12 (syntax only), same findings. Not run.
+
 ## Test (Plasma, after a rebuild)
 
 **Lock screen (F20, B15), with `programs.macshell.lockScreen = true`:**
@@ -90,6 +97,11 @@ The report also tells us what already works in Plasma, which no brief could say 
 14. Settings → Menu Bar → "Submenus open to the side" on. Open the top-left menu and rest the pointer on Recent Items: a panel opens beside the row with Applications and Documents. Move into it and click an application: it starts. Move to another row of the menu: the panel closes.
 15. Same with Force Quit: the first click on an application turns the row red ("Click again to confirm"), the second ends it.
 16. The setting off: both lists replace the menu under a "‹" row, as before.
+
+**Dock menu (F24):**
+
+18. Right-click a Dock icon in the middle of the Dock: the menu's pointer is near its left end, on the icon, and the menu hangs to the right. Hover an icon: its label is still centred over it.
+19. Right-click the Trash with a Dock wide enough to reach near the screen's right edge (or on a narrow screen): the menu stays on screen and its pointer is still on the icon.
 
 **Battery (F23):**
 

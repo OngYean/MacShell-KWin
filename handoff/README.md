@@ -42,11 +42,11 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`23-apple-menu-tests.md`](23-apple-menu-tests.md) — on `pending-test` (2026-11-16): the top-left menu's items can be arranged, removed, given a command of their own and added to (F19); Recent Items and Force Quit are new. How it works, limits and test plan.
 
-- [`24-plasma-report-3.md`](24-plasma-report-3.md) — on `pending-test` (2026-11-17): six items from the user's next Plasma test: the lock screen on MacShell's main display (F20), KDE's lock wallpaper kept the same as MacShell's (B15), Magic Lamp no longer switching to the app's icon during a restore (B16), the folder stack as macOS's fan with a faster listing (F21), Recent Items and Force Quit following "Submenus open to the side" (F22), a white battery icon (F23). Causes, decisions and test plan.
+- [`24-plasma-report-3.md`](24-plasma-report-3.md) — on `pending-test` (2026-11-17): six items from the user's next Plasma test: the lock screen on MacShell's main display (F20), KDE's lock wallpaper kept the same as MacShell's (B15), Magic Lamp no longer switching to the app's icon during a restore (B16), the folder stack as macOS's fan with a faster listing (F21), Recent Items and Force Quit following "Submenus open to the side" (F22), a white battery icon (F23), and the Dock menu's pointer near its left end (F24). Causes, decisions and test plan.
 
 ## Update (2026-11-17, branch `pending-test`)
 
-The user tested the branch in Plasma and sent six items. They are F20 to F23, B15 and B16 in [`24-plasma-report-3.md`](24-plasma-report-3.md). Written, pushed as `wip` commits, untested.
+The user tested the branch in Plasma and sent seven items. They are F20 to F24, B15 and B16 in [`24-plasma-report-3.md`](24-plasma-report-3.md). Written, pushed as `wip` commits, untested.
 
 What changed for anyone reading older briefs:
 - The report shows that MacLock as KDE's lock screen, Magic Lamp into the Dock (window cells included), the folder stack and Recent Items run in Plasma. The briefs that say "nothing has run in Plasma" for those ([`13`](13-magic-lamp-tests.md), [`18`](18-lock-screen-tests.md), [`20`](20-dock-folders-tests.md), [`23`](23-apple-menu-tests.md)) predate it; their numbered tests have still not been reported one by one.
