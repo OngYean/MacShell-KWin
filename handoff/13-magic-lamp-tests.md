@@ -17,7 +17,7 @@ CI on `pending-test` (`3abdc32`, run `41991523455`) passes: the bridge builds wi
   - its own window cell if the Dock shows one, else its app's icon;
   - the icon's resting place (no magnification, Dock not hidden) in that screen's logical pixels;
   - on the window's own screen, or on the one screen the Dock is limited to (Settings → Desktop & Dock → monitor).
-- It is sent 250 ms after the Dock or the windows stop changing. `KWinBackend` sends only changes, and resends everything to a restarted bridge.
+- It is sent 250 ms after the Dock or the windows stop changing (from 2026-11-17: 1.2 s after a minimize or restore, see [`24`](24-plasma-report-3.md)). `KWinBackend` sends only changes, and resends everything to a restarted bridge.
 
 ## 0. Before you start
 

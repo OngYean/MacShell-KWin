@@ -49,7 +49,7 @@ What this keeps from KDE: the PAM check (service `kde`, plus fingerprint, smartc
 - **Private Plasma modules are optional at run time.** `org.kde.plasma.private.mpris` (Now Playing) is loaded through a `Loader`, `org.kde.plasma.private.keyboardindicator` (Caps Lock) through `Qt.createQmlObject`. If a Plasma update changes them, the feature disappears and the screen still loads. `org.kde.plasma.plasma5support` is required: without it KDE's fallback screen shows.
 - **No `jq` for settings.** The lock screen runs in KWin's environment, not MacShell's wrapper, so `LockState.qml` reads MacShell's JSON with `cat` and parses it in QML. Lyrics still use the upstream script, which needs `jq`, `curl` and `python3`.
 - **Helper programs use the network; the lock screen's QML cannot.** KDE gives the lock screen a network manager that refuses everything. Lyrics and Spotify Canvas already ran as helper processes, and remote album covers are now downloaded the same way (`HostPlayers.qml`, cached for 7 days in `~/.cache/maclock/art`). This is a deliberate way around KDE's rule for these three features; remove the `Run` calls to undo it.
-- **The full layout goes on the first screen Qt lists** (KDE's primary). Hyprland uses the focused monitor, which KDE's lock screen is not told.
+- **The full layout goes on MacShell's Main display**, else the built-in panel, else the first screen Qt lists (changed on 2026-11-17, see [`24`](24-plasma-report-3.md); it was the first screen Qt lists). Hyprland uses the focused monitor, which KDE's lock screen is not told.
 
 ## What was checked
 
@@ -111,7 +111,7 @@ Before starting, open a text console once (Ctrl+Alt+F3), log in, and leave it. I
 
 - **Missing from KDE's own screen:** Switch User, Sleep and Hibernate buttons, the on-screen keyboard, the keyboard layout switcher, and the chooser between authenticators. System Settings → Screen Locking → Appearance has no effect.
 - **Wallpaper:** only MacShell's pick (`wallpaperPath` in `~/.config/macbar/settings.json`, then `macdock`). Next to `plasmashell` with no pick the background is dark; Plasma's own wallpaper is not read.
-- **Entrance:** KDE's view is black behind the screen, so it fades in from black instead of over the desktop.
+- **Entrance:** it fades in over KDE's own lock wallpaper, which KDE draws under the screen (not over black, as this brief first said). From 2026-11-17 MacShell keeps that wallpaper the same picture as its own, see [`24`](24-plasma-report-3.md).
 - **Polling:** notifications and the Clock state every 2 s (`shortcut:` comment in `kde/ui/JsonFile.qml`), the battery every 30 s, Wi-Fi once per lock.
 - **Spotify Canvas** is looked up by artist and title only; KDE's player model does not pass the track id on.
 - **No preview and no `MACLOCK_*` overrides** under KDE.

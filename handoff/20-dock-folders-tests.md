@@ -28,6 +28,7 @@
 
 ## Decisions and limits
 
+- **From 2026-11-17 the stack is a fan, not the grid described here**, and the listing runs `file` once instead of once per item: see [`24`](24-plasma-report-3.md). Tests 2, 6 and 13 below describe the grid and are replaced there.
 - Grid only. macOS also has a fan and a list; neither was written.
 - The grid has five columns and as many rows as fit in the 300 px the Dock's window already keeps for menus: 15 items at the default Dock size, 5 at the largest, 20 at the smallest. The rest are reached with "Open in File Manager". Making the Dock's window taller for a bigger grid was not done (it would cost memory on every screen, see [`19`](19-memory-report.md)).
 - Sorted newest first by modification time, for every folder. macOS sorts Downloads by date added and other folders by name.

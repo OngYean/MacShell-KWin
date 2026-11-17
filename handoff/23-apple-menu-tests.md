@@ -26,7 +26,7 @@
 ## Limits
 
 - Recent applications are only those started from MacShell. Ones started from a terminal, KRunner or a file association are not listed, and nothing clears the list.
-- Recent Items and Force Quit always open in place, also with "Submenus open to the side" on.
+- Recent Items and Force Quit always open in place, also with "Submenus open to the side" on. **Changed on 2026-11-17:** they now follow that setting, see [`24`](24-plasma-report-3.md).
 - A built-in item keeps its own name; only custom items are named.
 - Force Quit kills by the process id KWin reports for a window. For an app whose windows belong to a shared process (some Flatpak or single-process suites) that ends more than the one window's app.
 - The glyphs of the two new items reuse existing drawings (a stack for Recent Items, a cross for Force Quit). Custom items have none.
