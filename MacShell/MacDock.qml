@@ -4835,8 +4835,10 @@ Scope {
         return out;
     }
     onIconTargetsChanged: iconTargetsT.restart()
-    // debounced: while a window is dragged the window list changes every frame
-    Timer { id: iconTargetsT; interval: 250; onTriggered: if (root.comp) root.comp.setIconTargets(root.iconTargets) }
+    // debounced: while a window is dragged the window list changes every frame. After a minimize or restore the wait
+    // outlasts KWin's animation at its slowest setting (1 s): Magic Lamp reads the target on every frame, and a restored
+    // window's own cell goes at once, so the lamp used to jump over to the app's icon near its end.
+    Timer { id: iconTargetsT; interval: 250; onTriggered: { interval = 250; if (root.comp) root.comp.setIconTargets(root.iconTargets); } }
 
     function activate(item, forceNew) {
         if (item.kind === "win") { if (item.tl) item.tl.activate(); return; }
@@ -5391,7 +5393,10 @@ Scope {
         target: root.onHyprland ? null : root.comp
         function onToplevelsChanged() { root.rebuild(); settle.restart(); tickDebounce.restart(); }
         function onClientsChanged() { busyDebounce.restart(); }
-        function onMinimizedRevChanged() { if (root.snapshotCells) root.rebuild(); }     // a window cell comes or goes
+        function onMinimizedRevChanged() {
+            iconTargetsT.interval = 1200; iconTargetsT.restart();     // KWin keeps the target it has while it animates
+            if (root.snapshotCells) root.rebuild();                    // a window cell comes or goes
+        }
     }
     Connections {
         target: DesktopEntries.applications
