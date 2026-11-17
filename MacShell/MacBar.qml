@@ -3732,7 +3732,8 @@ Scope {
         }
         return out;
     }
-    // Recent Items and Force Quit open inside the Apple menu's popover, under a "‹" row that goes back
+    // Recent Items and Force Quit open inside the Apple menu's popover, under a "‹" row that goes back; with "Submenus
+    // open to the side" they open beside their row instead, without the first two rows built here (ui.appleEnter)
     function appleSubModel(id) {
         var m = [{ kind: "item", label: "\u2039  " + I18n.tr(AppleMenu.names[id]).replace(/\u2026$/, ""), raw: true, back: true }, msep()], i, n = 0;
         var head = function (t) { return { kind: "item", label: t, disabled: true }; };
@@ -5247,8 +5248,19 @@ Scope {
                 property real trayX: 0
                 property var menuModel: []
                 property var gmPath: []              // global menu: submenus opened inside the popover (item ids)
-                property string appleSub: ""         // Apple menu: "recent" / "forcequit" while that list is open inside the popover
-                function appleModel() { return appleSub !== "" ? root.appleSubModel(appleSub) : root.menuModelFor(pop, !barTl); }
+                property string appleSub: ""         // Apple menu: "recent" / "forcequit" while that list is open
+                function appleModel() { return appleSub !== "" && !root.menuCascade ? root.appleSubModel(appleSub) : root.menuModelFor(pop, !barTl); }
+                // open that list ("" closes it): inside the popover, or with "Submenus open to the side" in a panel beside
+                // its row, like a submenu of an application's menu (the Repeater in menuPop)
+                function appleEnter(id, rowY) {
+                    cascT.stop();
+                    if (appleSub === id) return;
+                    appleSub = id;
+                    gmRowY = [rowY];
+                    armed = "";
+                    if (id === "recent") root.loadRecents();
+                    if (!root.menuCascade) menuModel = appleModel();
+                }
                 property string gmPrev: ""
                 property string gmWin: ""            // the window whose menu this popover shows
                 // the window this screen's bar describes (see root.barTlFor). parked: it is not the active one, so the bar
@@ -5282,7 +5294,7 @@ Scope {
                 // The pointer is on a row of the menu at `depth`: open its submenu, or close the submenus beside it. After a
                 // moment only, because the pointer crosses other rows on its way into an open submenu.
                 function gmHover(depth, item, rowY) {
-                    cascT.depth = depth; cascT.subId = item.sub === true ? item.gmId : -1; cascT.rowY = rowY;
+                    cascT.depth = depth; cascT.subId = item.sub === true ? item.gmId : -1; cascT.asub = item.asub || ""; cascT.rowY = rowY;
                     cascT.restart();
                 }
                 Timer {
@@ -5291,7 +5303,12 @@ Scope {
                     property int depth: 0
                     property int subId: -1
                     property real rowY: 0
-                    onTriggered: { if (subId >= 0) ui.gmEnterAt(depth, subId, rowY); else ui.gmTrim(depth); }
+                    property string asub: ""        // the Apple menu: the list the row opens, "" for any other row
+                    onTriggered: {
+                        if (ui.pop === "apple") { if (depth === 0) ui.appleEnter(asub, rowY); }
+                        else if (subId >= 0) ui.gmEnterAt(depth, subId, rowY);
+                        else ui.gmTrim(depth);
+                    }
                 }
                 function gmEnter(id, rowY) {
                     if (root.menuCascade) { gmEnterAt(0, id, rowY || 0); return; }
@@ -5469,8 +5486,9 @@ Scope {
                 Connections {
                     target: root
                     function onActiveWinChanged() { if (ui.isMenu && !root.isGm(ui.pop)) ui.menuModel = ui.appleModel(); }
-                    function onRecentHitsChanged() { if (ui.appleSub === "recent") ui.menuModel = ui.appleModel(); }
-                    function onRecentLoadingChanged() { if (ui.appleSub === "recent") ui.menuModel = ui.appleModel(); }
+                    // (beside the menu the list is a binding of its own panel, and the menu itself does not change)
+                    function onRecentHitsChanged() { if (ui.appleSub === "recent" && !root.menuCascade) ui.menuModel = ui.appleModel(); }
+                    function onRecentLoadingChanged() { if (ui.appleSub === "recent" && !root.menuCascade) ui.menuModel = ui.appleModel(); }
                 }
                 // bounding box of all glass that is on screen right now (popovers, notification popups) + a refraction margin
                 readonly property rect glassRect: {
@@ -7308,21 +7326,16 @@ Scope {
                                     anchors.fill: parent
                                     enabled: !it.isSep && !it.off
                                     hoverEnabled: true
-                                    onEntered: if (root.menuCascade && root.isGm(ui.pop)) ui.gmHover(0, it.modelData, it.y)
+                                    onEntered: if (root.menuCascade && (root.isGm(ui.pop) || ui.pop === "apple")) ui.gmHover(0, it.modelData, it.y)
                                     onClicked: {
                                         if (it.modelData.confirm === true && ui.armed !== it.modelData.label) {
                                             ui.armed = it.modelData.label;
                                             return;
                                         }
                                         if (it.modelData.sub === true) { ui.gmEnter(it.modelData.gmId, it.y); return; }
-                                        if (it.modelData.asub) {
-                                            ui.appleSub = it.modelData.asub;
-                                            if (ui.appleSub === "recent") root.loadRecents();
-                                            ui.menuModel = ui.appleModel();
-                                            return;
-                                        }
+                                        if (it.modelData.asub) { ui.appleEnter(it.modelData.asub, it.y); return; }
                                         if (it.modelData.back === true) {
-                                            if (ui.appleSub !== "") { ui.appleSub = ""; ui.menuModel = ui.appleModel(); } else ui.gmBack();
+                                            if (ui.appleSub !== "") ui.appleEnter("", 0); else ui.gmBack();
                                             return;
                                         }
                                         var run = it.modelData.run;
@@ -7336,17 +7349,19 @@ Scope {
                     }
 
                     // ── cascading submenus: one panel per open submenu, beside its parent row ──
-                    // Children of the dropdown, so they share its scale and fade. The rows repeat the dropdown's look; they
-                    // need no confirm step, glyphs or "back" row, which only the generic menus and the drill-down have.
+                    // Children of the dropdown, so they share its scale and fade. The rows repeat the dropdown's look, without
+                    // the "back" row of the drill-down. The Apple menu's Recent Items and Force Quit open here too: one panel,
+                    // the list appleSubModel() builds without its first two rows (the "back" row and its separator).
                     Repeater {
                         id: subRep
-                        model: (root.menuCascade && root.isGm(ui.pop)) ? ui.gmPath.length : 0
+                        model: !root.menuCascade ? 0 : (root.isGm(ui.pop) ? ui.gmPath.length : (ui.appleSub !== "" ? 1 : 0))
                         delegate: Item {
                             id: sub
                             required property int index
-                            readonly property var rows: root.gmModel(ui.gmPath[index])
+                            readonly property var rows: root.isGm(ui.pop) ? root.gmModel(ui.gmPath[index])
+                                                      : (ui.appleSub !== "" ? root.appleSubModel(ui.appleSub).slice(2) : [])
                             readonly property bool lead: {
-                                for (var i = 0; i < rows.length; i++) if (rows[i].checked !== undefined || rows[i].icon) return true;
+                                for (var i = 0; i < rows.length; i++) if (rows[i].checked !== undefined || rows[i].glyph !== undefined || rows[i].icon) return true;
                                 return false;
                             }
                             // the menu it hangs off: the dropdown, or the submenu before it (created first)
@@ -7411,6 +7426,7 @@ Scope {
                                         readonly property bool isSep: modelData.kind === "sep"
                                         readonly property bool off: !isSep && modelData.disabled === true
                                         readonly property bool hot: !isSep && !off && sma2.containsMouse
+                                        readonly property bool armedNow: !isSep && modelData.confirm === true && ui.armed === modelData.label
                                         width: subCol.width
                                         height: isSep ? 11 : 26
                                         Rectangle {
@@ -7419,7 +7435,15 @@ Scope {
                                             x: 8; width: parent.width - 16; height: 1
                                             color: panelPal.sep
                                         }
-                                        Rectangle { visible: srow.hot; anchors.fill: parent; radius: 6; color: root.accent }
+                                        Rectangle { visible: srow.hot; anchors.fill: parent; radius: 6; color: srow.armedNow ? "#FF453A" : root.accent }
+                                        Glyph {
+                                            visible: !srow.isSep && srow.modelData.glyph !== undefined
+                                            x: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 15; height: 15
+                                            kind: srow.modelData.glyph !== undefined ? srow.modelData.glyph : ""
+                                            color: srow.hot ? "white" : (srow.off ? panelPal.fg2 : panelPal.fg)
+                                        }
                                         Image {
                                             visible: !srow.isSep && !!srow.modelData.icon
                                             x: 10
@@ -7446,7 +7470,7 @@ Scope {
                                             anchors.verticalCenter: parent.verticalCenter
                                             width: parent.width - x - 12 - (ssc.visible ? ssc.implicitWidth + 12 : 0)
                                             elide: Text.ElideRight
-                                            text: srow.isSep ? "" : srow.modelData.label
+                                            text: srow.isSep ? "" : (srow.armedNow ? I18n.tr("Click again to confirm") : (srow.modelData.raw === true ? srow.modelData.label : I18n.tr(srow.modelData.label)))
                                             color: srow.hot ? "white" : (srow.off ? panelPal.fg2 : panelPal.fg)
                                             font.family: Fonts.forWeight(Font.Normal, "Open Runde")
                                             font.pixelSize: 13
@@ -7471,6 +7495,8 @@ Scope {
                                             hoverEnabled: true
                                             onEntered: ui.gmHover(sub.index + 1, srow.modelData, srow.y)
                                             onClicked: {
+                                                // Force Quit's rows: the first click arms, as in the dropdown
+                                                if (srow.modelData.confirm === true && ui.armed !== srow.modelData.label) { ui.armed = srow.modelData.label; return; }
                                                 if (srow.modelData.sub === true) { ui.gmEnterAt(sub.index + 1, srow.modelData.gmId, srow.y); return; }
                                                 var run = srow.modelData.run;
                                                 if (run) run();
