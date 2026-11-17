@@ -17,10 +17,10 @@ QtObject {
     function disconnectSource(cmd) { delete live[cmd]; }
 
     function answer(cmd) {
-        // LockState.qml's one-shot lookups: MacShell's settings, MacLock's own, the video state, Wi-Fi, Ethernet
+        // LockState.qml's one-shot lookups: MacShell's settings, MacLock's own, the video state, Wi-Fi, Ethernet, the main display
         if (cmd.indexOf("macbar/settings.json") >= 0)
             return ['{"use24h": false, "wallpaperPath": "/tmp/wall.png", "lockClockFont": "serif", "language": "auto"}', "",
-                    '{"mediaSlot": "bottom"}', "", "", "", "50", "eth"].join("\n@@maclock@@\n") + "\n";
+                    '{"mediaSlot": "bottom"}', "", "", "", "50", "eth", '{"primary": "DP-1", "modes": {}}'].join("\n@@maclock@@\n") + "\n";
         // … and which of the wallpaper candidates exist: only the first
         if (cmd.indexOf('[ -f "$f" ]') >= 0) return "y\nn\nn\nn\n";
         return "";

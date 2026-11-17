@@ -48,6 +48,12 @@ Item {
         check("Wi-Fi 50% is two bars, Ethernet is seen", st.wifiLevel === 2 && st.ethernet === true);
         check("the wallpaper is the first candidate that exists", st.wallpaper === "/tmp/wall.png" && st.wallpaperVideo === "");
 
+        var names = function (l) { return l.map(function (n) { return { name: n }; }); };
+        check("the main display chosen in MacShell gets the full layout while it is connected",
+              st.mainScreen === "DP-1" && st.primaryOf(names(["eDP-1", "DP-1"])) === "DP-1");
+        check("without it the built-in panel does, and without that the first screen",
+              st.primaryOf(names(["HDMI-A-1", "eDP-1"])) === "eDP-1" && st.primaryOf(names(["HDMI-A-1", "DP-2"])) === "HDMI-A-1" && st.primaryOf([]) === "");
+
         check("KDE's current player reaches the UI in seconds", ui.hasMedia && ui.player.trackTitle === "Song" && ui.player.length === 200 && !ui.player.isPlaying);
 
         // a password sent before PAM asks is held, not dropped
