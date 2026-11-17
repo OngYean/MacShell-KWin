@@ -82,8 +82,10 @@ set -euo pipefail
 # ═════════════════════════ KDE Plasma (this fork) ═════════════════════════
 # Builds this clone with the top-level CMakeLists.txt and installs it under a prefix (~/.local unless told otherwise):
 # bin/macshell, bin/macshell-session, bin/macshell-kwin-bridge, share/macshell/shell (the Quickshell configuration),
-# the systemd user units, Dolphin's "Pin to MacShell Dock" and MacLock as a lock-screen package. It installs no
-# distribution packages and edits no KDE configuration; plasmashell is never removed, masked or disabled.
+# the systemd user units, Dolphin's "Pin to MacShell Dock" and MacLock as a lock-screen package. It then asks which
+# optional features you want and installs the programs those need with your package manager (kde_features below);
+# it installs no other distribution packages and edits no KDE configuration; plasmashell is never removed, masked or
+# disabled.
 kde_usage() {
     cat <<'USAGE'
 MacShell for KDE Plasma: install or remove this clone's copy.
@@ -91,11 +93,15 @@ MacShell for KDE Plasma: install or remove this clone's copy.
   ./install.sh                          build and install to ~/.local
   ./install.sh --prefix /usr/local      another prefix (uses sudo for the copy when it cannot write there)
   ./install.sh --autostart replace      also start MacShell at every Plasma login, in place of plasmashell
+  ./install.sh --features-only          only choose the optional features (nothing is built or installed otherwise)
   ./install.sh --uninstall              remove it (your settings are kept); add --prefix if you used one
 
 Options
       --prefix DIR       where to install (default: ~/.local)
       --autostart MODE   replace | coexist | off: what a Plasma login starts (default: left as it is)
+      --features LIST    optional features to install the programs for, without being asked: all, none, or names
+                         separated by commas (the names are printed after the install, and by --features-only)
+      --features-only    go straight to the optional features
       --uninstall        stop MacShell and bring plasmashell back, turn autostart off, remove the installed files
       --kde              install for KDE Plasma even outside a Plasma session
       --hyprland         run the original project's Hyprland installer even in a Plasma session
@@ -111,13 +117,85 @@ kde_files="bin/macshell bin/macshell-session bin/macshell-kwin-bridge share/macs
 share/systemd/user/macshell.service share/systemd/user/macshell-fallback.service
 share/kio/servicemenus/macshell-pin-folder.desktop share/plasma/shells/com.macshell.lock"
 
+# Optional features: programs MacShell looks for and does without when they are missing. One per line:
+#   name|programs (a/b: either)|pacman packages|dnf packages|apt packages|what it gives
+# The names are the Home Manager module's programs.macshell.features.* and the pacman packages are in the PKGBUILD's
+# optdepends: nix/test-install.sh checks both. Not here: PowerDevil, NetworkManager, BlueZ and power-profiles-daemon,
+# which are services your distribution sets up.
+kde_features="pickers|kdialog|kdialog|kdialog|kdialog|Folder and file pickers in Settings and picture widgets
+clipboardHistory|cliphist wl-paste|cliphist wl-clipboard|cliphist wl-clipboard|cliphist wl-clipboard|Clipboard history in Spotlight
+trashWatch|inotifywait|inotify-tools|inotify-tools|inotify-tools|The Trash icon changes at once, not within 3 seconds
+fileIcons|file|file|file|file|File-type icons in a Dock folder's stack
+systemReport|fastfetch|fastfetch|fastfetch|fastfetch|The system report behind About This Linux
+screenshots|spectacle|spectacle|spectacle|kde-spectacle|Screenshots and screen recording
+onlineLookups|curl jq python3|curl jq python|curl jq python3|curl jq python3|Lyrics, stocks and location lookups (widgets, lock screen)
+wallpaperColors|magick/convert|imagemagick|ImageMagick|imagemagick|Colours taken from the wallpaper
+videoGlass|ffmpeg|ffmpeg|ffmpeg-free|ffmpeg|A small copy of a video wallpaper for the glass (much less memory)
+menuShortcuts|ydotool|ydotool|ydotool|ydotool|Shortcut items in the generic File and Edit menus (start its ydotoold service too)"
+
+# kde_optional WANT: WANT is "ask" (a question per missing feature on a terminal; nothing is installed without one),
+# "all", "none" or feature names separated by commas. Installs the chosen features' packages in one go.
+kde_optional() {
+    local want="$1" pm="" name tools p_pacman p_dnf p_apt what t a alt have ans asked pkgs="" byhand="" known="" k
+    if command -v pacman >/dev/null 2>&1; then pm=pacman
+    elif command -v dnf >/dev/null 2>&1; then pm=dnf
+    elif command -v apt-get >/dev/null 2>&1; then pm=apt-get; fi
+    while IFS='|' read -r name _; do known="$known,$name"; done <<< "$kde_features"
+    case "$want" in ask|all|none) ;; *)
+        for k in ${want//,/ }; do case "$known," in *",$k,"*) ;; *) kde_die "unknown feature: $k (known:${known//,/ })" ;; esac; done ;;
+    esac
+
+    echo
+    echo "Optional features (each needs programs MacShell does without when they are missing):"
+    while IFS='|' read -r name tools p_pacman p_dnf p_apt what <&3; do
+        have=1
+        for t in $tools; do
+            alt=0
+            for a in ${t//\// }; do if command -v "$a" >/dev/null 2>&1; then alt=1; fi; done
+            [ "$alt" = 1 ] || have=0
+        done
+        if [ "$have" = 1 ]; then printf '  %-17s %s: already available\n' "$name" "$what"; continue; fi
+        asked=0
+        case "$want" in
+            all) ans=y ;;
+            none) ans=n ;;
+            ask)
+                ans=n
+                if [ -t 0 ]; then asked=1; read -r -p "  $name: $what. Install it (${tools//\// or })? [y/N] " ans || ans=n; fi ;;
+            *) case ",$want," in *",$name,"*) ans=y ;; *) ans=n ;; esac ;;
+        esac
+        case "$ans" in
+            y|Y|yes|Yes|YES)
+                case "$pm" in pacman) pkgs="$pkgs $p_pacman" ;; dnf) pkgs="$pkgs $p_dnf" ;; apt-get) pkgs="$pkgs $p_apt" ;; *) byhand="$byhand $tools" ;; esac
+                [ "$asked" = 1 ] || printf '  %-17s %s: chosen\n' "$name" "$what" ;;
+            *) [ "$asked" = 1 ] || printf '  %-17s %s: left out (needs: %s)\n' "$name" "$what" "${tools//\// or }" ;;
+        esac
+    done 3<<< "$kde_features"
+    [ "$want" != ask ] || [ -t 0 ] || echo "  (not asked: no terminal. Choose with --features all, none or a list of the names above.)"
+
+    # the same package can serve two features
+    pkgs=$(printf '%s\n' $pkgs | sort -u | tr '\n' ' ')
+    if [ -n "${pkgs// /}" ]; then
+        echo "Installing: $pkgs"
+        case "$pm" in
+            pacman) sudo pacman -S --needed $pkgs ;;
+            dnf) sudo dnf install $pkgs ;;
+            apt-get) sudo apt-get install $pkgs ;;
+        esac || echo "The package manager did not finish. MacShell itself is installed; install these yourself for the features above: $pkgs" >&2
+    fi
+    [ -z "$byhand" ] || echo "No pacman, dnf or apt-get here: install these programs yourself for the chosen features:$byhand"
+    echo "Choose again at any time with ./install.sh --features-only. Removing a program turns its feature off."
+}
+
 kde_main() {
-    local prefix="$HOME/.local" autostart="" uninstall=0 here build sudo="" d f miss=""
+    local prefix="$HOME/.local" autostart="" uninstall=0 features=ask features_only=0 here build sudo="" d f miss=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --kde) ;;
             --prefix) prefix="${2:-}"; shift ;;
             --autostart) autostart="${2:-}"; shift ;;
+            --features) features="${2:-}"; [ -n "$features" ] || kde_die "--features needs all, none or a list of names"; shift ;;
+            --features-only) features_only=1 ;;
             --uninstall) uninstall=1 ;;
             -h|--help) kde_usage; exit 0 ;;
             *) kde_die "unknown option for the KDE Plasma install: $1 (try --help; --hyprland runs the Hyprland installer)" ;;
@@ -127,6 +205,7 @@ kde_main() {
     case "$prefix" in /?*) prefix="${prefix%/}" ;; *) kde_die "--prefix must be an absolute path" ;; esac
     case "$autostart" in ""|replace|coexist|off) ;; *) kde_die "--autostart must be replace, coexist or off" ;; esac
     [ "$(id -u)" -ne 0 ] || kde_die "run this as your normal user (it asks for sudo itself when the prefix needs it)"
+    if [ "$features_only" = 1 ]; then kde_optional "$features"; return 0; fi
     # sudo only for a prefix this user cannot write: the nearest directory that exists decides
     d="$prefix"; while [ ! -e "$d" ]; do d=$(dirname "$d"); done
     [ -w "$d" ] || sudo="sudo"
@@ -141,6 +220,7 @@ kde_main() {
         $sudo rmdir "$prefix/share/macshell" 2>/dev/null || true      # kept when the Hyprland installer's files are in it
         command -v systemctl >/dev/null 2>&1 && systemctl --user daemon-reload 2>/dev/null || true
         echo "MacShell was removed from $prefix. Your settings were kept (~/.config/macbar, macdock, macshell, macwidgets)."
+        echo "Programs installed for optional features were left alone: remove them with your package manager if you want."
         return 0
     fi
 
@@ -167,6 +247,7 @@ kde_main() {
     $sudo cmake --install "$build"
     command -v systemctl >/dev/null 2>&1 && systemctl --user daemon-reload 2>/dev/null || true
     [ -z "$autostart" ] || "$prefix/bin/macshell-session" autostart "$autostart"
+    kde_optional "$features"
 
     echo
     echo "MacShell $(cat "$here/MacShell/VERSION") is installed in $prefix."
