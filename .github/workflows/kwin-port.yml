@@ -72,6 +72,7 @@ jobs:
                     programs.macshell.enable = true;
                     programs.macshell.autostart = true;
                     programs.macshell.lockScreen = true;
+                    programs.macshell.features.clipboardHistory = true;
                   }
                 ];
               };
@@ -90,6 +91,7 @@ jobs:
             + " drv=${home.activationPackage.drvPath}"
             + " lock=${home.config.systemd.user.sessionVariables.PLASMA_DEFAULT_SHELL or "unset"}"
             + " lockpkg=${if builtins.hasAttr "plasma/shells/com.macshell.lock" home.config.xdg.dataFile then "yes" else "no"}"
+            + " pkgs=${toString (map (p: self.inputs.nixpkgs.lib.getName p) home.config.home.packages)} "
           ' > hm.txt 2> hm-err.txt; then
             msg=$(sed -n '/error:/,$p' hm-err.txt | tail -n 30)
             echo "::error title=home-manager eval::$(printf '%s' "${msg:-$(tail -n 30 hm-err.txt)}" | tr '\n' ' ' | sed 's/%/%25/g' | cut -c1-4000)"
@@ -107,6 +109,15 @@ jobs:
           # lockScreen = true installs the Plasma/Shell package and names it for KDE's locker
           grep -q " lock=com.macshell.lock lockpkg=yes" hm.txt \
             || { echo "::error title=home-manager::lockScreen did not install com.macshell.lock and set PLASMA_DEFAULT_SHELL"; exit 1; }
+
+          # features: a switch that is on installs its programs (clipboardHistory, set above), the default one too
+          # (fileIcons), and one that is off does not (pickers)
+          pk=$(sed -n 's/.* pkgs=\(.*\)/\1/p' hm.txt)
+          for want in cliphist wl-clipboard; do
+            case " $pk " in *" $want "*) ;; *) echo "::error title=home-manager::features.clipboardHistory did not install $want"; exit 1 ;; esac
+          done
+          case " $pk " in *" file "*) ;; *) echo "::error title=home-manager::features.fileIcons is on by default but file is not installed"; exit 1 ;; esac
+          case " $pk " in *" kdialog "*) echo "::error title=home-manager::features.pickers is off but kdialog is installed"; exit 1 ;; esac
 
       - name: Lock screen load checks (informational)
         # reporting only until Qt's qml tool is known to run on the runners (nixpkgs splits Qt's import and plugin paths)
