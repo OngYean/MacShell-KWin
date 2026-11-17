@@ -162,6 +162,7 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Shortcut items in the generic File/Edit menus | `hyprctl sendshortcut` / `wtype` | `ydotool`, if installed |
 | Game Mode | Also tunes Hyprland, the power profile and the video wallpaper | Quiets MacShell's own effects only |
 | Settings → Software Update | Checks 0-ss/MacShell | Checks this fork (OngYean/MacShell-KWin); it only notifies, you update with Nix or git |
+| Right-click menu of a Dock icon | Centred over its icon | Hangs to the right of its icon with its pointer near its left end, as on macOS (also on Hyprland); near the screen's right edge it moves back. Hover labels stay centred. Not yet tested |
 | Battery icon in the menu bar | A grey outline, green while charging | White like the other items of the bar (also on Hyprland), with the charging bolt; red only at 15 % or less while not charging. Not yet tested |
 | Menu popovers | Always 260 px wide; long entries cut off with "…" | As wide as the longest entry needs (up to 640 px). Not yet tested |
 | Dock icons | Loaded at exactly the Dock's icon size, again at every step of the Size slider | Loaded in 64 px steps, so dragging Size or Magnification no longer freezes the shell with SVG icon themes. Not yet tested |
