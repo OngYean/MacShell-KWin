@@ -57,4 +57,14 @@ The top-level `CMakeLists.txt` holds the install rules for every route that is n
 - `macshell-session autostart replace|coexist|off` is the persistent switch for these installs (the Home Manager module's `autostart` and `mode`).
 - `sh nix/test-install.sh` installs into a temporary prefix without the bridge and checks the result, the installed launcher, and that `install.sh --uninstall` leaves no file behind. CI also builds the whole thing, bridge included, in the development shell.
 
+### Optional features
+
+Programs MacShell does without when they are missing (kdialog, cliphist, …) are a choice in every route, and the three lists must name the same things:
+
+- `nix/home-manager.nix`: the `features` attribute set (name, default, description, packages) becomes `programs.macshell.features.<name>`, and a switch that is on adds its packages to `home.packages`. The `macshell` package's wrapper carries no optional program.
+- `packaging/arch/PKGBUILD`: `optdepends`, each with what it gives.
+- `install.sh`: `kde_features` (name, programs to look for, pacman / dnf / apt packages, description). `kde_optional` asks about each missing one on a terminal, or takes `--features`, and installs the chosen packages in one package-manager call.
+
+To add one, add it to all three; `sh nix/test-install.sh` fails when a Home Manager switch has no entry in `install.sh` (or the other way round, apart from `menuShortcuts`, whose `ydotoold` service Home Manager cannot set up) or when a pacman package in `install.sh` is not in `optdepends`. System services (PowerDevil, NetworkManager, BlueZ, power-profiles-daemon) are only listed in `optdepends`.
+
 None of these routes has run on a real system: no `makepkg`, no install into a Plasma session.
