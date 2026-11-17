@@ -79,7 +79,8 @@
 
           # The shell for KWin (and Hyprland: the backend is detected at start). Runs the configuration from the store;
           # `macshell ipc call ...` reaches the running instance. QtMultimedia is not in Quickshell's own wrapper but
-          # LiveWall.qml (loaded by the Dock, Desktop and widgets) imports it.
+          # LiveWall.qml (loaded by the Dock, Desktop and widgets) imports it. Optional programs (kdialog, cliphist,
+          # file, …) are not in the wrapper: the Home Manager module's programs.macshell.features.* installs them.
           macshell = pkgs.stdenvNoCC.mkDerivation {
             pname = "macshell";
             version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./MacShell/VERSION);
@@ -97,7 +98,7 @@
               makeWrapper "$out/libexec/macshell" "$out/bin/macshell" \
                 --set MACSHELL_CONFIG "$out/share/macshell" \
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.quickshell macshell-kwin-bridge ]} \
-                --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.dbus pkgs.procps pkgs.gawk pkgs.file ]} \
+                --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.dbus pkgs.procps pkgs.gawk ]} \
                 --prefix QML_IMPORT_PATH : "${pkgs.qt6.qtmultimedia}/${pkgs.qt6.qtbase.qtQmlPrefix}" \
                 --prefix QT_PLUGIN_PATH : "${pkgs.qt6.qtmultimedia}/${pkgs.qt6.qtbase.qtPluginPrefix}"
               # Dolphin's "Pin to MacShell Dock" (a KIO service menu, found through XDG_DATA_DIRS)

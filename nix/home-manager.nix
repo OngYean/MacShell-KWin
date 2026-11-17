@@ -5,6 +5,7 @@
 #   programs.macshell.autostart = true;       # optional: start it with every Plasma session
 #   programs.macshell.mode = "coexist";       # optional: next to plasmashell instead of in its place (the default)
 #   programs.macshell.lockScreen = true;      # optional: MacLock as KDE's lock screen (KDE still does the locking)
+#   programs.macshell.features.clipboardHistory = true;   # optional programs, one switch each (see `features` below)
 #
 # plasmashell is never masked, removed or disabled. With autostart in "replace" mode a drop-in makes its unit skip
 # itself while MACSHELL_KDE_MODE=replace is in the user manager's environment (set here for every login). For the
@@ -17,6 +18,58 @@ let
   cfg = config.programs.macshell;
   systemctl = "${pkgs.systemd}/bin/systemctl";
   lockPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.macshell-lock;
+
+  # Optional features: each needs programs MacShell looks for on PATH and does without when they are missing. A
+  # switch that is on adds its packages to home.packages; off adds nothing (a program something else installs still
+  # works). The names are install.sh's (kde_features) and the packages are the PKGBUILD's optdepends:
+  # nix/test-install.sh checks the three lists against each other.
+  features = {
+    pickers = {
+      default = false;
+      what = "Folder and file pickers in Settings and in picture widgets (kdialog).";
+      packages = [ pkgs.kdePackages.kdialog ];
+    };
+    clipboardHistory = {
+      default = false;
+      what = "Clipboard history in Spotlight (cliphist, wl-clipboard). MacShell starts the watchers itself.";
+      packages = [ pkgs.cliphist pkgs.wl-clipboard ];
+    };
+    trashWatch = {
+      default = false;
+      what = "The Trash icon changes at once instead of within 3 seconds (inotify-tools).";
+      packages = [ pkgs.inotify-tools ];
+    };
+    fileIcons = {
+      default = true;
+      what = "File-type icons in a Dock folder's stack (file). Without it every file has the generic icon.";
+      packages = [ pkgs.file ];
+    };
+    systemReport = {
+      default = false;
+      what = "The system report behind About This Linux (fastfetch).";
+      packages = [ pkgs.fastfetch ];
+    };
+    screenshots = {
+      default = false;
+      what = "Screenshots and screen recording (Spectacle).";
+      packages = [ pkgs.kdePackages.spectacle ];
+    };
+    onlineLookups = {
+      default = false;
+      what = "Lyrics, stocks and location lookups in the widgets and on the lock screen (curl, jq, python3).";
+      packages = [ pkgs.curl pkgs.jq pkgs.python3 ];
+    };
+    wallpaperColors = {
+      default = false;
+      what = "Colours taken from the wallpaper (ImageMagick).";
+      packages = [ pkgs.imagemagick ];
+    };
+    videoGlass = {
+      default = false;
+      what = "A small copy of a video wallpaper for the glass, which uses much less memory (ffmpeg).";
+      packages = [ pkgs.ffmpeg ];
+    };
+  };
 in
 {
   options.programs.macshell = {
@@ -50,6 +103,18 @@ in
       '';
     };
 
+    features = lib.mapAttrs (
+      name: feature:
+      lib.mkOption {
+        type = lib.types.bool;
+        default = feature.default;
+        description = ''
+          ${feature.what} Installs the programs it needs next to MacShell. Off installs nothing; the feature still
+          works when the programs are on PATH for another reason.
+        '';
+      }
+    ) features;
+
     lockScreen = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -67,7 +132,8 @@ in
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
     {
-      home.packages = [ cfg.package ];
+      home.packages = [ cfg.package ]
+        ++ lib.concatLists (lib.mapAttrsToList (name: feature: lib.optionals cfg.features.${name} feature.packages) features);
 
       # Defined even without autostart, so `macshell-session start|coexist|stop` can drive it. Its mode comes from
       # MACSHELL_KDE_MODE in the user manager's environment (no Environment= here, so macshell-session can change it).
