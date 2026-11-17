@@ -138,6 +138,10 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   for these installs. See [Install](#install). None of this has run on a real system yet.
 - **Nix flake**: the packages `macshell`, `macshell-kwin-bridge`, `macshell-lock` and `macshell-hyprland`, a Home
   Manager module (`programs.macshell`, with optional autostart) and a development shell.
+- **Optional programs are your choice in every way of installing** (kdialog for the folder pickers, cliphist for
+  the clipboard history, and eight more): a switch per feature in the Home Manager module, described optional
+  dependencies in the Arch package, and a question per feature in `install.sh`. See
+  [Optional features](#optional-features). Not yet tested.
 - **Tests**: a fake bridge for trying the interface without KWin, a smoke test against a headless KWin, shell-script
   tests and GitHub Actions CI.
 
@@ -202,7 +206,44 @@ No upstream code has been deleted; the Hyprland path is kept, but untested. On K
 | **`macshell-kwin-bridge`** | Built from `kwin-bridge/` (Qt 6, KWayland). The Nix package, the Arch package and `install.sh` provide it. |
 | KDE components Plasma already ships | kded's AppMenu module (global menu), PowerDevil (brightness), KDE's screen locker, Spectacle (screenshots), System Settings, `plasma-apply-wallpaperimage`, `dbus-send` |
 | An icon theme for Qt apps | App icons in the Dock and Spotlight come from the system icon theme. |
-| Optional | NetworkManager (`nmcli`) for Wi-Fi; `bluez` (`bluetoothctl`) for Bluetooth; `wl-clipboard` and `cliphist` for clipboard history; `wpctl` or `pactl` for audio devices; `zenity` or `kdialog` for file pickers; `fastfetch` for "About This Linux"; `ydotool` for shortcut items in the generic menus. Missing tools disable only their feature. |
+| Optional programs | See [Optional features](#optional-features). A missing program switches off only its own feature. |
+
+### Optional features
+
+Each feature below needs programs that MacShell looks for when it starts the feature and does without when they
+are missing. Every way of installing lets you choose them one by one. Not yet tested on any of the three.
+
+| Feature | Programs | Name |
+| --- | --- | --- |
+| Folder and file pickers: the Choose… buttons in Settings and picture widgets | `kdialog` (or `zenity`, `yad`) | `pickers` |
+| Clipboard history in Spotlight | `cliphist`, `wl-clipboard` | `clipboardHistory` |
+| The Trash icon changes at once instead of within 3 seconds | `inotify-tools` | `trashWatch` |
+| File-type icons in a Dock folder's stack | `file` | `fileIcons` |
+| The system report behind About This Linux | `fastfetch` | `systemReport` |
+| Screenshots and screen recording | Spectacle | `screenshots` |
+| Lyrics, stocks and location lookups in the widgets and on the lock screen | `curl`, `jq`, `python3` | `onlineLookups` |
+| Colours taken from the wallpaper | ImageMagick | `wallpaperColors` |
+| A small copy of a video wallpaper for the glass (much less memory) | `ffmpeg` | `videoGlass` |
+| Shortcut items in the generic File and Edit menus | `ydotool` and its `ydotoold` service | `menuShortcuts` |
+
+How to choose:
+
+- **Home Manager:** `programs.macshell.features.<name> = true;` installs the feature's programs next to MacShell.
+  All are off by default except `fileIcons`. Off installs nothing; a program that is on your `PATH` for another
+  reason still works. `menuShortcuts` has no switch, because `ydotoold` is a system service
+  (`programs.ydotool.enable` in NixOS). `nix run .#macshell` without the module uses whatever is on your `PATH`;
+  the package itself no longer brings `file`.
+- **Arch package:** they are the package's optional dependencies, each with what it gives
+  (`pacman -Qi macshell-kwin-git`). Install the ones you want with `sudo pacman -S --asdeps <package>`.
+- **`install.sh`:** after installing it asks about each feature whose programs are missing and installs the
+  chosen ones with `pacman`, `dnf` or `apt-get` through `sudo` (Enter means no). `--features all`, `--features
+  none` or `--features pickers,clipboardHistory` answers in advance, and `./install.sh --features-only` asks
+  again later without rebuilding. Without a terminal and without `--features` nothing is installed.
+- **By hand with CMake:** install the programs of the features you want yourself.
+
+Screen brightness (PowerDevil), Wi-Fi (NetworkManager), Bluetooth (BlueZ) and the power mode
+(power-profiles-daemon) depend on services your distribution sets up; the Arch package lists them as optional
+dependencies too. Audio device switching uses `wpctl` (WirePlumber) or `pactl`.
 
 Optional: [Klassy](https://github.com/paulmcauley/klassy) gives KWin macOS-like window decorations (rounded
 corners and traffic-light buttons). Install it from your distribution and pick it in System Settings → Colors &
@@ -258,6 +299,9 @@ This is the route the port is developed and tested with. Enable Plasma 6 in your
             programs.macshell = {
               enable = true;
               autostart = false;   # true: start MacShell with every Plasma session
+              # optional features, one switch each (see "Optional features" above)
+              features.pickers = true;            # kdialog: the Choose… buttons
+              features.clipboardHistory = true;   # cliphist and wl-clipboard
             };
           };
         }
@@ -275,6 +319,7 @@ Run `nix flake lock`, then rebuild your system as usual (for example `sudo nixos
 | `autostart` | `false` | Starts `macshell.service` with every Plasma session (and only Plasma sessions). |
 | `mode` | `"replace"` | With `autostart`: `"replace"` skips `plasmashell` at login and MacShell takes its place; `"coexist"` starts `plasmashell` as usual and MacShell next to it. |
 | `lockScreen` | `false` | KDE's lock screen shows MacLock ([Lock screen](#lock-screen)). Applies from the next login. |
+| `features.<name>` | `false`, `fileIcons`: `true` | Installs the programs of one [optional feature](#optional-features). |
 | `package` | this flake's `macshell` | The package to use. |
 
 In `"replace"` mode the module doesn't disable, mask or remove `plasmashell`. It adds a condition to Plasma's
@@ -311,7 +356,8 @@ makepkg -si
 ```
 
 This builds `macshell-kwin-git` from the repository's default branch and installs it under `/usr`, with Quickshell,
-Qt 6 and KWayland as dependencies. To build another branch, append `#branch=<name>` to the `source` line of the
+Qt 6 and KWayland as dependencies; the [optional features](#optional-features) are its optional dependencies,
+which `makepkg -si` does not install. To build another branch, append `#branch=<name>` to the `source` line of the
 `PKGBUILD`. Then see [After installing](#after-installing-without-nix). Remove it with
 `macshell-session autostart off` followed by `sudo pacman -R macshell-kwin-git`.
 
@@ -328,14 +374,17 @@ cd MacShell-KWin
 
 It needs Quickshell 0.3.x, Qt 6 (base, declarative, wayland, multimedia, svg), the development files for Qt 6,
 KWayland and the Wayland client library, `wayland-scanner`, `wayland-protocols`, `wlr-protocols`, CMake, pkg-config
-and a C++20 compiler. Package names differ between distributions. The script lists what it can't find and stops; it
-never installs distribution packages and never edits KDE's configuration.
+and a C++20 compiler. Package names differ between distributions. The script lists what it can't find and stops.
+The only distribution packages it installs are those of the [optional features](#optional-features) you say yes
+to, and it never edits KDE's configuration.
 
 | Option | Effect |
 | --- | --- |
 | `--prefix DIR` | Install somewhere other than `~/.local`, for example `/usr/local`. The script uses `sudo` for the copy when it can't write there. Pass the same prefix to `--uninstall`. |
 | `--autostart replace\|coexist\|off` | Also set what a Plasma login starts (see [After installing](#after-installing-without-nix)). |
-| `--uninstall` | Stop MacShell and bring `plasmashell` back, turn autostart off, and remove the installed files. |
+| `--features LIST` | Choose the optional features without being asked: `all`, `none`, or names separated by commas. |
+| `--features-only` | Only choose the optional features; nothing is built or installed otherwise. |
+| `--uninstall` | Stop MacShell and bring `plasmashell` back, turn autostart off, and remove the installed files. Programs installed for optional features stay. |
 | `--kde` / `--hyprland` | Choose the KDE install or the original Hyprland installer whatever the session is. |
 
 What it puts under the prefix: `bin/macshell`, `bin/macshell-session`, `bin/macshell-kwin-bridge`,
@@ -355,6 +404,7 @@ sudo cmake --install build        # DESTDIR=... stages it for a package
 ```
 
 `-DMACSHELL_BRIDGE=OFF` leaves `macshell-kwin-bridge` out, for packaging it separately from `kwin-bridge/`.
+Nothing here installs the programs of the [optional features](#optional-features): install the ones you want.
 
 ### After installing without Nix
 
