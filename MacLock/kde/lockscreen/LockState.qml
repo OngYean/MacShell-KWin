@@ -29,6 +29,7 @@ Item {
     property bool artBg: true
     property bool sounds: false
     property string npMode: ""
+    property string mainScreen: ""      // MacShell's Settings → Displays → Main display ("" = never chosen)
     readonly property bool capsLock: capsKey ? capsKey.locked : false
 
     function poke() { engaged = true; idleTimer.restart(); }
@@ -40,6 +41,14 @@ Item {
         tool.detached(["sh", "-c", 'mkdir -p "$HOME/.config/maclock" && printf \'{\\n  "mediaSlot": "%s"\\n}\\n\' "$1" > "$HOME/.config/maclock/settings.json"', "sh", v]);
     }
     function fail(msg) { pass = ""; message = msg; fails++; msgTimer.restart(); }
+    // The screen that gets the full layout, of the connected ones (objects with a name): the Main display chosen in
+    // MacShell while it is connected, else the built-in panel, else the first.
+    function primaryOf(screens) {
+        var i;
+        for (i = 0; i < screens.length; i++) if (mainScreen !== "" && screens[i].name === mainScreen) return mainScreen;
+        for (i = 0; i < screens.length; i++) if (/^(eDP|LVDS|DSI)/i.test(screens[i].name)) return screens[i].name;
+        return screens.length > 0 ? screens[0].name : "";
+    }
     function unlock() { unlocking = true; sound("unlock"); unlockTimer.start(); }
 
     // ── password check
@@ -126,7 +135,8 @@ Item {
         'cat "$HOME/.config/macshell/wallpaper-video" 2>/dev/null; m',
         '[ -f "${XDG_RUNTIME_DIR:-/tmp}/macshell-gaming.state" ] && echo gaming; m',
         'if [ "$(nmcli radio wifi 2>/dev/null)" = enabled ]; then s=$(nmcli -t -f ACTIVE,SIGNAL dev wifi 2>/dev/null | grep "^yes" | head -n1 | cut -d: -f2); echo "${s:-0}"; else echo -1; fi; m',
-        'nmcli -t -f TYPE,STATE dev 2>/dev/null | grep -q "^ethernet:connected$" && echo eth'
+        'nmcli -t -f TYPE,STATE dev 2>/dev/null | grep -q "^ethernet:connected$" && echo eth; m',
+        'cat "$HOME/.config/macshell/displays.json" 2>/dev/null'
     ].join("\n")
     function json(text) { try { return JSON.parse(text) || {}; } catch (e) { return {}; } }
     Run {
@@ -143,6 +153,7 @@ Item {
             var s = parseInt(part[6] || "-1");
             st.wifiLevel = isNaN(s) || s < 0 ? -1 : (s === 0 ? 0 : (s > 66 ? 3 : (s > 33 ? 2 : 1)));
             st.ethernet = (part[7] || "") === "eth";
+            st.mainScreen = String(st.json(part[8] || "").primary || "");
             st.sound("lock");
             // the wallpaper MacShell draws, and its video if one is set; only files that exist
             files.want = [bar.wallpaperPath || "", dock.wallpaperPath || "", part[3] || "", part[4] || ""];

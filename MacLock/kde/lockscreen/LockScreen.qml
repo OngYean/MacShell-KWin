@@ -20,8 +20,8 @@ Item {
     Ui.LockScreen {
         anchors.fill: parent
         st: LockState
-        // the full layout goes on KDE's primary screen (the first one Qt lists); the others show wallpaper and clock
-        isPrimary: !Screen.name || Application.screens.length === 0 || Screen.name === Application.screens[0].name
+        // the full layout goes on one screen (LockState.primaryOf); the others show wallpaper and clock
+        isPrimary: !Screen.name || Application.screens.length === 0 || Screen.name === LockState.primaryOf(Application.screens)
     }
 
     // authenticator, kscreenlocker_userName and kscreenlocker_userImage are provided by kscreenlocker
