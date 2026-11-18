@@ -291,6 +291,8 @@ var strings = {
     "Show labels": "Mostrar etiquetas",
     "Display an app's name when you hover its icon": "Muestra el nombre de la app al pasar sobre su icono",
     "Show indicators for open applications": "Mostrar indicadores de apps abiertas",
+    "Show a dot for each open window": "Mostrar un punto por cada ventana abierta",
+    "Up to three dots when an app has several windows open": "Hasta tres puntos cuando una app tiene varias ventanas abiertas",
     "Animate opening applications": "Animar apps al abrirse",
     "Icons bounce while an app is launching": "Los iconos botan mientras una app arranca",
     "Show Trash in the Dock": "Mostrar papelera en el Dock",

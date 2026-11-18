@@ -232,6 +232,7 @@ Scope {
     property bool magnificationEnabled: true
     property bool showLabels: true       // hover tooltips
     property bool showIndicators: true   // dots under running apps
+    property bool multiIndicators: true  // one dot per open window (up to 3) instead of a single dot
     property bool bounceOnLaunch: true
     property bool showThumbs: true       // windows get a preview cell next to the Trash: live previews of open windows, or (KDE) still pictures of minimized ones
     property bool windowCapture: true    // live window capture for those previews (off: the cells show the app icon, nothing is captured). Liquid Glass is not affected
@@ -2764,6 +2765,13 @@ Scope {
                     }
                     SRow {
                         t: pal
+                        visible: root.showIndicators
+                        title: I18n.tr("Show a dot for each open window")
+                        subtitle: I18n.tr("Up to three dots when an app has several windows open")
+                        SSwitch { t: pal; checked: root.multiIndicators; onToggled: v => root.multiIndicators = v }
+                    }
+                    SRow {
+                        t: pal
                         title: I18n.tr("Animate opening applications")
                         subtitle: I18n.tr("Icons bounce while an app is launching")
                         SSwitch { t: pal; checked: root.bounceOnLaunch; onToggled: v => root.bounceOnLaunch = v }
@@ -4625,13 +4633,13 @@ Scope {
         darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; kwinBlur = false; accentFromKde = true; nativeText = false; screenCornerRadius = 0; accent = "#0a84ff"; fontFamily = "Open Runde";
         iconTint = false; iconTintColor = "#0a84ff"; iconTintStrength = 1.0;
         hideMode = "smart"; hideDelay = 450; monitor = "";
-        showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; panelBlur = ({}); panelTint = ({}); glassLive = true;
+        showTrash = true; showLabels = true; showIndicators = true; multiIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; panelBlur = ({}); panelTint = ({}); glassLive = true;
     }
 
     // ── settings persistence (~/.config/macdock/settings.json) ──
     readonly property string settingsSig: [dockEnabled, settingsEnabled, desktopIcons, desktopIconSize, desktopPeek, iconSize, magnification, magnificationEnabled, spacing, margin,
         cornerRadius, darkMode, appearanceMode, glassOpacity, glassBlur, glassLiquid, dockStyle, kwinBlur, accentFromKde, nativeText, screenCornerRadius, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
-        showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength, JSON.stringify(panelBlur), JSON.stringify(panelTint)].join("|")
+        showTrash, showLabels, showIndicators, multiIndicators, bounceOnLaunch, showThumbs, windowCapture, glassLive, iconTint, iconTintColor, iconTintStrength, JSON.stringify(panelBlur), JSON.stringify(panelTint)].join("|")
     property bool settingsReady: false
     onSettingsSigChanged: if (settingsReady) saveTimer.restart()
     onShowTrashChanged: { rebuild(); if (showTrash) trashCheck(); }
@@ -4646,7 +4654,7 @@ Scope {
             glassRim: glassRim, glassGrain: glassGrain, glassLiquid: glassLiquid, glassBlur: glassBlur,
             accent: String(accent), fontFamily: fontFamily,
             hideMode: hideMode, hideDelay: hideDelay, monitor: monitor,
-            showTrash: showTrash, showLabels: showLabels, showIndicators: showIndicators,
+            showTrash: showTrash, showLabels: showLabels, showIndicators: showIndicators, multiIndicators: multiIndicators,
             bounceOnLaunch: bounceOnLaunch, showThumbs: showThumbs, windowCapture: windowCapture, glassLive: glassLive,
             iconTint: iconTint, iconTintColor: iconTintColor, iconTintStrength: iconTintStrength,
             panelBlur: panelBlur, panelTint: panelTint
@@ -4658,7 +4666,7 @@ Scope {
         if (!o || typeof o !== "object") return;
         var keys = ["dockEnabled", "settingsEnabled", "desktopIcons", "desktopIconSize", "desktopPeek", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
                     "darkMode", "appearanceMode", "glassOpacity", "dockStyle", "kwinBlur", "accentFromKde", "nativeText", "screenCornerRadius", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
-                    "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength", "panelBlur", "panelTint"];
+                    "showTrash", "showLabels", "showIndicators", "multiIndicators", "bounceOnLaunch", "showThumbs", "windowCapture", "glassLive", "iconTint", "iconTintColor", "iconTintStrength", "panelBlur", "panelTint"];
         for (var i = 0; i < keys.length; i++) {
             if (o[keys[i]] === undefined) continue;
             if (keys[i].indexOf("panel") === 0 && (o[keys[i]] === null || typeof o[keys[i]] !== "object" || Array.isArray(o[keys[i]]))) continue;     // the two maps: plain objects only
@@ -5059,7 +5067,8 @@ Scope {
             var id = appOf(tls[i]);
             if (!id) continue;
             var k = keyOf(id);
-            if (!running[k]) { running[k] = true; runOrder.push({ key: k, appId: id }); }
+            if (!running[k]) runOrder.push({ key: k, appId: id });
+            running[k] = (running[k] || 0) + 1;     // open windows of this app
         }
 
         var L = {}, now = Date.now(), changed = false;
@@ -5084,7 +5093,7 @@ Scope {
             if (seen[ek]) continue;
             seen[ek] = true;
             list.push({ kind: "app", key: ek, appId: e.id, name: e.name, icon: e.icon, entry: e,
-                        running: !!running[ek], pinned: true });
+                        running: !!running[ek], wins: running[ek] || 0, pinned: true });
         }
 
         var extras = [];
@@ -5096,7 +5105,7 @@ Scope {
             list.push({ kind: "app", key: extras[x].key, appId: e2 ? e2.id : extras[x].appId,
                         name: own ? "MacShell" : (e2 ? e2.name : extras[x].appId),
                         icon: own ? logoPath : (e2 ? e2.icon : extras[x].appId.toLowerCase()),
-                        entry: e2, running: true, pinned: false });
+                        entry: e2, running: true, wins: running[extras[x].key], pinned: false });
         }
 
         // window previews: one cell per open window, in their own section next to the Trash
@@ -5182,7 +5191,7 @@ Scope {
                 it.fresh = !firstBuild && !knownKeys[it.key];
                 nowKeys[it.key] = true;
             }
-            sig.push(it.kind + ":" + (it.key || "") + ":" + it.running + ":" + (it.icon || "") + (it.leaving ? ":L" : ""));
+            sig.push(it.kind + ":" + (it.key || "") + ":" + it.running + ":" + (it.wins || 0) + ":" + (it.icon || "") + (it.leaving ? ":L" : ""));
         }
         appCount = nA;
         sepCount = nS;
@@ -6494,12 +6503,19 @@ Scope {
                                     mipmap: true
                                 }
 
-                                Rectangle {
+                                Row {
                                     visible: !cell.isSep && cell.modelData.running && root.showIndicators
-                                    width: 4; height: 4; radius: 2
-                                    color: root.dockDark ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(0, 0, 0, 0.6)
+                                    spacing: 3
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     y: cell.height + 3
+                                    Repeater {
+                                        // capped at 3 so the dots never spill wider than a small icon
+                                        model: root.multiIndicators ? Math.min(Math.max(cell.modelData.wins || 1, 1), 3) : 1
+                                        Rectangle {
+                                            width: 4; height: 4; radius: 2
+                                            color: root.dockDark ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(0, 0, 0, 0.6)
+                                        }
+                                    }
                                 }
 
                                 // ── launch bounce ──

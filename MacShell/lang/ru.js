@@ -292,6 +292,8 @@ var strings = {
     "Show labels": "Показывать подписи",
     "Display an app's name when you hover its icon": "Показывать название приложения при наведении на значок",
     "Show indicators for open applications": "Показывать индикаторы открытых приложений",
+    "Show a dot for each open window": "Показывать точку для каждого открытого окна",
+    "Up to three dots when an app has several windows open": "До трёх точек, когда у приложения открыто несколько окон",
     "Animate opening applications": "Анимировать открытие приложений",
     "Icons bounce while an app is launching": "Значки подпрыгивают, пока приложение запускается",
     "Show Trash in the Dock": "Показывать корзину в Dock",
