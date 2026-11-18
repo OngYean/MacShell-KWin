@@ -116,6 +116,10 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   start. Not yet tested in Plasma.
 - **Desktop-entry actions** (New Window, New Private Window, …) in the Dock icon's right-click menu, in Spotlight's
   results and on right-click in Spotlight's application grid. Not yet tested.
+- **A dot per open window under Dock icons** (Settings → Desktop & Dock → "Show a dot for each open window", on by
+  default, shown while "Show indicators for open applications" is on). An app with several windows gets up to three
+  dots instead of one; minimized windows and windows on other desktops count too. Off gives the single dot of the
+  original. Not yet tested in Plasma.
 - **Submenus open to the side** (Settings → Menu Bar, off by default): a submenu of an application's menu opens
   next to its parent row instead of replacing the menu. Not yet tested in Plasma.
 - **Follow KDE's accent color** (Settings → Appearance, on by default on KDE). MacShell uses the highlight colour
