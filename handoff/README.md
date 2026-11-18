@@ -38,6 +38,8 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`21-desktop-peek-tests.md`](21-desktop-peek-tests.md) — on `pending-test` (2026-11-16): an option that makes a click on the empty desktop toggle KWin's Peek at Desktop (F17). What KWin does with MacShell's windows, limits and test plan.
 
+- [`26-dock-window-dots-tests.md`](26-dock-window-dots-tests.md) — on `pending-test` (2026-11-18): one dot per open window (up to three) under a Dock icon, on by default (F26). How it counts, limits and test plan.
+
 - [`22-install-pkgbuild-tests.md`](22-install-pkgbuild-tests.md) — on `pending-test` (2026-11-16): installing without Nix (F18): top-level CMake install rules, `install.sh`'s KDE Plasma mode and `--uninstall`, `packaging/arch/PKGBUILD`, `macshell-session autostart`. What was and was not verified, decisions and test plan.
 
 - [`23-apple-menu-tests.md`](23-apple-menu-tests.md) — on `pending-test` (2026-11-16): the top-left menu's items can be arranged, removed, given a command of their own and added to (F19); Recent Items and Force Quit are new. How it works, limits and test plan.
