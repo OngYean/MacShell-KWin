@@ -42,6 +42,8 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`27-geometry-flood-tests.md`](27-geometry-flood-tests.md) — on `pending-test` (2026-11-25): MacShell stuttered while animated Proton launchers ran (B17). Cause: the bridge sent up to 40 window lists a second for windows whose geometry changes every frame. Geometry-only changes now go out at most 4 times a second. How it was diagnosed, limits and test plan.
 
+- [`28-ipc-toggle-tests.md`](28-ipc-toggle-tests.md) — on `pending-test` (2026-11-26): `controlcenter open` and `notifications open` no longer close an open panel, `controlcenter close` no longer closes other popovers, and `notifications toggle` is new (F27). The IPC audit, change and test plan.
+
 - [`22-install-pkgbuild-tests.md`](22-install-pkgbuild-tests.md) — on `pending-test` (2026-11-16): installing without Nix (F18): top-level CMake install rules, `install.sh`'s KDE Plasma mode and `--uninstall`, `packaging/arch/PKGBUILD`, `macshell-session autostart`. What was and was not verified, decisions and test plan.
 
 - [`23-apple-menu-tests.md`](23-apple-menu-tests.md) — on `pending-test` (2026-11-16): the top-left menu's items can be arranged, removed, given a command of their own and added to (F19); Recent Items and Force Quit are new. How it works, limits and test plan.
