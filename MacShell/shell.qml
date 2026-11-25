@@ -484,8 +484,9 @@ ShellRoot {
     }
     IpcHandler {
         target: "notifications"
-        function open(): void { macBar.notifPopRequest(true); }
-        function close(): void { macBar.notifPopRequest(false); }
+        function toggle(): void { macBar.notifPopRequest("toggle"); }
+        function open(): void { macBar.notifPopRequest("open"); }
+        function close(): void { macBar.notifPopRequest("close"); }
         function clear(): void { macBar.notifClearAnimated(); }
         // the lock screen: a notification swiped away
         function dismiss(id: int): void { macBar.notifDelete(id); macBar.notifUnread = Math.max(0, macBar.notifUnread - 1); }

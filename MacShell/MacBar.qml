@@ -3149,12 +3149,12 @@ Scope {
     }
     function spotOpen(mode) { if (!spotlightEnabled) return; spotWant = mode; spotRequest++; }
     // qs -c MacShell ipc call controlcenter toggle | open | close   (works with the menu bar switched off too)
-    signal ccRequest(bool open)
+    signal ccRequest(string how)             // "open" | "close" | "toggle"
     IpcHandler {
         target: "controlcenter"
-        function toggle(): void { root.ccRequest(true); }
-        function open(): void { root.ccRequest(true); }
-        function close(): void { root.ccRequest(false); }
+        function toggle(): void { root.ccRequest("toggle"); }
+        function open(): void { root.ccRequest("open"); }
+        function close(): void { root.ccRequest("close"); }
     }
     // Laptop / keyboard hardware keys (volume, mute, brightness). The compositor must bind the keys (the installer's
     // macshell.lua does); the shell then does the work itself, so the numbers, the on-screen display and the UI sounds
@@ -4582,8 +4582,8 @@ Scope {
     // ═════════════ THE BAR ═════════════
     // ═════════════ NOTIFICATIONS ═════════════
     // Receives org.freedesktop.Notifications on D-Bus (stop dunst / mako / swaync first — only one daemon can own the name).
-    // IPC: qs -c MacShell ipc call notifications open | close | clear   (opens on the focused screen)
-    signal notifPopRequest(bool open)
+    // IPC: qs -c MacShell ipc call notifications toggle | open | close | clear   (opens on the focused screen)
+    signal notifPopRequest(string how)       // "open" | "close" | "toggle"
     property bool notifDnd: false            // Do Not Disturb: still stored in the centre, but no popups
     property real notifBlur: 14              // blur of the notification glass (smooth two-pass Gaussian, same method as the Blur slider)
     property int notifUnread: 0
@@ -5352,9 +5352,10 @@ Scope {
                 // the Control Center IPC: the focused screen opens it
                 Connections {
                     target: root
-                    function onCcRequest(open) {
+                    function onCcRequest(how) {
                         if (!ui.toastScreen || !root.ccEnabled) return;
-                        ui.pop = (open && ui.pop !== "cc") ? "cc" : "";
+                        if (how === "open" || (how === "toggle" && ui.pop !== "cc")) ui.pop = "cc";
+                        else if (ui.pop === "cc") ui.pop = "";
                     }
                 }
                 readonly property bool toastsShown: toastScreen && notifToasts.count > 0
@@ -5570,9 +5571,12 @@ Scope {
 
                 Connections {
                     target: root
-                    function onNotifPopRequest(open) {
+                    function onNotifPopRequest(how) {
                         if (!ui.toastScreen) return;
-                        if (open) ui.openPop("notif", bellBtn.visible ? bellBtn.mapToItem(ui, 0, 0).x : ui.width - 60); else if (ui.pop === "notif") ui.pop = "";
+                        var isOpen = ui.pop === "notif";
+                        // openPop() toggles, so only call it when the panel is not already showing
+                        if (!isOpen && (how === "open" || how === "toggle")) ui.openPop("notif", bellBtn.visible ? bellBtn.mapToItem(ui, 0, 0).x : ui.width - 60);
+                        else if (isOpen && how !== "open") ui.pop = "";
                     }
                 }
                 function openPop(name, x) {
