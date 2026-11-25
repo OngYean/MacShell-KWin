@@ -166,6 +166,7 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
 | Blur behind the bar | Hyprland layer rules | KWin's blur, requested for the bar strip only; for every panel set to "KWin blur" (Appearance → Panels) |
 | "Show window previews" (Desktop & Dock) | Live previews of open windows | Still pictures of minimized windows. "Live window capture" is hidden: KWin offers none |
 | Dock Size and Magnification sliders | Applied at every step of a drag | Applied at most every 150 ms during a drag: each step resizes the Dock's window, which froze the shell. Not yet tested |
+| Window positions and sizes | Hyprland events | Sent by the bridge at most 4 times a second, so windows that move or animate all the time (e.g. Proton game launchers) no longer make MacShell stutter. The Dock's smart-hide can react up to a quarter second later. Not yet tested |
 | Liquid Glass refraction | Live windows and the wallpaper | The wallpaper only |
 | Shortcut items in the generic File/Edit menus | `hyprctl sendshortcut` / `wtype` | `ydotool`, if installed |
 | Game Mode | Also tunes Hyprland, the power profile and the video wallpaper | Quiets MacShell's own effects only |
