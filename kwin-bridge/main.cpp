@@ -276,19 +276,23 @@ public:
         , m_checkOnly(checkOnly)
         , m_bus(QDBusConnection::sessionBus())
     {
-        for (QTimer *timer : {&m_windowsTimer, &m_desktopsTimer, &m_menuTimer, &m_keyboardTimer, &m_sessionTimer, &m_snapshotTimer}) {
+        for (QTimer *timer : {&m_windowsTimer, &m_geometryTimer, &m_desktopsTimer, &m_menuTimer, &m_keyboardTimer, &m_sessionTimer, &m_snapshotTimer}) {
             timer->setSingleShot(true);
         }
         m_snapshotTimer.setInterval(kSnapshotTimeoutMs + 1000); // KWin never answered or never finished writing
         connect(&m_snapshotTimer, &QTimer::timeout, this, [this] {
             finishSnapshot(QImage());
         });
-        m_windowsTimer.setInterval(25); // coalesce bursts (a dragged window moves every frame)
+        m_windowsTimer.setInterval(25); // coalesce bursts of state changes
+        // geometry-only changes: at most 4 updates a second. 40 a second from animated (e.g. Proton) launchers made
+        // MacShell stutter; its geometry users (Dock smart-hide, fullscreen check) wait 120-300 ms anyway
+        m_geometryTimer.setInterval(250);
         m_desktopsTimer.setInterval(30);
         m_menuTimer.setInterval(60);
         m_keyboardTimer.setInterval(30);
         m_sessionTimer.setInterval(100);
         connect(&m_windowsTimer, &QTimer::timeout, this, &Bridge::emitWindows);
+        connect(&m_geometryTimer, &QTimer::timeout, this, &Bridge::emitWindows); // unchanged lists are dropped there
         connect(&m_desktopsTimer, &QTimer::timeout, this, &Bridge::fetchDesktops);
         connect(&m_menuTimer, &QTimer::timeout, this, &Bridge::fetchMenu);
         connect(&m_keyboardTimer, &QTimer::timeout, this, &Bridge::fetchKeyboard);
@@ -727,9 +731,15 @@ private:
                             &PlasmaWindow::closeableChanged, &PlasmaWindow::minimizeableChanged, &PlasmaWindow::maximizeableChanged,
                             &PlasmaWindow::fullscreenableChanged, &PlasmaWindow::skipTaskbarChanged, &PlasmaWindow::skipSwitcherChanged,
                             &PlasmaWindow::movableChanged, &PlasmaWindow::resizableChanged, &PlasmaWindow::parentWindowChanged,
-                            &PlasmaWindow::geometryChanged, &PlasmaWindow::resourceNameChanged}) {
+                            &PlasmaWindow::resourceNameChanged}) {
             connect(window, signal, this, changed);
         }
+        // a moving, resizing or animating window changes geometry every frame; MacShell only needs where it settles
+        connect(window, &PlasmaWindow::geometryChanged, this, [this] {
+            if (!m_geometryTimer.isActive()) {
+                m_geometryTimer.start();
+            }
+        });
         connect(window, &PlasmaWindow::plasmaVirtualDesktopEntered, this, changed);
         connect(window, &PlasmaWindow::plasmaVirtualDesktopLeft, this, changed);
         connect(window, &PlasmaWindow::applicationMenuChanged, this, [this, window] {
@@ -1324,6 +1334,7 @@ private:
     QHash<QString, QPointer<PlasmaWindow>> m_ready; // windows past their initial state, by uuid
     QByteArray m_lastWindowsJson;
     QTimer m_windowsTimer;
+    QTimer m_geometryTimer;
 
     KWayland::Client::Compositor *m_compositor = nullptr;
     KWayland::Client::ShmPool *m_shm = nullptr;
