@@ -48,6 +48,8 @@ These handoffs let an agent start from the repository without access to the orig
 
 - [`30-dock-menu-freeze-tests.md`](30-dock-menu-freeze-tests.md) — on `pending-test` (2026-11-27): while a Dock icon's right-click menu or a folder's stack is open, the magnification holds still, so the menu no longer slides with its icon as the pointer moves (F28). The change, limits and test plan.
 
+- [`31-notif-swipe-tests.md`](31-notif-swipe-tests.md) — on `pending-test` (2026-11-27): a notification popup can be swiped off to the right (pointer drag or two-finger touchpad swipe) to dismiss it (F29). The change, limits and test plan.
+
 - [`22-install-pkgbuild-tests.md`](22-install-pkgbuild-tests.md) — on `pending-test` (2026-11-16): installing without Nix (F18): top-level CMake install rules, `install.sh`'s KDE Plasma mode and `--uninstall`, `packaging/arch/PKGBUILD`, `macshell-session autostart`. What was and was not verified, decisions and test plan.
 
 - [`23-apple-menu-tests.md`](23-apple-menu-tests.md) — on `pending-test` (2026-11-16): the top-left menu's items can be arranged, removed, given a command of their own and added to (F19); Recent Items and Force Quit are new. How it works, limits and test plan.
