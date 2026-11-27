@@ -6824,9 +6824,22 @@ Scope {
                                 width: toastCol.width
                                 // the slot grows with the card, so the stack below makes room smoothly
                                 height: tbody.height * (0.35 + 0.65 * tc) + (toastCol.spacing * (tc - 1))
-                                opacity: Math.min(1, tc * 2.2)
+                                opacity: Math.min(1, tc * 2.2) * Math.max(0, 1 - swipeX / width)
                                 Component.onCompleted: shown = true
                                 function dismiss() { if (leaving) return; leaving = true; goneTimer.restart(); }
+                                // swiped to the right (drag, or a two-finger touchpad swipe), the card follows; let go past a third
+                                // of its width, or flicked, it flies off the screen and is dismissed like the close button; else it springs back
+                                property real swipeX: 0
+                                property real flingV: 0
+                                readonly property bool swiping: swipeDrag.active || wheelRest.running
+                                Behavior on swipeX { enabled: !toast.swiping; NumberAnimation { duration: 420; easing.type: Easing.OutQuint } }
+                                function swipeTo(dx) { swipeX = dx > 0 ? dx : dx / 4; } // leftwards only rubber-bands
+                                function swipeEnd() {
+                                    if (swipeX > width / 3 || (flingV > 800 && swipeX > 12)) { swipeX = width + 40; dismiss(); }
+                                    else swipeX = 0;
+                                    flingV = 0;
+                                }
+                                Timer { id: wheelRest; interval: 160; onTriggered: toast.swipeEnd() }
                                 // Notification Center opened: record this popup's spot and hand over instantly — the card in the
                                 // panel starts exactly here and flies into its slot (one object, no duplicate)
                                 property real mergeDy: 0
@@ -6849,7 +6862,7 @@ Scope {
                                 Timer { interval: 790; id: goneTimer; onTriggered: root.notifToastRemove(toast.nid) }
                                 Timer {
                                     interval: toast.life
-                                    running: toast.shown && !toast.leaving && !thov.hovered
+                                    running: toast.shown && !toast.leaving && !thov.hovered && !toast.swiping
                                     onTriggered: toast.dismiss()
                                 }
                                 HoverHandler { id: thov }
@@ -6860,7 +6873,7 @@ Scope {
                                     readonly property real slide: (1 - toast.tc) * 46
                                     width: toast.width * (0.42 + 0.58 * toast.tc)
                                     height: Math.max(36, toast.height)
-                                    x: toast.width - width + slide
+                                    x: toast.width - width + slide + toast.swipeX
                                     backdrop: ui.glassSrc
                                     shaderUrl: root.glassShaderUrl
                                     zone: "notifs"
@@ -6891,6 +6904,30 @@ Scope {
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: { root.notifActivate(toast.nid); toast.dismiss(); }
+                                    // inside the MouseArea so it sees the press first; once the drag passes the threshold it takes the
+                                    // grab and the MouseArea's click is cancelled
+                                    DragHandler {
+                                        id: swipeDrag
+                                        target: null
+                                        yAxis.enabled: false
+                                        enabled: !toast.leaving
+                                        onActiveTranslationChanged: if (active) toast.swipeTo(activeTranslation.x)
+                                        onCentroidChanged: if (active) toast.flingV = centroid.velocity.x
+                                        onActiveChanged: if (!active) toast.swipeEnd()
+                                    }
+                                    WheelHandler {
+                                        target: null
+                                        enabled: !toast.leaving
+                                        onWheel: e => {
+                                            var px = e.pixelDelta.x !== 0 || e.pixelDelta.y !== 0;
+                                            var d = px ? e.pixelDelta.x : e.angleDelta.x / 8;
+                                            if (Math.abs(d) <= Math.abs(px ? e.pixelDelta.y : e.angleDelta.y / 8)) return; // vertical scrolls are not swipes
+                                            // Qt's deltas follow the scroll setting; `inverted` (natural scrolling) means they already
+                                            // follow the fingers, otherwise flip them so the card moves with the fingers either way
+                                            toast.swipeTo(toast.swipeX + (e.inverted ? d : -d));
+                                            wheelRest.restart();
+                                        }
+                                    }
                                 }
                                 // the slab reveals the content (clip), and inside it the content comes into focus. The blur sits on an
                                 // inner layer with room to spread (auto padding), so it is soft all round instead of a cut-off smear,
