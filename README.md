@@ -65,7 +65,8 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   does.
 - **Wallpaper and login splash without `plasmashell`.** In replace mode MacShell draws the wallpaper itself (your
   last pick in its picker, otherwise the picture Plasma is set to) and tells Plasma's login splash screen that the
-  desktop is ready, which `plasmashell` normally does. Not yet tested in Plasma.
+  desktop is ready, which `plasmashell` normally does. The picture stays decoded in memory, so it is back immediately
+  after unlocking instead of taking a few seconds. The unlock fix is not yet tested in Plasma.
 - **KWin's blur, per panel** (Settings → Appearance → Panels). Each panel (Dock, Dock labels and menu, menu bar,
   menus and popovers, Control Center, notifications, Spotlight, switcher and pop-ups, desktop, widgets) can be a see-through tint with
   KWin's blur behind it, or keep MacShell's own glass ("Stock blur"). See [KWin's blur](#kwins-blur). Seen working
