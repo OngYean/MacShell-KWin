@@ -5558,8 +5558,15 @@ Scope {
                 FrameAnimation {
                     running: hh.hovered && !ui.dragging
                     // frozen while a right-click menu or folder stack is open, so it doesn't slide along with the icons
-                    onTriggered: if (ui.mx !== ui.rawMx && !ui.menuOpen) ui.mx = ui.rawMx
+                    onTriggered: {
+                        if (ui.menuOpen || ui.mx === ui.rawMx) return;
+                        if (ui.mxEaseLeft > 0) {     // the menu just closed: glide to the pointer, which may be far away
+                            ui.mxEaseLeft -= frameTime;
+                            ui.mx += (ui.rawMx - ui.mx) * (1 - Math.exp(-frameTime / 0.05));
+                        } else ui.mx = ui.rawMx;
+                    }
                 }
+                property real mxEaseLeft: 0      // seconds of gliding left (set when a menu closes); then exact again
                 property bool revealed: false
                 property var menuItem: null
                 property var menuModel: []
@@ -5635,7 +5642,10 @@ Scope {
                     updateMenuTail();
                 }
                 readonly property bool menuOpen: menuItem !== null
-                onMenuOpenChanged: if (root.hub) { if (menuOpen) root.hub.popSet(ui, win.modelData.name); else root.hub.popClear(ui); }
+                onMenuOpenChanged: {
+                    mxEaseLeft = menuOpen ? 0 : 0.25;
+                    if (root.hub) { if (menuOpen) root.hub.popSet(ui, win.modelData.name); else root.hub.popClear(ui); }
+                }
                 Connections { target: root.hub; function onPopWhoChanged() { if (root.hub.popWho !== ui) ui.menuItem = null; } }
                 Component.onDestruction: if (root.hub) root.hub.popClear(ui)     // its screen was unplugged
                 readonly property bool wantsHide: root.hideMode === "always"
