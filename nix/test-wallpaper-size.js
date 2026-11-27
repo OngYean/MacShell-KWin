@@ -37,4 +37,10 @@ for (const f of ["CardWidget.qml", "CalendarWidget.qml", "ClockWidget.qml", "Pla
     assert.ok(/source: w\.wallUrl[\s\S]{0,300}sourceSize: w\.wallSize/.test(read(f)), f + ": the wallpaper Image decodes at wallSize");
 for (const f of fs.readdirSync(path.join(__dirname, "../MacShell")).filter(n => n.endsWith(".qml")))
     assert.ok(!/sourceSize\.width: (bd\.width|w\.screenW|prefsGlassGeo\.mw)\b/.test(read(f)), f + ": a wallpaper Image still asks for a size of its own");
+// Wallpaper.qml's hidden per-screen copies keep the desktop's decode alive across window rebuilds (unlock): they only
+// share it while file, size and fill mode match the shown Image's, otherwise each is a second full-size copy
+const wp = read("Wallpaper.qml");
+assert.ok(/root\.remember\(modelData\.name, source, sourceSize\)/.test(wp), "Wallpaper.qml: the shown Image records its file and size");
+assert.strictEqual((wp.match(/fillMode: Image\.PreserveAspectCrop/g) || []).length, 2, "Wallpaper.qml: the copy has the shown Image's fill mode");
+assert.ok(/sourceSize: root\.shown\[modelData\]\.size\s+source: root\.shown\[modelData\]\.source/.test(wp), "Wallpaper.qml: the copy asks for the recorded file and size");
 console.log("ok: wallpaper decode size");
