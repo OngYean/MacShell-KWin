@@ -147,6 +147,9 @@ Compared with [0-ss/MacShell](https://github.com/0-ss/MacShell) at commit
   the clipboard history, and eight more): a switch per feature in the Home Manager module, described optional
   dependencies in the Arch package, and a question per feature in `install.sh`. See
   [Optional features](#optional-features). Not yet tested.
+- **Swiping a notification popup away dismisses it.** Drag a popup to the right, or swipe it with two fingers on a
+  touchpad: past a third of its width, or flicked, it flies off the screen and goes away as with its close button
+  (it stays in the notification centre); otherwise it springs back (also on Hyprland). Not yet tested.
 - **Tests**: a fake bridge for trying the interface without KWin, a smoke test against a headless KWin, shell-script
   tests and GitHub Actions CI.
 
