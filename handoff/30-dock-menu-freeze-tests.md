@@ -6,7 +6,7 @@
 
 | ID | Request (user's words) | Status |
 | --- | --- | --- |
-| F28 | when right-click menu of a dock icon is visible, freeze the dock magnification animation (i.e. magnification temporarily does not follow cursor) so that the menu dont fly around when cursor is moved | change written, untested |
+| F28 | when right-click menu of a dock icon is visible, freeze the dock magnification animation (i.e. magnification temporarily does not follow cursor) so that the menu dont fly around when cursor is moved | change written (with a glide back to the pointer on close), untested |
 
 ## Before
 
@@ -27,7 +27,7 @@ The Dock and Hyprland share this code, so it applies to both.
 
 ## Decisions and limits
 
-- **Closing the menu with the pointer elsewhere on the Dock** moves the magnification to the pointer in one frame. It used to follow the pointer the whole time. If the jump looks bad, ease `mx` for a few frames after `menuOpen` turns false.
+- **Closing the menu with the pointer elsewhere on the Dock:** the magnification glides to the pointer instead of jumping there. `onMenuOpenChanged` sets `mxEaseLeft = 0.25` (seconds). For that long the `FrameAnimation` moves `mx` towards `rawMx` with a 50 ms time constant (`1 - exp(-frameTime / 0.05)` per frame, so the same speed at any refresh rate). Then it follows exactly again. A 600 px glide covers 99 % of the way and finishes with a 3–4 px step (simulated at 60 and 144 Hz).
 - Dragging and the hover labels are unchanged. Labels were already hidden while a menu is open.
 
 ## Test plan (Plasma; Hyprland the same)
@@ -35,7 +35,7 @@ The Dock and Hyprland share this code, so it applies to both.
 1. Magnification on. Right-click a Dock icon. Move the pointer along the Dock, over other icons → the icons don't magnify and shrink, and the menu stays put.
 2. With the menu open, move the pointer up out of the Dock, beside the menu → the icons stay magnified and the menu doesn't drop.
 3. Use a menu entry (for example New Window) → it works, and the menu closes.
-4. Right-click an icon, move the pointer to another icon and click it → only the menu closes (as before: a click in the Dock's area with a menu open just closes the menu). The magnification moves under the pointer, and nothing gets stuck magnified.
+4. Right-click an icon, move the pointer to another icon and click it → only the menu closes (as before: a click in the Dock's area with a menu open just closes the menu). The magnification glides under the pointer in about a quarter of a second, without a jump, and nothing gets stuck magnified. Moving the pointer during the glide doesn't make it stutter.
 5. Right-click an icon, move the pointer above the Dock, beside the menu, and click there → the menu closes and the icons shrink back to rest.
 6. A folder in the Dock: click it to open its stack, move the pointer along the Dock → the stack stays put.
 7. Magnification off → nothing changes compared to before.
