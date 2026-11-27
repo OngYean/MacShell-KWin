@@ -5557,7 +5557,8 @@ Scope {
                 property real rawMx: 0
                 FrameAnimation {
                     running: hh.hovered && !ui.dragging
-                    onTriggered: if (ui.mx !== ui.rawMx && (!ui.menuOpen || hh.point.position.y > ui.activeTop)) ui.mx = ui.rawMx
+                    // frozen while a right-click menu or folder stack is open, so it doesn't slide along with the icons
+                    onTriggered: if (ui.mx !== ui.rawMx && !ui.menuOpen) ui.mx = ui.rawMx
                 }
                 property bool revealed: false
                 property var menuItem: null
@@ -5605,6 +5606,7 @@ Scope {
                 // a folder's stack is the menu's model drawn as a fan (`fan`, below) instead of in the bubble
                 property bool menuFan: false
                 function openMenu(c, model, asFan) {
+                    menuMagnified = active;
                     menuFan = asFan === true;
                     menuCx = c.mapToItem(ui, c.width / 2, 0).x;
                     menuModel = model;
@@ -5838,8 +5840,10 @@ Scope {
                 readonly property real refLeft: (width - root.totalW0) / 2
                 readonly property real activeTop: height - root.margin - root.bgHeight
                                                   - root.iconSize * (root.effMag - 1) - 12
-                readonly property bool active: dragging || (hh.hovered && !tucked && (hh.point.position.y > activeTop || (menuOpen && hh.point.position.y > (menuFan ? fan.topY : menu.y))))
-                property real strength: active ? 1 : 0
+                readonly property bool active: dragging || (hh.hovered && !tucked && hh.point.position.y > activeTop)
+                // with a menu open the icons keep the magnification they had when it opened (see ui.mx), wherever the pointer goes
+                property bool menuMagnified: false
+                property real strength: (menuOpen ? menuMagnified : active) ? 1 : 0
                 Behavior on strength { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
                 HoverHandler {
