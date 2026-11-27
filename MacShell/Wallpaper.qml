@@ -32,28 +32,6 @@ Scope {
     // no wallpaper found (or it never loads): don't hold the splash for its full timeout
     Timer { interval: 3000; running: root.active && !root.splashDone; onTriggered: root.finishSplash() }
 
-    // Unlocking can make the windows below anew (the screens come back as new outputs). Qt forgets an unused decode within
-    // ~30 s, so a big photo took seconds to decode again behind a black window. These hidden copies, one per screen, hold
-    // the picture each screen last showed (same file, size and fill mode = the same decoded copy, no extra memory).
-    property var shown: ({})     // screen name -> { source, size }
-    function remember(name, source, size) {
-        var live = {}, next = {};
-        for (var i = 0; i < Quickshell.screens.length; i++) live[Quickshell.screens[i].name] = true;
-        for (var k in shown) if (live[k] && k !== name) next[k] = shown[k];   // an unplugged screen's copy goes
-        next[name] = { source: source, size: size };
-        shown = next;
-    }
-    Instantiator {
-        model: root.active ? Object.keys(root.shown) : []
-        Image {
-            required property string modelData
-            asynchronous: true
-            fillMode: Image.PreserveAspectCrop
-            sourceSize: root.shown[modelData].size
-            source: root.shown[modelData].source
-        }
-    }
-
     Variants {
         model: root.active ? Quickshell.screens : []
         PanelWindow {
@@ -88,10 +66,7 @@ Scope {
                 // hub.wallpaperSize: the same size the glass backdrops ask for, so they share this decoded copy
                 sourceSize: root.hub.wallpaperSize(modelData.name)
                 source: root.dock ? root.dock.fileUrl(root.dock.wallpaperFor(modelData.name)) : ""
-                onStatusChanged: {
-                    if (status === Image.Ready) root.remember(modelData.name, source, sourceSize);
-                    if (status === Image.Ready || status === Image.Error) root.finishSplash();
-                }
+                onStatusChanged: if (status === Image.Ready || status === Image.Error) root.finishSplash()
             }
         }
     }
